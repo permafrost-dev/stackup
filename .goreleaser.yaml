@@ -16,8 +16,8 @@ archives:
         format: zip
 
 builds:
-  - main: ./cmd/{{project.name}}
-    binary: '{{project.name}}'
+  - main: ./cmd/stack-supervisor
+    binary: 'stack-supervisor'
     flags:
       - -trimpath
     ldflags:
@@ -32,13 +32,13 @@ builds:
 
 brews:
   -
-    name: '{{project.name}}'
-    homepage: 'https://github.com/{{project.vendor.github}}/{{project.name}}'
-    description: '{{project.description}}'
+    name: 'stack-supervisor'
+    homepage: 'https://github.com/permafrost-dev/stack-supervisor'
+    description: 'a single application to manage your entire dev stack'
     license: "MIT"
     tap:
-      owner: '{{project.vendor.github}}'
-      name: homebrew-{{project.name}}
+      owner: 'permafrost-dev'
+      name: homebrew-stack-supervisor
       branch: main
 
 checksum:

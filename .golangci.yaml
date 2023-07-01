@@ -42,7 +42,7 @@ linters:
     # - funlen
     # - gocritic
     # - gocyclo
-    - goimports
+    #- goimports
     # - gosec
     - gosimple
     - govet

@@ -3,14 +3,14 @@ GOVARS = -X main.Version=$(VERSION)
 SYSTEM = ${GOOS}_${GOARCH}
 
 build:
-	rm dist/{{project.name}}
-	go build -trimpath -ldflags "-s -w -X main.Version=0.1.5-dev" -o dist ./cmd/{{project.name}}
+	rm dist/stack-supervisor
+	go build -trimpath -ldflags "-s -w -X main.Version=0.1.5-dev" -o dist ./cmd/stack-supervisor
 
 build-dist:
-	go build -trimpath -ldflags "-s -w $(GOVARS)" -o build/bin/{{project.name}}-$(VERSION)-$(SYSTEM) ./cmd/{{project.name}}
+	go build -trimpath -ldflags "-s -w $(GOVARS)" -o build/bin/stack-supervisor-$(VERSION)-$(SYSTEM) ./cmd/stack-supervisor
 
-{{project.name}}:
-	go build -trimpath -ldflags "-s -w $(GOVARS)" -o dist ./cmd/{{project.name}}
+stack-supervisor:
+	go build -trimpath -ldflags "-s -w $(GOVARS)" -o dist ./cmd/stack-supervisor
 
 build-dist-all:
 	go run tools/build-all.go
@@ -22,20 +22,20 @@ package-setup:
 
 package: build-dist package-setup
 
-	mkdir -p build/{{project.name}}-$(VERSION)-$(SYSTEM);\
-	cp README.md build/{{project.name}}-$(VERSION)-$(SYSTEM)
+	mkdir -p build/stack-supervisor-$(VERSION)-$(SYSTEM);\
+	cp README.md build/stack-supervisor-$(VERSION)-$(SYSTEM)
 	if [ "${GOOS}" = "windows" ]; then\
-		cp build/bin/{{project.name}}-$(VERSION)-$(SYSTEM) build/{{project.name}}-$(VERSION)-$(SYSTEM)/{{project.name}}.exe;\
+		cp build/bin/stack-supervisor-$(VERSION)-$(SYSTEM) build/stack-supervisor-$(VERSION)-$(SYSTEM)/stack-supervisor.exe;\
 		cd build;\
-		zip -r -q -T archives/{{project.name}}-$(VERSION)-$(SYSTEM).zip {{project.name}}-$(VERSION)-$(SYSTEM);\
+		zip -r -q -T archives/stack-supervisor-$(VERSION)-$(SYSTEM).zip stack-supervisor-$(VERSION)-$(SYSTEM);\
 	else\
-		cp build/bin/{{project.name}}-$(VERSION)-$(SYSTEM) build/{{project.name}}-$(VERSION)-$(SYSTEM)/{{project.name}};\
+		cp build/bin/stack-supervisor-$(VERSION)-$(SYSTEM) build/stack-supervisor-$(VERSION)-$(SYSTEM)/stack-supervisor;\
 		cd build;\
-		tar -czf archives/{{project.name}}-$(VERSION)-$(SYSTEM).tar.gz {{project.name}}-$(VERSION)-$(SYSTEM);\
+		tar -czf archives/stack-supervisor-$(VERSION)-$(SYSTEM).tar.gz stack-supervisor-$(VERSION)-$(SYSTEM);\
 	fi
 
 clean:
 	rm -rf build
 
 lint:
-	golangci-lint run cmd/{{project.name}}
+	golangci-lint run cmd/stack-supervisor

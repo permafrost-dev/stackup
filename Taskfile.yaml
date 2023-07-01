@@ -17,39 +17,39 @@ tasks:
 
   build:
     cmds:
-      - task: build-{{project.name}}
+      - task: build-stack-supervisor
 
   clean:
     desc: Cleans up build artifacts
     cmds:
-      - rm -f ./dist/{{project.name}}
+      - rm -f ./dist/stack-supervisor
     status:
-      - test -f ./dist/{{project.name}}
+      - test -f ./dist/stack-supervisor
 
   lint:
     cmds:
-      - task: lint-{{project.name}}
+      - task: lint-stack-supervisor
 
   update-version-file:
     cmds:
-      - printf "package main\n\nvar Version = \"{{.VERSION}}\"" > ./cmd/{{project.name}}/version.go
+      - printf "package main\n\nvar Version = \"{{.VERSION}}\"" > ./cmd/stack-supervisor/version.go
     status:
-      - test -f ./cmd/{{project.name}}/version.go
-      - grep -q "\"{{.VERSION}}\"" ./cmd/{{project.name}}/version.go
+      - test -f ./cmd/stack-supervisor/version.go
+      - grep -q "\"{{.VERSION}}\"" ./cmd/stack-supervisor/version.go
 
-  lint-{{project.name}}:
+  lint-stack-supervisor:
     desc: Runs golangci-lint
     cmds:
       - golangci-lint run ./cmd/**
 
-  build-{{project.name}}:
-    desc: Builds {{project.name}} binary
+  build-stack-supervisor:
+    desc: Builds stack-supervisor binary
     deps:
       - task: update-version-file
     sources:
-      - './cmd/{{project.name}}/**/*.go'
+      - './cmd/stack-supervisor/**/*.go'
     generates:
-      - ./dist/{{project.name}}
+      - ./dist/stack-supervisor
     cmds:
       - mkdir -p ./dist
-      - go build -trimpath -ldflags="-s -w -X main.Version={{.VERSION}}-{{.GIT_COMMIT}}" -o dist ./cmd/{{project.name}}
+      - go build -trimpath -ldflags="-s -w -X main.Version={{.VERSION}}-{{.GIT_COMMIT}}" -o dist ./cmd/stack-supervisor
