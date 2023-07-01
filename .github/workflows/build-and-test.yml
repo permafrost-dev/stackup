@@ -1,0 +1,43 @@
+name: build
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        go-version: [~1.20]
+        os: [ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      GO111MODULE: "on"
+
+    steps:
+
+      - name: Install Task
+        uses: arduino/setup-task@v1
+
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache-dependency-path: ./go.sum
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Build Application
+        id: build
+        run: task build
+
+      - name: Run Tests
+        if: ${{success()}}
+        run: go test ./...
