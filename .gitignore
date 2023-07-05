@@ -1,6 +1,12 @@
 # Created by https://www.toptal.com/developers/gitignore/api/go,goland,visualstudiocode,dotenv,git
 # Edit at https://www.toptal.com/developers/gitignore?templates=go,goland,visualstudiocode,dotenv,git
 
+Taskfile.yaml
+Taskfile.yml
+stack-supervisor.config.yaml
+stack-supervisor.config.dev.yaml
+dist
+
 ### dotenv ###
 .env
 .env.*

@@ -1,0 +1,108 @@
+version: '3'
+
+applications:
+  orchestrator: podman-compose
+  manager: podman
+
+options:
+  dotenv: true
+  webui: false
+  event-loop:
+    interval: 60s
+
+stack:
+  name: 'my stack'
+  description: 'my laravel application stack'
+  version: 1.0.0
+
+  definitions:
+    - name: FRONTEND_PATH
+      value: env("FRONTEND_PROJECT_PATH")
+    - name: BACKEND_PATH
+      value: env("LOCAL_BACKEND_PROJECT_PATH")
+
+  scheduled:
+    - name: say hello every two minutes
+      command: 'printf "hello world\n"'
+      cron: '*/2 * * * *'
+
+  checks:
+    - name: container apps exist
+      check: 'binariesInPath("podman", "podman-compose")'
+
+    - name: frontend project exists
+      check: 'exists("FRONTEND_PATH")'
+
+    - name: backend project has docker-compose file
+      check: 'exists("BACKEND_PATH/docker-compose.yml")'
+
+    - name: backend project is laravel project
+      check: 'exists("BACKEND_PATH/artisan")'
+
+  tasks:
+    # -
+      # name: stop any hanging containers
+      # if: '{state.containers.find(stack.name)}'
+      # bin: podman-compose
+      # command: down all
+      # sync: true
+    - name: start containers
+      if: 'true'
+      bin: '${Applications.Orchestrator}'
+      command: up -d
+      sync: true
+
+    - name: run migrations (rebuild db)
+      if: 'hasFlag("seed")'
+      bin: php
+      command: artisan migrate:fresh --seed
+      sync: true
+
+    - name: run migrations (no seeding)
+      if: '!hasFlag("seed")'
+      bin: php
+      command: artisan migrate
+      sync: true
+
+    - name: seed temp quickbooks refresh token for dev
+      if: 'true'
+      bin: php
+      command: artisan qb:create-test-token
+      sync: false
+
+  processes:
+    - name: frontend-httpd
+      bin: node
+      command: './node_modules/.bin/next dev'
+      args: './node_modules/.bin/next dev'
+      cwd: FRONTEND_PATH
+
+    - name: horizon
+      id: horizon
+      bin: php
+      command: artisan horizon
+      args: horizon
+      cwd: BACKEND_PATH
+      platforms: ['linux', 'darwin']
+
+    - name: httpd
+      bin: php
+      command: artisan serve
+      args: serve
+      cwd: BACKEND_PATH
+
+    - name: display-horizon-info
+      dependencies:
+        - horizon
+      bin: php
+      commands: artisan horizon:supervisors
+      args:
+      cwd: BACKEND_PATH
+      delay: 5000
+      platforms: ['linux', 'darwin']
+
+  event-loop:
+    - name: artisan scheduler
+      bin: php
+      command: artisan schedule:run
+      cwd: BACKEND_PATH

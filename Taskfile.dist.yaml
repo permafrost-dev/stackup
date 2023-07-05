@@ -1,0 +1,85 @@
+# This file can be run with the `task` utility: https://taskfile.dev/
+version: '3'
+
+dotenv: ['.env', '.env.local']
+
+vars:
+  APP_VERSION_FILE: './app/version.go'
+  BINARY_FILENAME: 'stack-supervisor'
+  BUILD_OUTPUT_DIR: './dist'
+  DIST_TARGET_FILE: '{{.BUILD_OUTPUT_DIR}}/{{.BINARY_FILENAME}}'
+  ENTRY_FILENAME: './main.go'
+  GIT_COMMIT:
+    sh: git log -n 1 --format=%h
+  VERSION:
+    sh: go run tools/build-version.go
+  GOLANGCILINT_CMD_DIRS:
+    sh: find . -name "*.go" -printf '%h\n' | sort -u | egrep -v '^.$' | grep -v './tools' | sd '\n' ' ' | awk -F'|' '{ print $1 }'
+
+tasks:
+
+  mod:
+    desc: Downloads and tidy Go modules
+    cmds:
+      - go mod download
+      - go mod tidy
+
+  build:
+    desc: Builds application
+    preconditions:
+      - task: prepare-dist-folder
+      - task: mod
+    cmds:
+      - task: build-stack-supervisor
+      - task: copy-config-template-to-dist
+
+  clean:
+    desc: Cleans up build artifacts
+    cmds:
+      - rm -f {{.DIST_TARGET_FILE}}
+    status:
+      - test -f {{.DIST_TARGET_FILE}}
+
+  lint:
+    cmds:
+      - task: lint-stack-supervisor
+
+  update-version-file:
+    cmds:
+      - printf "package app\n\nvar Version = \"{{.VERSION}}\"" > {{.APP_VERSION_FILE}}
+    status:
+      - test -f {{.APP_VERSION_FILE}}
+      - grep -q "\"{{.VERSION}}\"" {{.APP_VERSION_FILE}}
+
+  lint-stack-supervisor:
+    desc: Runs golangci-lint
+    cmds:
+      - golangci-lint run {{.GOLANGCILINT_CMD_DIRS}}
+
+  prepare-dist-folder:
+    desc: Prepares dist folder
+    silent: true
+    cmds:
+      - mkdir -p {{.BUILD_OUTPUT_DIR}}
+    status:
+      - test -d {{.BUILD_OUTPUT_DIR}}
+
+  build-stack-supervisor:
+    desc: Builds stack-supervisor binary
+    deps:
+      - task: update-version-file
+    sources:
+      - './cmd/**/*.go'
+      - './**/*.go'
+      - '{{.ENTRY_FILENAME}}'
+    generates:
+      - '{{.DIST_TARGET_FILE}}'
+    cmds:
+      - go build -trimpath -ldflags="-s -w -X main.Version={{.VERSION}}-{{.GIT_COMMIT}}" -o {{.DIST_TARGET_FILE}} {{.ENTRY_FILENAME}}
+
+  copy-config-template-to-dist:
+    desc: Copies config template to dist folder
+    deps:
+      - task: prepare-dist-folder
+    cmds:
+      - cp -f ./templates/*.yaml {{.BUILD_OUTPUT_DIR}}

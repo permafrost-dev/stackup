@@ -29,14 +29,17 @@ run:
   # "/" will be replaced by current OS file path separator to properly work on Windows.
   skip-files:
     - tools/*.go
-    # - cmd/**/version.go
-    # - app/**/version.go
+    - tools/configure/*.go
 
   # Allow multiple parallel golangci-lint instances running; If false (default) - golangci-lint acquires file lock on start.
   allow-parallel-runners: true
-  concurrency: 4
+  concurrency: 8
 
 linters:
+  disable:
+    - errcheck
+    - unused
+    - staticcheck
   enable:
     # - errcheck
     # - funlen
@@ -51,7 +54,7 @@ linters:
     - misspell
     - nestif
     # - revive
-    - staticcheck
+    # - staticcheck
     - typecheck
     - unparam
     # - unused
@@ -82,6 +85,7 @@ linters-settings:
 
   misspell:
     locale: US
+
 
   nestif:
     max-nesting: 3
