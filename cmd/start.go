@@ -1,10 +1,8 @@
 package cmd
 
 import (
-	"github.com/permafrost-dev/stack-supervisor/lib"
-	"github.com/permafrost-dev/stack-supervisor/server"
-	"github.com/permafrost-dev/stack-supervisor/utils"
 	"github.com/spf13/cobra"
+	"github.com/stackup-app/stackup/lib"
 )
 
 // startCmd represents the start command
@@ -17,7 +15,7 @@ and usage of using your command.`,
 	// Run: func(cmd *cobra.Command, args []string) {
 	// 	lib.InitGlobals()
 
-	// 	config, err := configuration.LoadStackConfig(utils.WorkingDir("/stack-supervisor.config.yaml"))
+	// 	config, err := configuration.LoadStackConfig(utils.WorkingDir("/stackup.config.yaml"))
 
 	// 	if err != nil {
 	// 		log.Fatalln(err)
@@ -32,11 +30,10 @@ and usage of using your command.`,
 func startCmdRun(cmd *cobra.Command, args []string) {
 	lib.InitGlobals()
 
-	srv := server.WebServer{}
-	srv.Start()
+	// srv := server.WebServer{}
+	// srv.Start()
 
-	app := lib.Application{}
-	app.LoadStackConfig(utils.WorkingDir("/stack-supervisor.config.yaml"))
+	app := lib.GetApplication(cmd)
 	app.Run(cmd)
 }
 

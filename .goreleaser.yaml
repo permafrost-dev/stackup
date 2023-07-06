@@ -16,8 +16,8 @@ archives:
         format: zip
 
 builds:
-  - main: ./cmd/stack-supervisor
-    binary: 'stack-supervisor'
+  - main: ./cmd/stackup
+    binary: 'stackup'
     flags:
       - -trimpath
     ldflags:
@@ -30,16 +30,16 @@ builds:
       - amd64
       - arm64
 
-brews:
-  -
-    name: 'stack-supervisor'
-    homepage: 'https://github.com/permafrost-dev/stack-supervisor'
-    description: 'a single application to manage your entire dev stack'
-    license: "MIT"
-    tap:
-      owner: 'permafrost-dev'
-      name: homebrew-stack-supervisor
-      branch: main
+# brews:
+#   -
+#     name: 'stackup'
+#     homepage: 'https://github.com/stackup-app/homebrew-stackup'
+#     description: 'a single application to manage your entire dev stack'
+#     license: "MIT"
+#     tap:
+#       owner: 'stackup-app'
+#       name: homebrew-stackup
+#       branch: main
 
 checksum:
   name_template: "checksums.txt"

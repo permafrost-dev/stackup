@@ -42,11 +42,7 @@ func NewEngine(app *Application) *Engine {
 	}
 
 	e.env["env"] = func(name string) string {
-		value, ok := os.LookupEnv(name)
-
-		if !ok {
-			return ""
-		}
+		value := os.Getenv(name)
 
 		return value
 	}

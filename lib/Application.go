@@ -3,6 +3,7 @@ package lib
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -11,23 +12,41 @@ import (
 	"time"
 
 	"github.com/logrusorgru/aurora"
-	"github.com/permafrost-dev/stack-supervisor/state"
-	"github.com/permafrost-dev/stack-supervisor/utils"
 	"github.com/robertkrimen/otto"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
+	jsengine "github.com/stackup-app/stackup/lib/javascriptEngine"
+	"github.com/stackup-app/stackup/utils"
 	"gopkg.in/yaml.v2"
 )
+
+var app Application
+
+func GetApplication(cmd *cobra.Command) *Application {
+	app.hookSignals()
+
+	app = Application{
+		Processes:      make(map[string]*exec.Cmd),
+		CurrentCommand: cmd,
+	}
+	utils.LoadEnv("./.env")
+	app.LoadStackConfig(utils.WorkingDir("/stackup.config.dev.yaml"))
+
+	app.Init()
+
+	return &app
+}
 
 type Application struct {
 	//Name string
 	Config             *StackConfig
 	Processes          map[string]*exec.Cmd
 	ProcessDefinitions []ProcessDefinition
-	State              *state.AppState
-	CurrentCommand     *cobra.Command
-	CronEngine         *cron.Cron
-	Jsvm               *otto.Otto
+	//State              *state.AppState
+	CurrentCommand *cobra.Command
+	CronEngine     *cron.Cron
+	Jsvm           *otto.Otto
+	JsFunctions    jsengine.JavascriptFunctions
 }
 
 func (app *Application) LoadStackConfig(filename string) error {
@@ -130,9 +149,12 @@ func (app *Application) startProcesses() {
 			time.Sleep(time.Until(time.Now().Add(time.Millisecond * def.Delay)))
 		}
 
+		def.StartedAt = time.Now()
+
 		err := cmd.Start()
 
 		if err != nil {
+			def.StoppedAt = time.Now()
 			fmt.Println(err)
 			fmt.Println(`Failed while spawning process for "` + def.Name + `".`)
 			fmt.Println(`Stopping all processes and exiting.`)
@@ -151,12 +173,15 @@ func (app *Application) InitJavascriptEngine() {
 	}
 
 	app.Jsvm = otto.New()
+	app.JsFunctions = jsengine.NewJavascriptFunctions(app.Jsvm)
+
+	fmt.Println(app.Jsvm.Run("env('HOME')"))
 
 	// Define a JavaScript function in Go
-	app.Jsvm.Set("sayHello", func(call otto.FunctionCall) otto.Value {
-		fmt.Printf("Hello, %s.\n", call.Argument(0).String())
-		return otto.Value{}
-	})
+	// app.Jsvm.Set("sayHello", func(call otto.FunctionCall) otto.Value {
+	// 	fmt.Printf("Hello, %s.\n", call.Argument(0).String())
+	// 	return otto.Value{}
+	// })
 
 	// // Call the JavaScript function from Go
 	// vm.Run(`
@@ -164,27 +189,46 @@ func (app *Application) InitJavascriptEngine() {
 	// `)
 }
 
+func (app *Application) InitializeDefinitions() {
+	for _, def := range app.Config.Stack.Definitions {
+		//def.Init(app.Config)
+		def.Value = utils.WorkingDir(def.Value)
+
+		fmt.Printf(">>> newResult=%s\n", def.Value)
+	}
+
+	fmt.Println(app.Config.Stack.Definitions)
+}
+
 func (app *Application) Init() {
-	app.InitJavascriptEngine()
+
+	//app.InitJavascriptEngine()
+	//app.InitializeDefinitions()
+
+	fmt.Println(app.Config.Stack.Definitions)
 
 	app.CronEngine = cron.New(cron.WithParser(
 		cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow),
 	))
 
+	// for idx := range app.Config.Stack.Definitions {
+	// 	app.Config.Definitions[idx].Init(app.Config)
+	// }
 	for idx := range app.Config.Stack.Tasks {
 		app.Config.Stack.Tasks[idx].Init(app.Config)
 	}
-	for idx := range app.Config.Definitions {
-		app.Config.Definitions[idx].Init(app.Config)
+	for _, check := range app.Config.Stack.Checks {
+		check.Init(app.Config)
 	}
-	for idx := range app.Config.Stack.Checks {
-		app.Config.Stack.Checks[idx].Init(app.Config)
-	}
+
+	// app.State = state.NewAppState(app.CronEngine, "1.0")
 
 }
 
 func (app *Application) runStartupTasks() {
 	for _, task := range app.Config.Stack.Tasks {
+
+		fmt.Printf("%v\n", task)
 
 		task.Evaluate(app)
 
@@ -207,12 +251,25 @@ func (app *Application) hookSignals() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP, syscall.SIGSEGV)
 
+	// Define a channel to signal when the cleanup is finished.
+	done := make(chan struct{})
+
 	go func() {
-		<-c
-		app.stopScheduledTasks()
-		app.stopProcesses()
-		app.stopContainers()
-		os.Exit(1)
+		for sig := range c {
+			log.Printf("received signal: %v, stopping...", sig)
+
+			// Run the cleanup operations in a separate goroutine, and signal when they're finished.
+			go func() {
+				app.stopScheduledTasks()
+				app.stopProcesses()
+				app.stopContainers()
+				close(done)
+			}()
+
+			// Wait for the cleanup to finish, then exit.
+			<-done
+			os.Exit(1)
+		}
 	}()
 }
 
@@ -249,60 +306,60 @@ func (app *Application) stopScheduledTasks() {
 }
 
 func (app *Application) Run(cmd *cobra.Command) {
-	app.Processes = make(map[string]*exec.Cmd)
-	app.State = state.NewAppState("1.0")
-	app.CurrentCommand = cmd
 
-	app.hookSignals()
+	//if app.Config.Options.Dotenv {
+	// utils.LoadEnv()
+	//}
 
-	if app.Config.Options.Dotenv {
-		utils.LoadEnv()
-	}
+	fmt.Println(app)
 
-	// evaluate any scripts in the value props
-	for _, def := range app.Config.Definitions {
-		def.Evaluate()
-	}
+	// skipChecks := app.CurrentCommandHasFlag("skip-checks")
 
-	skipChecks := app.CurrentCommandHasFlag("skip-checks")
+	// if !skipChecks {
+	// 	for _, check := range app.Config.Stack.Checks {
+	// 		// for _, def := range app.Config.Stack.Definitions {
+	// 		// 	//def.Init(app.Config)
+	// 		// 	check.Check = strings.ReplaceAll(check.Check, def.Name, def.Value)
+	// 		// }
+	// 		fmt.Println(">>> check: ", check.Check)
 
-	if !skipChecks {
-		for _, check := range app.Config.Stack.Checks {
-			for _, def := range app.Config.Definitions {
-				check.Check = strings.ReplaceAll(check.Check, def.Name, def.Value)
-			}
-			check.Evaluate(app)
+	// 		checkResult := check.Evaluate(app.JsFunctions.Vm)
 
-			if !check.Result {
-				fmt.Println(aurora.BrightYellow("Check '" + check.Name + "' failed, exiting."))
-				os.Exit(1)
-			}
+	// 		if checkResult != "true" {
+	// 			fmt.Println(aurora.BrightYellow("Check '" + check.Name + "' failed, exiting."))
+	// 			os.Exit(1)
+	// 		}
 
-			fmt.Print(check.Name + " ")
-			fmt.Println(aurora.Green("✓"))
-		}
-	}
+	// 		fmt.Print(check.Name + " ")
+	// 		fmt.Println(aurora.Green("✓"))
+	// 	}
+	// }
 
-	if app.hasRunningPodmanContainersForProject() {
-		fmt.Println(aurora.BrightYellow("There are running containers for this project, stopping containers..."))
-		app.stopContainers()
-	}
+	// if app.hasRunningPodmanContainersForProject() {
+	// 	fmt.Println(aurora.BrightYellow("There are running containers for this project, stopping containers..."))
+	// 	app.stopContainers()
+	// }
 
 	fmt.Println(aurora.BrightGreen("Starting project containers..."))
 
-	app.Init()
-	app.runStartupTasks()
+	//app.runStartupTasks()
 	app.startProcesses()
 	app.startScheduledTasks()
+
+	// ctrs := containers.GetActivePodmanContainers()
+
+	// for _, ctr := range ctrs {
+	// 	fmt.Printf("%s -- %s \n", ctr.Name, ctr.ID)
+	// }
 
 	fmt.Printf(aurora.Sprintf(aurora.White(" > Waiting for the start of the next minute before starting event loop... (%v sec)"), time.Until(time.Now().Truncate(time.Minute).Add(time.Minute))))
 	time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
 	fmt.Println(" > Starting event loop for artisan scheduled tasks, executing once per minute at the start of each minute.")
 
-	for {
-		for _, elt := range app.Config.Stack.EventLoop {
-			utils.RunCommand(strings.TrimSpace(elt.Bin + " " + elt.Command))
-		}
-		time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
-	}
+	// for {
+	// 	for _, elt := range app.Config.Stack.EventLoop {
+	// 		utils.RunCommand(strings.TrimSpace(elt.Bin + " " + elt.Command))
+	// 	}
+	// 	time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
+	// }
 }

@@ -1,13 +1,15 @@
 package lib
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/robertkrimen/otto"
+	jsengine "github.com/stackup-app/stackup/lib/javascriptEngine"
 )
 
 type JavaScriptEngine struct {
-	Vm *otto.Otto
+	Functions jsengine.JavascriptFunctions
+	Vm        *otto.Otto
 }
 
 func (e *JavaScriptEngine) Init() {
@@ -16,20 +18,32 @@ func (e *JavaScriptEngine) Init() {
 	}
 
 	e.Vm = otto.New()
-
-	// Define a JavaScript function in Go
-	e.Vm.Set("sayHello", func(call otto.FunctionCall) otto.Value {
-		fmt.Printf("Hello, %s.\n", call.Argument(0).String())
-		return otto.Value{}
-	})
-
-	// // Call the JavaScript function from Go
-	// vm.Run(`
-	// 	sayHello("World");
-	// `)
+	e.Functions = jsengine.NewJavascriptFunctions(e.Vm)
 }
 
-func (e *JavaScriptEngine) Evaluate(script string) otto.Value {
+func (e *JavaScriptEngine) Evaluate(script string) any {
+	getResult := func(v otto.Value) any {
+		switch strings.ToLower(v.Class()) {
+		case "string":
+			result, _ := v.ToString()
+			return result
+		case "boolean":
+			result, _ := v.ToBoolean()
+			return result
+		case "number":
+			result, _ := v.ToFloat()
+			return result
+		case "object":
+			result, _ := v.Export()
+			return result
+		case "undefined":
+			return nil
+		default:
+			return nil
+		}
+	}
+
 	result, _ := e.Vm.Run(script)
-	return result
+
+	return getResult(result)
 }

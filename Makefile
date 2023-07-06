@@ -3,14 +3,14 @@ GOVARS = -X main.Version=$(VERSION)
 SYSTEM = ${GOOS}_${GOARCH}
 
 build:
-	rm dist/stack-supervisor
-	go build -trimpath -ldflags "-s -w -X main.Version=0.1.5-dev" -o dist ./cmd/stack-supervisor
+	rm dist/stackup
+	go build -trimpath -ldflags "-s -w -X main.Version=0.1.5-dev" -o dist ./cmd/stackup
 
 build-dist:
-	go build -trimpath -ldflags "-s -w $(GOVARS)" -o build/bin/stack-supervisor-$(VERSION)-$(SYSTEM) ./cmd/stack-supervisor
+	go build -trimpath -ldflags "-s -w $(GOVARS)" -o build/bin/stackup-$(VERSION)-$(SYSTEM) ./cmd/stackup
 
-stack-supervisor:
-	go build -trimpath -ldflags "-s -w $(GOVARS)" -o dist ./cmd/stack-supervisor
+stackup:
+	go build -trimpath -ldflags "-s -w $(GOVARS)" -o dist ./cmd/stackup
 
 build-dist-all:
 	go run tools/build-all.go
@@ -22,20 +22,20 @@ package-setup:
 
 package: build-dist package-setup
 
-	mkdir -p build/stack-supervisor-$(VERSION)-$(SYSTEM);\
-	cp README.md build/stack-supervisor-$(VERSION)-$(SYSTEM)
+	mkdir -p build/stackup-$(VERSION)-$(SYSTEM);\
+	cp README.md build/stackup-$(VERSION)-$(SYSTEM)
 	if [ "${GOOS}" = "windows" ]; then\
-		cp build/bin/stack-supervisor-$(VERSION)-$(SYSTEM) build/stack-supervisor-$(VERSION)-$(SYSTEM)/stack-supervisor.exe;\
+		cp build/bin/stackup-$(VERSION)-$(SYSTEM) build/stackup-$(VERSION)-$(SYSTEM)/stackup.exe;\
 		cd build;\
-		zip -r -q -T archives/stack-supervisor-$(VERSION)-$(SYSTEM).zip stack-supervisor-$(VERSION)-$(SYSTEM);\
+		zip -r -q -T archives/stackup-$(VERSION)-$(SYSTEM).zip stackup-$(VERSION)-$(SYSTEM);\
 	else\
-		cp build/bin/stack-supervisor-$(VERSION)-$(SYSTEM) build/stack-supervisor-$(VERSION)-$(SYSTEM)/stack-supervisor;\
+		cp build/bin/stackup-$(VERSION)-$(SYSTEM) build/stackup-$(VERSION)-$(SYSTEM)/stackup;\
 		cd build;\
-		tar -czf archives/stack-supervisor-$(VERSION)-$(SYSTEM).tar.gz stack-supervisor-$(VERSION)-$(SYSTEM);\
+		tar -czf archives/stackup-$(VERSION)-$(SYSTEM).tar.gz stackup-$(VERSION)-$(SYSTEM);\
 	fi
 
 clean:
 	rm -rf build
 
 lint:
-	golangci-lint run cmd/stack-supervisor
+	golangci-lint run cmd/stackup

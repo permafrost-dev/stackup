@@ -5,7 +5,7 @@ dotenv: ['.env', '.env.local']
 
 vars:
   APP_VERSION_FILE: './app/version.go'
-  BINARY_FILENAME: 'stack-supervisor'
+  BINARY_FILENAME: 'stackup'
   BUILD_OUTPUT_DIR: './dist'
   DIST_TARGET_FILE: '{{.BUILD_OUTPUT_DIR}}/{{.BINARY_FILENAME}}'
   ENTRY_FILENAME: './main.go'
@@ -30,7 +30,7 @@ tasks:
       - task: prepare-dist-folder
       - task: mod
     cmds:
-      - task: build-stack-supervisor
+      - task: build-stackup
       - task: copy-config-template-to-dist
 
   clean:
@@ -42,7 +42,7 @@ tasks:
 
   lint:
     cmds:
-      - task: lint-stack-supervisor
+      - task: lint-stackup
 
   update-version-file:
     cmds:
@@ -51,7 +51,7 @@ tasks:
       - test -f {{.APP_VERSION_FILE}}
       - grep -q "\"{{.VERSION}}\"" {{.APP_VERSION_FILE}}
 
-  lint-stack-supervisor:
+  lint-stackup:
     desc: Runs golangci-lint
     cmds:
       - golangci-lint run {{.GOLANGCILINT_CMD_DIRS}}
@@ -64,8 +64,8 @@ tasks:
     status:
       - test -d {{.BUILD_OUTPUT_DIR}}
 
-  build-stack-supervisor:
-    desc: Builds stack-supervisor binary
+  build-stackup:
+    desc: Builds stackup binary
     deps:
       - task: update-version-file
     sources:

@@ -1,12 +1,18 @@
 package lib
 
-import "github.com/permafrost-dev/stack-supervisor/utils"
+import (
+	"fmt"
+
+	"github.com/robertkrimen/otto"
+	jsengine "github.com/stackup-app/stackup/lib/javascriptEngine"
+	"github.com/stackup-app/stackup/utils"
+)
 
 type Check struct {
-	Name      string   `yaml:"name"`
-	Check     string   `yaml:"check"`
-	Platforms []string `yaml:"platforms,omitempty"`
-	Result    bool
+	Name  string `yaml:"name"`
+	Check string `yaml:"check"`
+
+	Result string
 }
 
 func (c *Check) Init(config *StackConfig) {
@@ -14,13 +20,14 @@ func (c *Check) Init(config *StackConfig) {
 	c.Check = utils.ReplaceConfigurationKeyVariablesInMap(c.Check, config, "config")
 }
 
-func (c *Check) Evaluate(app *Application) {
-	engine := NewEngine(app)
-	result, err := engine.Evaluate(c.Check)
-
-	c.Result = result.(bool)
-
+func (c *Check) Evaluate(vm *otto.Otto) string {
+	result, err := jsengine.EvaluateScript(c.Check)
 	if err != nil {
-		c.Result = false
+		fmt.Println("Error:", err)
+		return ""
 	}
+
+	c.Result = result.String()
+
+	return c.Result
 }

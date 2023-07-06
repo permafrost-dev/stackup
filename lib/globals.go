@@ -8,7 +8,7 @@ import (
 var MyGlobal = "hello world"
 var dir, _ = os.Getwd()
 
-var ConfigFileName = path.Join(dir, "stack-supervisor.config.yaml")
+var ConfigFileName = path.Join(dir, "stackup.config.yaml")
 
 type globalDefs struct {
 	ConfigFileName string

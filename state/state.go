@@ -1,33 +1,48 @@
 package state
 
+import (
+	"fmt"
+	"time"
+
+	"github.com/robfig/cron/v3"
+	"github.com/stackup-app/stackup/containers"
+)
+
 // Define the state struct
 type AppState struct {
-	Users   map[string]string // Map of usernames to user data
-	Version string            // The current app version
+	StartedAt         time.Time // The time the app was started
+	Version           string    // The current app version
+	CronEngine        *cron.Cron
+	RunningContainers *containers.PodmanContainers
 }
 
 // Initialize a new AppState
-func NewAppState(version string) *AppState {
-	return &AppState{
-		Users:   make(map[string]string),
-		Version: version,
+func NewAppState(cron *cron.Cron, version string) *AppState {
+	// cronengine := cron.New(cron.WithParser(
+	// 	cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow),
+	// ))
+
+	result := &AppState{
+		StartedAt:  time.Now(),
+		Version:    version,
+		CronEngine: cron,
 	}
+
+	return result
+}
+
+func (s *AppState) Init() {
+	// s.CronEngine.AddFunc("* * * * *", s.RefreshRunningContainers)
+}
+
+func (s *AppState) RefreshRunningContainers() {
+	fmt.Println("refreshing running containers...")
+	s.SetRunningContainers()
 }
 
 // Add a user to the state
-func (s *AppState) AddUser(username, data string) {
-	s.Users[username] = data
-}
-
-// Remove a user from the state
-func (s *AppState) RemoveUser(username string) {
-	delete(s.Users, username)
-}
-
-// Get user data from the state
-func (s *AppState) GetUserData(username string) (string, bool) {
-	data, exists := s.Users[username]
-	return data, exists
+func (s *AppState) SetRunningContainers() {
+	s.RunningContainers = containers.GetActivePodmanContainers()
 }
 
 // Update the app version

@@ -1,4 +1,3 @@
 package configuration
 
-//simport "github.com/permafrost-dev/stack-supervisor/utils"
-
+//simport "github.com/stackup-app/stackup/utils"

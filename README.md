@@ -1,4 +1,4 @@
-# stack-supervisor
+# stackup
 
 ---
 

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/shirou/gopsutil/process"
 )
 
 func AbsoluteFilePath(path string) string {
@@ -39,7 +40,7 @@ func Colorize(text string, color int) string {
 
 func LoadEnv(filenames ...string) bool {
 	if len(filenames) == 0 {
-		filenames = append(filenames, ".env", ".env.local")
+		filenames = append(filenames, WorkingDir(".env"))
 	}
 
 	err := godotenv.Load(filenames...)
@@ -345,4 +346,26 @@ func ParseDurationString(duration string) int64 {
 
 	// Convert the duration to seconds and return it as an int64
 	return int64(d.Milliseconds())
+}
+
+func CheckProcessCpuLoad(pid int32) float64 {
+	p, err := process.NewProcess(pid)
+	if err != nil {
+		return 0.0
+	}
+
+	result, _ := p.CPUPercent()
+	return result
+}
+
+func CheckProcessMemoryUsage(pid int32) float64 {
+	p, err := process.NewProcess(pid)
+
+	if err != nil {
+		return 0.0
+	}
+
+	result, _ := p.MemoryPercent()
+
+	return float64(result)
 }

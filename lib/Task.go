@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/permafrost-dev/stack-supervisor/utils"
+	"github.com/stackup-app/stackup/utils"
 )
 
 type Task struct {
