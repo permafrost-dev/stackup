@@ -39,11 +39,11 @@ func Colorize(text string, color int) string {
 }
 
 func LoadEnv(filenames ...string) bool {
-	if len(filenames) == 0 {
-		filenames = append(filenames, WorkingDir(".env"))
-	}
+	// if len(filenames) == 0 {
+	// 	filenames = append(filenames, WorkingDir(".env"))
+	// }
 
-	err := godotenv.Load(filenames...)
+	err := godotenv.Load()
 
 	if err != nil {
 		log.Println("Error loading .env file:", err)

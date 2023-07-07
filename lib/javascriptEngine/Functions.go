@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	flags "github.com/jessevdk/go-flags"
 	"github.com/robertkrimen/otto"
+	"github.com/stackup-app/stackup/utils"
 )
 
 type JavascriptFunctions struct {
@@ -22,6 +24,8 @@ func NewJavascriptFunctions(vm *otto.Otto) JavascriptFunctions {
 func (jf *JavascriptFunctions) Init() {
 	jf.Vm.Set("exists", CreateJavascriptFunctionExists)
 	jf.Vm.Set("env", CreateJavascriptFunctionEnv)
+	jf.Vm.Set("exec", CreateJavascriptFunctionExec)
+	jf.Vm.Set("hasFlag", CreateJavascriptFunctionHasFlag)
 
 	fmt.Println("created javascript functions")
 
@@ -38,6 +42,32 @@ func CreateJavascriptFunctionExists(call otto.FunctionCall) otto.Value {
 
 func CreateJavascriptFunctionEnv(call otto.FunctionCall) otto.Value {
 	result := os.Getenv(call.Argument(0).String())
+	finalResult, _ := call.Otto.ToValue(result)
+
+	return finalResult
+}
+
+func CreateJavascriptFunctionExec(call otto.FunctionCall) otto.Value {
+	fmt.Println("executing command " + call.Argument(0).String())
+	fmt.Println("exec: " + call.Argument(0).String())
+	result := utils.RunCommandEx(call.Argument(0).String(), ".")
+
+	finalResult, _ := call.Otto.ToValue(result.ProcessState.Success())
+
+	return finalResult
+}
+
+func CreateJavascriptFunctionHasFlag(call otto.FunctionCall) otto.Value {
+	result := false
+	flag := call.Argument(0).String()
+
+	for _, v := range os.Args[1:] {
+		if v == flag {
+			result = true
+			break
+		}
+	}
+
 	finalResult, _ := call.Otto.ToValue(result)
 
 	return finalResult
@@ -67,6 +97,22 @@ func EvaluateScript(script string) (otto.Value, error) {
 		tempResult := os.Getenv(value)
 		result, _ := vm.ToValue(tempResult)
 
+		return result
+	})
+
+	vm.Set("hasFlag", func(call otto.FunctionCall) otto.Value {
+		value, _ := call.Argument(0).ToString()
+		r, _ := flags.Parse(os.Args[:1])
+
+		temp := false
+		for _, v := range r {
+			if v == value {
+				temp = true
+				break
+			}
+		}
+
+		result, _ := vm.ToValue(temp)
 		return result
 	})
 

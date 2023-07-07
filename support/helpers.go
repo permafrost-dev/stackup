@@ -41,3 +41,7 @@ func StatusMessage(msg string, highlight bool) {
 func PrintCheckMark() {
 	fmt.Print(aurora.BrightGreen(" ✓").String())
 }
+
+func PrintCheckMarkLine() {
+	fmt.Print(aurora.BrightGreen(" ✓\n").String())
+}

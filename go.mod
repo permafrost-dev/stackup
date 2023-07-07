@@ -93,6 +93,7 @@ require (
 	github.com/antonmedv/expr v1.12.5
 	github.com/go-git/go-git/v5 v5.7.0
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jessevdk/go-flags v1.5.0
 	github.com/kataras/iris/v12 v12.2.0
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/logrusorgru/aurora/v4 v4.0.0

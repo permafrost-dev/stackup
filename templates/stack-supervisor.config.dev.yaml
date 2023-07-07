@@ -25,7 +25,7 @@ preconditions:
 tasks:
   - name: start containers
     message: Starting containers...
-    command: exec("podman-compose up -d")
+    command: podman-compose up -d
 
   - name: run migrations (rebuild db)
     if: hasFlag("seed")
@@ -36,21 +36,22 @@ tasks:
     command: php artisan migrate
 
   - name: seed temp quickbooks refresh token for dev
+    if: true
     command: php artisan qb:create-test-token
 
 servers:
   - name: frontend-httpd
     command: node ./node_modules/.bin/next dev
-    cwd: env("FRONTEND_PROJECT_PATH")
+    cwd: '{{ env("FRONTEND_PROJECT_PATH") }}'
 
   - name: horizon queue
     command: php artisan horizon
-    cwd: env("LOCAL_BACKEND_PROJECT_PATH")
+    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
     platforms: ['linux', 'darwin']
 
   - name: httpd
     command: php artisan serve
-    cwd: env("LOCAL_BACKEND_PROJECT_PATH")
+    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
 
 scheduler:
     - name: say hello every two minutes

@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"flag"
 	"os"
+	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/stackup-app/stackup/lib"
 	"github.com/stackup-app/stackup/support"
 	"github.com/stackup-app/stackup/utils"
@@ -20,9 +21,6 @@ var (
 	seedDatabase = flag.Bool("seed", false, "Seed the database")
 	displayHelp  = flag.Bool("help", false, "Display help")
 
-	frontendProjectPath = filepath.Join("..", "acd-pos-frontend")
-	backendProjectPath  = filepath.Dir(os.Args[0])
-
 	workflow = workflows.LoadWorkflowFile("stack-supervisor.config.dev.yaml")
 
 	jsengine = lib.CreateNewJavascriptEngine()
@@ -32,7 +30,7 @@ var (
 
 func hookSignals() {
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGSEGV, syscall.SIGQUIT, syscall.SIGHUP)
 
 	go func() {
 		<-c
@@ -43,46 +41,54 @@ func hookSignals() {
 
 func startServerProcesses(serverDefs []workflows.Server) {
 	for _, def := range serverDefs {
-		go func(def workflows.Server) {
-			// time.Sleep(def.delay)
+		// time.Sleep(def.delay)
 
-			def.Cwd = jsengine.Evaluate(def.Cwd).(string)
-			if def.Message != "" {
-				support.StatusMessageLine(def.Message, false)
-			} else {
-				support.StatusMessage("Starting "+def.Name+"...", false)
-			}
+		if jsengine.IsEvaluatableScriptString(def.Cwd) {
+			script := jsengine.GetEvaluatableScriptString(def.Cwd)
+			tempCwd := jsengine.Evaluate(script)
+			def.Cwd = tempCwd.(string)
+		}
 
-			cmd, _ := utils.StartCommand(def.Command)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			cmd.Start()
+		support.StatusMessage("Starting "+def.Name+"...", false)
 
-			if cmd.ProcessState.Exited() && !cmd.ProcessState.Success() {
-				support.FailureMessageWithXMark("Failed to start process " + def.Name)
-				stopServerProcesses()
-				os.Exit(1)
-			}
+		cmd, _ := utils.StartCommand(def.Command)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Dir = def.Cwd
+		cmd.Start()
 
-			processes.Store(def.Name, cmd)
-		}(def)
+		support.PrintCheckMarkLine()
+
+		// if cmd.ProcessState.Exited() && !cmd.ProcessState.Success() {
+		// 	support.FailureMessageWithXMark("Failed to start process " + def.Name)
+		// 	stopServerProcesses()
+		// 	os.Exit(1)
+		// }
+
+		processes.Store(def.Name, cmd)
 	}
 }
 
 func stopServerProcesses() {
-	processes.Range(func(key, value interface{}) bool {
-		support.StatusMessage("Stopping "+key.(string)+"...", false)
-		value.(*os.Process).Kill()
-		support.PrintCheckMark()
-		return true
-	})
-
 	support.StatusMessage("Stopping containers...", true)
 	utils.RunCommand("podman-compose down")
-	support.PrintCheckMark()
+	support.SuccessMessageWithCheck("All containers stopped")
+
+	var stopServer = func(key any, value any) {
+		support.StatusMessage("Stopping "+key.(string)+"...", false)
+		value.(*exec.Cmd).Process.Kill()
+		support.PrintCheckMarkLine()
+	}
+
+	processes.Range(func(key any, value any) bool {
+		go stopServer(key, value)
+		return true
+	})
 }
 
 func main() {
+	godotenv.Load()
+
 	flag.Parse()
 
 	if *displayHelp {
@@ -151,11 +157,16 @@ func runStartupTasks(tasks []workflows.Task) {
 			}
 		}
 
-		cmd := utils.RunCommand(task.Command)
-		if cmd.ProcessState.Success() {
+		if jsengine.IsEvaluatableScriptString(task.Command) {
+			jsengine.Evaluate(jsengine.GetEvaluatableScriptString(task.Command))
 			support.SuccessMessageWithCheck(task.Name)
 		} else {
-			support.FailureMessageWithXMark(task.Name)
+			cmd := utils.RunCommand(task.Command)
+			if cmd != nil {
+				support.SuccessMessageWithCheck(task.Name)
+			} else {
+				support.FailureMessageWithXMark(task.Name)
+			}
 		}
 	}
 }

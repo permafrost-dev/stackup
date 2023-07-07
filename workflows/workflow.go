@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"io/ioutil"
+	"os/exec"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -39,6 +40,7 @@ type Task struct {
 	Name    string `yaml:"name"`
 	Command string `yaml:"command"`
 	If      string `yaml:"if,omitempty"`
+	Result  *exec.Cmd
 }
 type Server struct {
 	Name      string   `yaml:"name"`
