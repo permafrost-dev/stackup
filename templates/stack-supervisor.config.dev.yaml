@@ -54,9 +54,14 @@ servers:
     cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
 
 scheduler:
-    - name: say hello every two minutes
+    - name: say hello every 15 seconds
       command: printf "hello world\n"
-      cron: '*/2 * * * *'
+      cron: '*/15 * * * * *'
+
+    - name: say goodbye every 2 minutes
+      command: printf "goodbye\n"
+      cron: '*/30 * * * * *'
+
 
 event-loop:
   interval: 60s

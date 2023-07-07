@@ -4,7 +4,7 @@
 
 a single application to manage your entire dev stack.
 
-## About Stacku
+## About Stackup
 
 The application we've developed is a comprehensive tool designed to manage your entire development stack. It's a one-stop solution that brings together all the elements of your development environment, providing a unified interface to control and monitor each component. This includes everything from your frontend and backend projects, to databases, servers, queues, and even third-party services.
 
@@ -82,6 +82,26 @@ servers:
     command: php artisan serve
     cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
 ```
+
+## Configuration: Scheduler
+
+The `scheduler` section of the configuration file is used to specify a list of tasks that the application should run on a schedule, separate from any event loop tasks. 
+Each scheduled task is defined by a `name`, a `command`, and a `cron` string.
+
+Here is an example of the `scheduler` section:
+
+```yaml
+scheduler:
+    - name: say hello every 1 minute
+      command: printf "hello world\n"
+      cron: '0 */1 * * * *'
+
+    - name: say goodbye every 30 seconds
+      command: printf "goodbye\n"
+      cron: '*/30 * * * * *'
+```
+
+Note that these cron schedules differ from the standard in that you must specify seconds as the first item, followed by the usual items (minute, hour, etc.).
 
 ## Setup
 

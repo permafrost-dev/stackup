@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/robfig/cron/v3"
 	"github.com/stackup-app/stackup/lib"
 	"github.com/stackup-app/stackup/support"
 	"github.com/stackup-app/stackup/utils"
@@ -25,6 +26,12 @@ var (
 
 	jsengine = lib.CreateNewJavascriptEngine()
 
+	cronEngine = cron.New(
+		cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)),
+		cron.WithParser(cron.NewParser(cron.Second|cron.Minute|cron.Hour|cron.Dom|cron.Month|cron.Dow)),
+	)
+	scheduledTaskMap = sync.Map{}
+
 	processes sync.Map
 )
 
@@ -34,9 +41,33 @@ func hookSignals() {
 
 	go func() {
 		<-c
+		cronEngine.Stop()
 		stopServerProcesses()
 		os.Exit(0)
 	}()
+}
+
+func createScheduledTasks(defs []workflows.ScheduledTask) {
+	for _, def := range defs {
+		_, found := scheduledTaskMap.Load(def.Name)
+
+		if found {
+			continue
+		}
+
+		cronEngine.AddFunc(def.Cron, func() {
+			go func() {
+				if jsengine.IsEvaluatableScriptString(def.Command) {
+					jsengine.Evaluate(jsengine.GetEvaluatableScriptString(def.Command))
+				} else {
+					utils.RunCommand(def.Command)
+				}
+				support.SuccessMessageWithCheck(def.Name)
+			}()
+		})
+
+		scheduledTaskMap.Store(def.Name, &def)
+	}
 }
 
 func startServerProcesses(serverDefs []workflows.Server) {
@@ -102,11 +133,15 @@ func main() {
 	support.StatusMessageLine("Running precondition checks...", true)
 	runPreconditions(workflow.Preconditions)
 
+	createScheduledTasks(workflow.Scheduler)
+
 	support.StatusMessageLine("Running startup tasks...", true)
 	runStartupTasks(workflow.Tasks)
 
 	support.StatusMessageLine("Starting server processes...", true)
 	startServerProcesses(workflow.Servers)
+
+	cronEngine.Start()
 
 	support.StatusMessageLine("Waiting for the start of the next minute to begin event loop...", true)
 	waitForStartOfNextMinute()

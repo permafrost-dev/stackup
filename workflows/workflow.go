@@ -9,16 +9,16 @@ import (
 )
 
 type StackupWorkflow struct {
-	Name          string         `yaml:"name"`
-	Description   string         `yaml:"description"`
-	Version       string         `yaml:"version"`
-	Binaries      Binaries       `yaml:"binaries"`
-	Filenames     Filenames      `yaml:"filenames"`
-	Preconditions []Precondition `yaml:"preconditions"`
-	Tasks         []Task         `yaml:"tasks"`
-	Servers       []Server       `yaml:"servers"`
-	Scheduler     []Scheduler    `yaml:"scheduler"`
-	EventLoop     EventLoop      `yaml:"event-loop"`
+	Name          string          `yaml:"name"`
+	Description   string          `yaml:"description"`
+	Version       string          `yaml:"version"`
+	Binaries      Binaries        `yaml:"binaries"`
+	Filenames     Filenames       `yaml:"filenames"`
+	Preconditions []Precondition  `yaml:"preconditions"`
+	Tasks         []Task          `yaml:"tasks"`
+	Servers       []Server        `yaml:"servers"`
+	Scheduler     []ScheduledTask `yaml:"scheduler"`
+	EventLoop     EventLoop       `yaml:"event-loop"`
 }
 type Containers struct {
 	Compose string `yaml:"compose"`
@@ -49,7 +49,7 @@ type Server struct {
 	Cwd       string   `yaml:"cwd"`
 	Platforms []string `yaml:"platforms,omitempty"`
 }
-type Scheduler struct {
+type ScheduledTask struct {
 	Name    string `yaml:"name"`
 	Command string `yaml:"command"`
 	Cron    string `yaml:"cron"`

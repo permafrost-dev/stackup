@@ -27,8 +27,6 @@ func (jf *JavascriptFunctions) Init() {
 	jf.Vm.Set("exec", CreateJavascriptFunctionExec)
 	jf.Vm.Set("hasFlag", CreateJavascriptFunctionHasFlag)
 
-	fmt.Println("created javascript functions")
-
 	jf.Initialized = true
 }
 
