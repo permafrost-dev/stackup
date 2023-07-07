@@ -6,6 +6,8 @@ Taskfile.yml
 stackup.config.yaml
 stackup.config.dev.yaml
 dist
+.task
+.trunk
 
 ### dotenv ###
 .env

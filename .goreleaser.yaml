@@ -4,7 +4,7 @@ env:
 
 before:
   hooks:
-    - go mod tidy
+    - task mod
     - task update-version-file
 
 universal_binaries:
@@ -17,7 +17,7 @@ archives:
 
 builds:
   - main: ./cmd/stackup
-    binary: 'stackup'
+    binary: stackup
     flags:
       - -trimpath
     ldflags:
@@ -42,5 +42,5 @@ builds:
 #       branch: main
 
 checksum:
-  name_template: "checksums.txt"
+  name_template: checksums.txt
   algorithm: sha256

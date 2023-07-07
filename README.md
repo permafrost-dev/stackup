@@ -2,8 +2,6 @@
 
 ---
 
-
-
 a single application to manage your entire dev stack
 
 ## Setup
@@ -11,7 +9,6 @@ a single application to manage your entire dev stack
 ```bash
 go mod tidy
 ```
-
 
 ## Building the project
 

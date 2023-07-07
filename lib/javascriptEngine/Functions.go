@@ -20,10 +20,10 @@ func NewJavascriptFunctions(vm *otto.Otto) JavascriptFunctions {
 }
 
 func (jf *JavascriptFunctions) Init() {
-	// jf.Vm.Set("exists", CreateJavascriptFunctionExists)
-	// jf.Vm.Set("env", CreateJavascriptFunctionEnv)
+	jf.Vm.Set("exists", CreateJavascriptFunctionExists)
+	jf.Vm.Set("env", CreateJavascriptFunctionEnv)
 
-	// fmt.Println("created javascript functions")
+	fmt.Println("created javascript functions")
 
 	jf.Initialized = true
 }

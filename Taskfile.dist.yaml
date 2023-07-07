@@ -5,16 +5,16 @@ dotenv: ['.env', '.env.local']
 
 vars:
   APP_VERSION_FILE: './app/version.go'
-  BINARY_FILENAME: 'stackup'
+  ENTRY_FILENAME: './app/main.go'
   BUILD_OUTPUT_DIR: './dist'
+  BINARY_FILENAME: 'stackup'
   DIST_TARGET_FILE: '{{.BUILD_OUTPUT_DIR}}/{{.BINARY_FILENAME}}'
-  ENTRY_FILENAME: './main.go'
   GIT_COMMIT:
     sh: git log -n 1 --format=%h
-  VERSION:
-    sh: go run tools/build-version.go
   GOLANGCILINT_CMD_DIRS:
     sh: find . -name "*.go" -printf '%h\n' | sort -u | egrep -v '^.$' | grep -v './tools' | sd '\n' ' ' | awk -F'|' '{ print $1 }'
+  DOTENV_FILES:
+    sh: find . -name ".env*" -print | sort -u | grep -v './dist' | sd '\n' ' ' | awk -F'|' '{ print $1 }'
 
 tasks:
 
@@ -35,24 +35,35 @@ tasks:
 
   clean:
     desc: Cleans up build artifacts
+    preconditions:
+      - test -d {{.BUILD_OUTPUT_DIR}}
+      - test -f {{.DIST_TARGET_FILE}}
     cmds:
       - rm -f {{.DIST_TARGET_FILE}}
-    status:
-      - test -f {{.DIST_TARGET_FILE}}
 
   lint:
     cmds:
+      - task: lint-dotenv
       - task: lint-stackup
 
   update-version-file:
     cmds:
-      - printf "package app\n\nvar Version = \"{{.VERSION}}\"" > {{.APP_VERSION_FILE}}
+      #- printf "package main\n\nconst APP_VERSION = \"{{.VERSION}}\"" > {{.APP_VERSION_FILE}}
+      - go run tools/generate-version-file.go
     status:
       - test -f {{.APP_VERSION_FILE}}
-      - grep -q "\"{{.VERSION}}\"" {{.APP_VERSION_FILE}}
+
+  lint-dotenv:
+    desc: Lints all dotenv files
+    preconditions:
+      - which dotenv-linter
+    cmds:
+      - dotenv-linter {{.DOTENV_FILES}}
 
   lint-stackup:
     desc: Runs golangci-lint
+    preconditions:
+      - which golangci-lint
     cmds:
       - golangci-lint run {{.GOLANGCILINT_CMD_DIRS}}
 
@@ -69,8 +80,6 @@ tasks:
     deps:
       - task: update-version-file
     sources:
-      - './cmd/**/*.go'
-      - './**/*.go'
       - '{{.ENTRY_FILENAME}}'
     generates:
       - '{{.DIST_TARGET_FILE}}'
@@ -83,3 +92,5 @@ tasks:
       - task: prepare-dist-folder
     cmds:
       - cp -f ./templates/*.yaml {{.BUILD_OUTPUT_DIR}}
+      - cp -f {{.DIST_TARGET_FILE}} ./../acd-pos-backend
+      - cp -f {{.BUILD_OUTPUT_DIR}}/*.dev.yaml ./../acd-pos-backend

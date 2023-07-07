@@ -74,6 +74,41 @@ func RunCommand(input string) *exec.Cmd {
 	return c
 }
 
+func RunCommandEx(input string, cwd string) *exec.Cmd {
+	// Split the input into command and arguments
+	parts := strings.Split(input, " ")
+	cmd := parts[0]
+	// The rest of the parts are the arguments
+	args := parts[1:]
+
+	c := exec.Command(cmd, args...)
+	c.Dir = cwd
+
+	// Connect the command's output to the standard output
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+
+	// Start the command
+	if err := c.Run(); err != nil {
+		log.Fatal(err)
+	}
+
+	return c
+}
+
+func StartCommand(input string) (*exec.Cmd, error) {
+	// Split the input into command and arguments
+	parts := strings.Split(input, " ")
+	cmd := parts[0]
+	args := parts[1:]
+
+	c := exec.Command(cmd, args...)
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+
+	return c, nil
+}
+
 func WorkingDir(filenames ...string) string {
 	dir, err := os.Getwd()
 	if err != nil {

@@ -1,43 +1,20 @@
-version: '3'
+name: my stack
+description: my laravel application stack
+version: 1.0.0
 
-applications:
-  orchestrator: podman-compose
-  manager: podman
+binaries:
+  php: php8.2
+  containers:
+    compose: podman-compose
+    manager: podman
 
-options:
-  dotenv: true
-  webui: false
-  event-loop:
-    interval: 60s
+filenames:
+  dotenv: [".env", ".env.local"]
+  dockercompose: env("LOCAL_BACKEND_PROJECT_PATH") + "/docker-compose.yml"
 
-definitions:
-  - name: FRONTEND_PATH
-    value: './../acd-pos-frontend'
-  - name: BACKEND_PATH
-    value: '.' #'env("LOCAL_BACKEND_PROJECT_PATH")'
-
-stack:
-  name: 'my stack'
-  description: 'my laravel application stack'
-  version: 1.0.0
-
-  definitions:
-    - name: FRONTEND_PATH
-      value: './../acd-pos-frontend'
-    - name: BACKEND_PATH
-      value: '.' #'env("LOCAL_BACKEND_PROJECT_PATH")'
-
-  scheduled:
-    - name: say hello every two minutes
-      command: 'printf "hello world\n"'
-      cron: '*/2 * * * *'
-
-  checks:
-    # - name: container apps exist
-    #   check: 'binariesInPath("podman", "podman-compose")'
-
+preconditions:
     - name: frontend project exists
-      check: exists(env("HOME"))
+      check: exists(env("FRONTEND_PROJECT_PATH"))
 
     - name: backend project has docker-compose file
       check: exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/docker-compose.yml")
@@ -45,70 +22,44 @@ stack:
     - name: backend project is laravel project
       check: exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/artisan")
 
-  tasks:
-    # -
-      # name: stop any hanging containers
-      # if: '{state.containers.find(stack.name)}'
-      # bin: podman-compose
-      # command: down all
-      # sync: true
-    - name: start containers
-      if: 'true'
-      bin: '${Applications.Orchestrator}'
-      command: up -d
-      sync: true
+tasks:
+  - name: start containers
+    message: Starting containers...
+    command: exec("podman-compose up -d")
 
-    - name: run migrations (rebuild db)
-      if: 'hasFlag("seed")'
-      bin: php
-      command: artisan migrate:fresh --seed
-      sync: true
+  - name: run migrations (rebuild db)
+    if: hasFlag("seed")
+    command: php artisan migrate:fresh --seed
 
-    - name: run migrations (no seeding)
-      if: '!hasFlag("seed")'
-      bin: php
-      command: artisan migrate
-      sync: true
+  - name: run migrations (no seeding)
+    if: hasFlag("seed")
+    command: php artisan migrate
 
-    - name: seed temp quickbooks refresh token for dev
-      if: 'true'
-      bin: php
-      command: artisan qb:create-test-token
-      sync: false
+  - name: seed temp quickbooks refresh token for dev
+    command: php artisan qb:create-test-token
 
-  processes:
-    - name: frontend-httpd
-      bin: node
-      command: './node_modules/.bin/next dev'
-      args: './node_modules/.bin/next dev'
-      cwd: FRONTEND_PATH
+servers:
+  - name: frontend-httpd
+    command: node ./node_modules/.bin/next dev
+    cwd: env("FRONTEND_PROJECT_PATH")
 
-    - name: horizon
-      id: horizon
-      bin: php
-      command: artisan horizon
-      args: horizon
-      cwd: BACKEND_PATH
-      platforms: ['linux', 'darwin']
+  - name: horizon queue
+    command: php artisan horizon
+    cwd: env("LOCAL_BACKEND_PROJECT_PATH")
+    platforms: ['linux', 'darwin']
 
-    - name: httpd
-      bin: php
-      command: artisan serve
-      args: serve
-      cwd: BACKEND_PATH
+  - name: httpd
+    command: php artisan serve
+    cwd: env("LOCAL_BACKEND_PROJECT_PATH")
 
-    - name: display-horizon-info
-      dependencies:
-        - horizon
-      bin: php
-      commands: artisan horizon:supervisors
-      args:
-      cwd: BACKEND_PATH
-      delay: 5000
-      platforms: ['linux', 'darwin']
+scheduler:
+    - name: say hello every two minutes
+      command: printf "hello world\n"
+      cron: '*/2 * * * *'
 
-  event-loop:
+event-loop:
+  interval: 60s
+  jobs:
     - name: artisan scheduler
-      bin: php
-      command: artisan schedule:run
-      cwd: BACKEND_PATH
+      command: php artisan schedule:run
+      cwd: env("LOCAL_BACKEND_PROJECT_PATH")

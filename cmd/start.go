@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/stackup-app/stackup/lib"
 )
 
 // startCmd represents the start command
@@ -28,13 +27,14 @@ and usage of using your command.`,
 }
 
 func startCmdRun(cmd *cobra.Command, args []string) {
-	lib.InitGlobals()
+	// lib.InitGlobals()
 
 	// srv := server.WebServer{}
 	// srv.Start()
 
-	app := lib.GetApplication(cmd)
-	app.Run(cmd)
+	// println("start")
+	// // lib.GetApplication()
+	// println("done")
 }
 
 func init() {
