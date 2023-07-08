@@ -39,7 +39,8 @@ preconditions:
     - name: backend project is laravel project
       check: exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/artisan")
 ```
-## Configuration: Commands
+
+### Configuration: Commands
 
 The `commands` section of the configuration file is used to specify a list of custom commands that the application can execute. Each command is defined by a `name`, a `description`, a `command`, an optional `silent` flag, and an optional `on` field.
 
@@ -61,7 +62,7 @@ In this example, the application defines a custom command:
 
 The `commands` section allows you to extend the functionality of the application by defining your own commands. These commands can be tied to specific events (like startup or shutdown). This provides flexibility in controlling the behavior of your application.
 
-## Configuration: Tasks
+### Configuration: Tasks
 
 The `tasks` section of the configuration file is used to specify a list of tasks that the application should perform. Each task is defined by a `name`, an optional `message`, an optional `if` condition, and a `command`.
 
@@ -108,7 +109,7 @@ servers:
     cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
 ```
 
-## Configuration: Scheduler
+### Configuration: Scheduler
 
 The `scheduler` section of the configuration file is used to specify a list of tasks that the application should run on a schedule, separate from any event loop tasks. 
 Each scheduled task is defined by a `name`, a `command`, and a `cron` string.
