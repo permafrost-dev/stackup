@@ -25,7 +25,7 @@ import (
 var (
 	seedDatabase = flag.Bool("seed", false, "Seed the database")
 	displayHelp  = flag.Bool("help", false, "Display help")
-	configFile   = flag.String("config", "stack-supervisor.config.dev.yaml", "Load a specific config file")
+	configFile   = flag.String("config", "stackup.dev.yaml", "Load a specific config file")
 
 	cfg      = config.NewConfiguration()
 	workflow = workflows.LoadWorkflowFile(*configFile)

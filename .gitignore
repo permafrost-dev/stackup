@@ -3,8 +3,7 @@
 
 Taskfile.yaml
 Taskfile.yml
-stackup.config.yaml
-stackup.config.dev.yaml
+stackup.dev.yaml
 dist
 .task
 .trunk
