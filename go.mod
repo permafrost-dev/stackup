@@ -67,7 +67,6 @@ require (
 )
 
 require (
-	github.com/antonmedv/expr v1.12.5
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/kataras/iris/v12 v12.2.0
