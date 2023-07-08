@@ -13,6 +13,7 @@ type StackupWorkflow struct {
 	Name          string          `yaml:"name"`
 	Description   string          `yaml:"description"`
 	Version       string          `yaml:"version"`
+	Preset        string          `yaml:"preset,omitempty"`
 	Binaries      Binaries        `yaml:"binaries"`
 	Filenames     Filenames       `yaml:"filenames"`
 	Preconditions []Precondition  `yaml:"preconditions"`
