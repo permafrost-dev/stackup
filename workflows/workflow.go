@@ -3,6 +3,7 @@ package workflows
 import (
 	"io/ioutil"
 	"os/exec"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -15,11 +16,21 @@ type StackupWorkflow struct {
 	Binaries      Binaries        `yaml:"binaries"`
 	Filenames     Filenames       `yaml:"filenames"`
 	Preconditions []Precondition  `yaml:"preconditions"`
+	Commands      []Command       `yaml:"commands"`
 	Tasks         []Task          `yaml:"tasks"`
 	Servers       []Server        `yaml:"servers"`
 	Scheduler     []ScheduledTask `yaml:"scheduler"`
 	EventLoop     EventLoop       `yaml:"event-loop"`
 }
+
+type Command struct {
+	Name        string `yaml:"name"`
+	Description string `yaml:"description"`
+	Command     string `yaml:"command"`
+	Silent      bool   `yaml:"silent,omitempty"`
+	On          string `yaml:"on"`
+}
+
 type Containers struct {
 	Compose string `yaml:"compose"`
 	Manager string `yaml:"manager"`
@@ -123,4 +134,13 @@ func LoadWorkflowFile(filename string) StackupWorkflow {
 	}
 
 	return result
+}
+
+func (w *StackupWorkflow) FindCommand(name string) *Command {
+	for _, cmd := range w.Commands {
+		if strings.EqualFold(cmd.Name, name) {
+			return &cmd
+		}
+	}
+	return nil
 }

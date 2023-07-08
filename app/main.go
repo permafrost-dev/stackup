@@ -25,12 +25,10 @@ import (
 var (
 	seedDatabase = flag.Bool("seed", false, "Seed the database")
 	displayHelp  = flag.Bool("help", false, "Display help")
-	configFile   = flag.String("config", "stackup.dev.yaml", "Load a specific config file")
-
-	cfg      = config.NewConfiguration()
-	workflow = workflows.LoadWorkflowFile(*configFile)
-
-	jsengine = lib.CreateNewJavascriptEngine()
+	configFile   = flag.String("config", "stackup.yaml", "Load a specific config file")
+	cfg          = config.NewConfiguration()
+	workflow     = workflows.LoadWorkflowFile(config.FindExistingConfigurationFile(*configFile))
+	jsengine     = lib.CreateNewJavascriptEngine()
 
 	cronEngine = cron.New(
 		cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)),
@@ -38,7 +36,7 @@ var (
 	)
 
 	scheduledTaskMap = sync.Map{}
-	processes        = sync.Map{}
+	processMap       = sync.Map{}
 )
 
 func hookSignals() {
@@ -62,14 +60,12 @@ func createScheduledTasks(defs []workflows.ScheduledTask) {
 		}
 
 		cronEngine.AddFunc(def.Cron, func() {
-			go func() {
-				if jsengine.IsEvaluatableScriptString(def.Command) {
-					jsengine.Evaluate(jsengine.GetEvaluatableScriptString(def.Command))
-				} else {
-					utils.RunCommand(def.Command)
-				}
-				support.SuccessMessageWithCheck(def.Name)
-			}()
+			if jsengine.IsEvaluatableScriptString(def.Command) {
+				jsengine.Evaluate(jsengine.GetEvaluatableScriptString(def.Command))
+			} else {
+				utils.RunCommand(def.Command)
+			}
+			support.SuccessMessageWithCheck(def.Name)
 		})
 
 		scheduledTaskMap.Store(def.Name, &def)
@@ -117,7 +113,7 @@ func startServerProcesses(serverDefs []workflows.Server) {
 		// 	os.Exit(1)
 		// }
 
-		processes.Store(def.Name, cmd)
+		processMap.Store(def.Name, cmd)
 	}
 }
 
@@ -128,14 +124,27 @@ func stopServerProcesses() {
 		support.PrintCheckMarkLine()
 	}
 
-	processes.Range(func(key any, value any) bool {
+	processMap.Range(func(key any, value any) bool {
 		stopServer(key, value)
 		return true
 	})
 
-	support.StatusMessage("Stopping containers...", true)
-	utils.RunCommand("podman-compose down")
-	support.SuccessMessageWithCheck("All containers stopped")
+	// run shutdown commands
+	for _, cmd := range workflow.Commands {
+		if cmd.On != "shutdown" {
+			continue
+		}
+
+		support.StatusMessageLine("Running "+cmd.Name+"...", true)
+
+		if cmd.Silent {
+			utils.RunCommandSilent(cmd.Command)
+		} else {
+			utils.RunCommand(cmd.Command)
+		}
+
+		support.SuccessMessageWithCheck(cmd.Description)
+	}
 }
 
 func main() {

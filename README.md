@@ -39,6 +39,27 @@ preconditions:
     - name: backend project is laravel project
       check: exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/artisan")
 ```
+## Configuration: Commands
+
+The `commands` section of the configuration file is used to specify a list of custom commands that the application can execute. Each command is defined by a `name`, a `description`, a `command`, an optional `silent` flag, and an optional `on` field.
+
+Here is an example of the `commands` section:
+
+```yaml
+commands:
+  - name: stop-containers
+    description: stop containers
+    command: podman-compose down
+    silent: true
+    on: shutdown
+```
+
+In this example, the application defines a custom command:
+
+- Stop containers: The `command` runs the `podman-compose down` command, which stops the containers. The `description` field provides a brief explanation of what the command does. The `silent` flag is set to true, which means that the command's output will not be displayed. The `on` field is set to shutdown, which means that this command will be executed when the application is shutting down.
+
+
+The `commands` section allows you to extend the functionality of the application by defining your own commands. These commands can be tied to specific events (like startup or shutdown). This provides flexibility in controlling the behavior of your application.
 
 ## Configuration: Tasks
 

@@ -424,3 +424,14 @@ func CheckProcessMemoryUsage(pid int32) float64 {
 
 	return float64(result)
 }
+
+func FindFirstExistingFile(filenames []string) (string, error) {
+	for _, filename := range filenames {
+		if _, err := os.Stat(filename); err == nil {
+			return filename, nil
+		} else if !os.IsNotExist(err) {
+			return "", err
+		}
+	}
+	return "", fmt.Errorf("not found")
+}
