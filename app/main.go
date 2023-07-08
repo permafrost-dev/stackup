@@ -6,6 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"reflect"
+	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -43,7 +46,7 @@ func hookSignals() {
 		<-c
 		cronEngine.Stop()
 		stopServerProcesses()
-		os.Exit(0)
+		os.Exit(1)
 	}()
 }
 
@@ -78,6 +81,21 @@ func startServerProcesses(serverDefs []workflows.Server) {
 			script := jsengine.GetEvaluatableScriptString(def.Cwd)
 			tempCwd := jsengine.Evaluate(script)
 			def.Cwd = tempCwd.(string)
+		}
+
+		if def.Platforms != nil {
+			foundPlatform := false
+			for _, name := range def.Platforms {
+				if strings.EqualFold(runtime.GOOS, name) {
+					foundPlatform = true
+					break
+				}
+			}
+
+			if !foundPlatform {
+				support.WarningMessage("Skipping " + def.Name + ", it is not supported on this operating system.")
+				return
+			}
 		}
 
 		support.StatusMessage("Starting "+def.Name+"...", false)
@@ -196,11 +214,29 @@ func runStartupTasks(tasks []workflows.Task) {
 			jsengine.Evaluate(jsengine.GetEvaluatableScriptString(task.Command))
 			support.SuccessMessageWithCheck(task.Name)
 		} else {
-			cmd := utils.RunCommand(task.Command)
+			var cmd *exec.Cmd
+			runningSilently := reflect.TypeOf(task.Silent).Kind() == reflect.Bool && task.Silent == true
+
+			if runningSilently {
+				support.StatusMessage("Starting "+task.Name+"...", false)
+				cmd = utils.RunCommandSilent(task.Command)
+			} else {
+				cmd = utils.RunCommand(task.Command)
+			}
+
 			if cmd != nil {
+				if runningSilently {
+					support.PrintCheckMarkLine()
+					return
+				}
 				support.SuccessMessageWithCheck(task.Name)
 			} else {
+				if runningSilently {
+					support.PrintXMarkLine()
+					return
+				}
 				support.FailureMessageWithXMark(task.Name)
+
 			}
 		}
 	}

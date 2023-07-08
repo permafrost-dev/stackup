@@ -74,6 +74,26 @@ func RunCommand(input string) *exec.Cmd {
 	return c
 }
 
+func RunCommandSilent(input string) *exec.Cmd {
+	// Split the input into command and arguments
+	parts := strings.Split(input, " ")
+	cmd := parts[0]
+	// The rest of the parts are the arguments
+	args := parts[1:]
+
+	c := exec.Command(cmd, args...)
+
+	c.Stdout = nil
+	c.Stderr = nil
+
+	// Start the command
+	if err := c.Run(); err != nil {
+		log.Fatal(err)
+	}
+
+	return c
+}
+
 func RunCommandEx(input string, cwd string) *exec.Cmd {
 	// Split the input into command and arguments
 	parts := strings.Split(input, " ")

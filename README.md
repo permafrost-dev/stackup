@@ -1,4 +1,8 @@
-# stackup
+<p align="center">
+    <img src="assets/stackup-app-512px.png" alt="logo" height="150" style="display: block; height: 150px;">
+</p>
+
+# StackUp
 
 ---
 

@@ -40,6 +40,7 @@ type Task struct {
 	Name    string `yaml:"name"`
 	Command string `yaml:"command"`
 	If      string `yaml:"if,omitempty"`
+	Silent  bool   `yaml:"silent,omitempty"`
 	Result  *exec.Cmd
 }
 type Server struct {

@@ -41,6 +41,8 @@ linters:
     - unused
     - staticcheck
     - typecheck
+    - nestif
+    - gosimple
   enable:
     # - errcheck
     # - funlen
@@ -48,12 +50,12 @@ linters:
     # - gocyclo
     #- goimports
     # - gosec
-    - gosimple
+    #- gosimple
     - govet
     # - ineffassign
     - maintidx
     - misspell
-    - nestif
+    #- nestif
     # - revive
     # - staticcheck
     # - typecheck

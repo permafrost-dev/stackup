@@ -26,13 +26,14 @@ tasks:
   - name: start containers
     message: Starting containers...
     command: podman-compose up -d
+    silent: true
 
   - name: run migrations (rebuild db)
-    if: hasFlag("seed")
+    if: '{{ hasFlag("seed") }}'
     command: php artisan migrate:fresh --seed
 
   - name: run migrations (no seeding)
-    if: hasFlag("seed")
+    if: '{{ !hasFlag("seed") }}'
     command: php artisan migrate
 
   - name: seed temp quickbooks refresh token for dev
@@ -55,8 +56,8 @@ servers:
 
 scheduler:
     - name: say hello every 15 seconds
-      command: printf "hello world\n"
-      cron: '*/15 * * * * *'
+      command: '{{ console.log("hello world") }}'
+      cron: '@every 15s * * * * *'
 
     - name: say goodbye every 2 minutes
       command: printf "goodbye\n"

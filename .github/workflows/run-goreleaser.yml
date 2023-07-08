@@ -4,29 +4,30 @@ on:
   push:
     # run only against tags
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: write
+  id-token: write
+  packages: write
 
 jobs:
-  artifact-build:
-    runs-on: ${{ matrix.os }}
+  prepare:
+    runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        GOOS: [linux, windows, darwin]
 
     steps:
-
       - name: Install Task
         uses: arduino/setup-task@v1
 
-      - name: Install Go
-        uses: WillAbides/setup-go-faster@v1.8.0 #actions/setup-go@v3
+      - uses: actions/setup-go@v3
         with:
-          go-version: '>=1.20'
+          go-version: 1.20
+          cache: true
 
       - name: Checkout
         uses: actions/checkout@v3
@@ -35,10 +36,61 @@ jobs:
 
       - run: git fetch --force --tags
 
+      - shell: bash
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      - id: cache
+        uses: actions/cache@v3
+        with:
+          path: dist/${{ matrix.GOOS }}
+          key: ${{ matrix.GOOS }}-${{ env.sha_short }}
+
       - uses: goreleaser/goreleaser-action@v4
         with:
-          distribution: goreleaser
+          distribution: goreleaser-pro
           version: latest
-          args: release --clean --skip-docker
+          args: release --clean --skip-docker --split
+        env:
+          GOOS: ${{ matrix.GOOS }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+
+  release:
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: sigstore/cosign-installer@v2.7.0
+      - uses: actions/setup-go@v3
+        with:
+          go-version: 1.20
+          cache: true
+
+      - shell: bash
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      - uses: actions/cache@v3
+        with:
+          path: dist/linux
+          key: linux-${{ env.sha_short }}
+      - uses: actions/cache@v3
+        with:
+          path: dist/darwin
+          key: darwin-${{ env.sha_short }}
+      - uses: actions/cache@v3
+        with:
+          path: dist/windows
+          key: windows-${{ env.sha_short }}
+
+      # release
+      - uses: goreleaser/goreleaser-action@v4
+        if: steps.cache.outputs.cache-hit != 'true' # do not run if cache hit
+        with:
+          distribution: goreleaser-pro
+          version: latest
+          args: continue --merge
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}

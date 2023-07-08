@@ -11,13 +11,14 @@ universal_binaries:
   - replace: false
 
 archives:
-  - format_overrides:
-      - goos: windows
-        format: zip
+  - format: zip
 
 builds:
-  - main: ./cmd/stackup
+  - id: stackup
+    main: ./app
     binary: stackup
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    no_unique_dist_dir: true
     flags:
       - -trimpath
     ldflags:
@@ -29,15 +30,20 @@ builds:
     goarch:
       - amd64
       - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
 
 # brews:
 #   -
-#     name: 'stackup'
+#     name: stackup
 #     homepage: 'https://github.com/stackup-app/homebrew-stackup'
 #     description: 'a single application to manage your entire dev stack'
-#     license: "MIT"
-#     tap:
-#       owner: 'stackup-app'
+#     download_strategy: GitHubPrivateRepositoryReleaseDownloadStrategy
+#     custom_require: "lib/custom_download_strategy"
+#     license: MIT
+#     repository:
+#       owner: stackup-app
 #       name: homebrew-stackup
 #       branch: main
 

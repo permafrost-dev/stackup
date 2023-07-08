@@ -45,3 +45,7 @@ func PrintCheckMark() {
 func PrintCheckMarkLine() {
 	fmt.Print(aurora.BrightGreen(" ✓\n").String())
 }
+
+func PrintXMarkLine() {
+	fmt.Print(aurora.BrightRed(" ✗\n").String())
+}
