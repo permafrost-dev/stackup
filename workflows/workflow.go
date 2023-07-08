@@ -52,7 +52,8 @@ type Task struct {
 	Name    string `yaml:"name"`
 	Command string `yaml:"command"`
 	If      string `yaml:"if,omitempty"`
-	Silent  bool   `yaml:"silent,omitempty"`
+	Silent  bool   `yaml:"silent"`
+	Cwd     string `yaml:"cwd"`
 	Result  *exec.Cmd
 }
 type Server struct {

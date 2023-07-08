@@ -97,7 +97,7 @@ func startServerProcesses(serverDefs []workflows.Server) {
 			}
 		}
 
-		support.StatusMessage("Starting "+def.Name+"...", false)
+		support.StatusMessage(def.Name+"...", false)
 
 		cmd, _ := utils.StartCommand(def.Command)
 		cmd.Stdout = os.Stdout
@@ -210,47 +210,50 @@ func waitForStartOfNextMinute() {
 	time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
 }
 
-func runStartupTasks(tasks []workflows.Task) {
-	for _, task := range tasks {
+func runTask(task *workflows.Task) {
+	if jsengine.IsEvaluatableScriptString(task.Cwd) {
+		script := jsengine.GetEvaluatableScriptString(task.Cwd)
+		tempCwd := jsengine.Evaluate(script)
+		task.Cwd = tempCwd.(string)
+	}
 
-		if task.If != "" {
-			result := jsengine.Evaluate(task.If)
+	if task.If != "" {
+		result := jsengine.Evaluate(task.If)
 
-			if result != nil && !result.(bool) {
-				support.StatusMessageLine("Task "+task.Name+" skipped", true)
-				continue
-			}
+		if result != nil && !result.(bool) {
+			support.SkippedMessageWithSymbol(task.Name)
+			return
 		}
+	}
 
-		if jsengine.IsEvaluatableScriptString(task.Command) {
-			jsengine.Evaluate(jsengine.GetEvaluatableScriptString(task.Command))
+	if jsengine.IsEvaluatableScriptString(task.Command) {
+		jsengine.Evaluate(jsengine.GetEvaluatableScriptString(task.Command))
+		support.SuccessMessageWithCheck(task.Name)
+	} else {
+		runningSilently := reflect.TypeOf(task.Silent).Kind() == reflect.Bool && task.Silent == true
+
+		support.StatusMessage(task.Name+"...", false)
+		cmd := utils.RunCommandInPath(task.Command, task.Cwd, runningSilently)
+
+		if cmd != nil {
+			if runningSilently {
+				support.PrintCheckMarkLine()
+				return
+			}
 			support.SuccessMessageWithCheck(task.Name)
 		} else {
-			var cmd *exec.Cmd
-			runningSilently := reflect.TypeOf(task.Silent).Kind() == reflect.Bool && task.Silent == true
-
 			if runningSilently {
-				support.StatusMessage("Starting "+task.Name+"...", false)
-				cmd = utils.RunCommandSilent(task.Command)
-			} else {
-				cmd = utils.RunCommand(task.Command)
+				support.PrintXMarkLine()
+				return
 			}
-
-			if cmd != nil {
-				if runningSilently {
-					support.PrintCheckMarkLine()
-					return
-				}
-				support.SuccessMessageWithCheck(task.Name)
-			} else {
-				if runningSilently {
-					support.PrintXMarkLine()
-					return
-				}
-				support.FailureMessageWithXMark(task.Name)
-
-			}
+			support.FailureMessageWithXMark(task.Name)
 		}
+	}
+}
+
+func runStartupTasks(tasks []workflows.Task) {
+	for _, task := range tasks {
+		runTask(&task)
 	}
 }
 
