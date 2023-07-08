@@ -15,6 +15,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
+	"github.com/stackup-app/stackup/config"
 	"github.com/stackup-app/stackup/lib"
 	"github.com/stackup-app/stackup/support"
 	"github.com/stackup-app/stackup/utils"
@@ -24,8 +25,10 @@ import (
 var (
 	seedDatabase = flag.Bool("seed", false, "Seed the database")
 	displayHelp  = flag.Bool("help", false, "Display help")
+	configFile   = flag.String("config", "stack-supervisor.config.dev.yaml", "Load a specific config file")
 
-	workflow = workflows.LoadWorkflowFile("stack-supervisor.config.dev.yaml")
+	cfg      = config.NewConfiguration()
+	workflow = workflows.LoadWorkflowFile(*configFile)
 
 	jsengine = lib.CreateNewJavascriptEngine()
 
@@ -33,9 +36,9 @@ var (
 		cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)),
 		cron.WithParser(cron.NewParser(cron.Second|cron.Minute|cron.Hour|cron.Dom|cron.Month|cron.Dow)),
 	)
-	scheduledTaskMap = sync.Map{}
 
-	processes sync.Map
+	scheduledTaskMap = sync.Map{}
+	processes        = sync.Map{}
 )
 
 func hookSignals() {
@@ -119,10 +122,6 @@ func startServerProcesses(serverDefs []workflows.Server) {
 }
 
 func stopServerProcesses() {
-	support.StatusMessage("Stopping containers...", true)
-	utils.RunCommand("podman-compose down")
-	support.SuccessMessageWithCheck("All containers stopped")
-
 	var stopServer = func(key any, value any) {
 		support.StatusMessage("Stopping "+key.(string)+"...", false)
 		value.(*exec.Cmd).Process.Kill()
@@ -130,9 +129,13 @@ func stopServerProcesses() {
 	}
 
 	processes.Range(func(key any, value any) bool {
-		go stopServer(key, value)
+		stopServer(key, value)
 		return true
 	})
+
+	support.StatusMessage("Stopping containers...", true)
+	utils.RunCommand("podman-compose down")
+	support.SuccessMessageWithCheck("All containers stopped")
 }
 
 func main() {
