@@ -107,6 +107,17 @@ scheduler:
 
 Note that these cron schedules differ from the standard in that you must specify seconds as the first item, followed by the usual items (minute, hour, etc.).
 
+## Available Functions
+
+Many of the configuration fields can be defined using a javascript expression syntax.
+To specify an expression to be evaluated, wrap the content in double braces: `{{ myfunc() }}`.
+
+| Function  	| Arguments        	| Description                                                                	|
+|-----------	|------------------	|----------------------------------------------------------------------------	|
+| env()     	| name: string     	| returns the value environment variable `name`                              	|
+| exists()  	| filename: string 	| returns true if `filename` exists, false otherwise                         	|
+| hasFlag() 	| name: string     	| returns true if the flag `name` was specified when running the application 	|
+
 ## Setup
 
 ```bash

@@ -11,10 +11,10 @@ vars:
   DIST_TARGET_FILE: '{{.BUILD_OUTPUT_DIR}}/{{.BINARY_FILENAME}}'
   GIT_COMMIT:
     sh: git log -n 1 --format=%h
-  GOLANGCILINT_CMD_DIRS:
-    sh: find . -name "*.go" -printf '%h\n' | sort -u | egrep -v '^.$' | grep -v './tools' | sd '\n' ' ' | awk -F'|' '{ print $1 }'
+  SRC_DIRS:
+    sh: find . -name "*.go" -printf '%h\n' | sort -u | egrep -v '^.$' | grep -v './tools' | sed ':a;N;$!ba;s/\n/ /g' | awk -F'|' '{ print $1 }'
   DOTENV_FILES:
-    sh: find . -name ".env*" -print | sort -u | grep -v './dist' | sd '\n' ' ' | awk -F'|' '{ print $1 }'
+    sh: find . -name ".env*" -print | sort -u | grep -v './dist' | sed ':a;N;$!ba;s/\n/ /g' | awk -F'|' '{ print $1 }'
 
 tasks:
 
@@ -65,7 +65,7 @@ tasks:
     preconditions:
       - which golangci-lint
     cmds:
-      - golangci-lint run {{.GOLANGCILINT_CMD_DIRS}}
+      - golangci-lint run {{.SRC_DIRS}}
 
   prepare-dist-folder:
     desc: Prepares dist folder
@@ -78,6 +78,7 @@ tasks:
   build-stackup:
     desc: Builds stackup binary
     deps:
+      - task: prepare-dist-folder
       - task: update-version-file
     sources:
       - '{{.ENTRY_FILENAME}}'
@@ -92,5 +93,3 @@ tasks:
       - task: prepare-dist-folder
     cmds:
       - cp -f ./templates/*.yaml {{.BUILD_OUTPUT_DIR}}
-      - cp -f {{.DIST_TARGET_FILE}} ./../acd-pos-backend
-      - cp -f {{.BUILD_OUTPUT_DIR}}/*.dev.yaml ./../acd-pos-backend
