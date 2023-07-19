@@ -24,7 +24,7 @@ The application is configured using a YAML file. This file contains a list of ta
 
 ### Configuration: Preconditions
 
-The `preconditions` section of the configuration file is used to specify a list of conditions that must be met before the application can run. Each precondition is defined by a `name` and a `check`. The `name` is a human-readable description of the precondition, and the `check` is a function that returns a boolean value indicating whether the precondition is met.
+The `preconditions` section of the configuration file is used to specify a list of conditions that must be met before the application can run. Each precondition is defined by a `name` and a `check`. The `name` is a human-readable description of the precondition, and the `check` is a javascript expression that returns a boolean value indicating whether the precondition is met.
 
 Here is an example of the `preconditions` section:
 
@@ -40,31 +40,11 @@ preconditions:
       check: exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/artisan")
 ```
 
-### Configuration: Commands
-
-The `commands` section of the configuration file is used to specify a list of custom commands that the application can execute. Each command is defined by a `name`, a `description`, a `command`, an optional `silent` flag, and an optional `on` field.
-
-Here is an example of the `commands` section:
-
-```yaml
-commands:
-  - name: stop-containers
-    description: stop containers
-    command: podman-compose down
-    silent: true
-    on: shutdown
-```
-
-In this example, the application defines a custom command:
-
-- Stop containers: The `command` runs the `podman-compose down` command, which stops the containers. The `description` field provides a brief explanation of what the command does. The `silent` flag is set to true, which means that the command's output will not be displayed. The `on` field is set to shutdown, which means that this command will be executed when the application is shutting down.
-
-
-The `commands` section allows you to extend the functionality of the application by defining your own commands. These commands can be tied to specific events (like startup or shutdown). This provides flexibility in controlling the behavior of your application.
-
 ### Configuration: Tasks
 
-The `tasks` section of the configuration file is used to specify a list of tasks that the application should perform. Each task is defined by a `name`, an optional `message`, an optional `if` condition, and a `command`.
+The `tasks` section of the configuration file is used to specify a list of tasks that the application should perform. Tasks are run synchronously in the order they are defined, either on startup or shutdown. 
+
+Each task is defined by a `name`, an optional `message`, an optional `if` condition that is a javascript expression, a `cwd` that can be a javascript expression, an optional `silent` flag, an `on` condition that can be either `startup` or `shutdown`, and a `command`. 
 
 Here is an example of the `tasks` section:
 
@@ -73,18 +53,22 @@ tasks:
   - name: start containers
     message: Starting containers...
     command: podman-compose up -d
+    on: startup
 
   - name: run migrations (rebuild db)
     if: hasFlag("seed")
     command: php artisan migrate:fresh --seed
+    on: startup
 
   - name: run migrations (no seeding)
-    if: hasFlag("seed")
+    if: '!hasFlag("seed")'
     command: php artisan migrate
+    on: startup
 
-  - name: seed temp quickbooks refresh token for dev
-    if: true
-    command: php artisan qb:create-test-token
+  - name: stop containers
+    message: Stopping containers...
+    command: podman-compose down
+    on: shutdown
 ```
 
 ### Configuration: Servers

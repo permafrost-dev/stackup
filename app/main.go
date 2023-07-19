@@ -23,12 +23,11 @@ import (
 )
 
 var (
-	seedDatabase = flag.Bool("seed", false, "Seed the database")
-	displayHelp  = flag.Bool("help", false, "Display help")
-	configFile   = flag.String("config", "stackup.yaml", "Load a specific config file")
-	cfg          = config.NewConfiguration()
-	workflow     = workflows.LoadWorkflowFile(config.FindExistingConfigurationFile(*configFile))
-	jsengine     = lib.CreateNewJavascriptEngine()
+	displayHelp = flag.Bool("help", false, "Display help")
+	configFile  = flag.String("config", "stackup.yaml", "Load a specific config file")
+	cfg         = config.NewConfiguration()
+	workflow    = workflows.LoadWorkflowFile(config.FindExistingConfigurationFile(*configFile))
+	jsengine    = lib.CreateNewJavascriptEngine()
 
 	cronEngine = cron.New(
 		cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)),
@@ -47,6 +46,8 @@ func hookSignals() {
 		<-c
 		cronEngine.Stop()
 		stopServerProcesses()
+		support.StatusMessageLine("Running shutdown tasks...", true)
+		runShutdownTasks(workflow.Tasks)
 		os.Exit(1)
 	}()
 }
@@ -93,7 +94,7 @@ func startServerProcesses(serverDefs []workflows.Server) {
 
 			if !foundPlatform {
 				support.WarningMessage("Skipping " + def.Name + ", it is not supported on this operating system.")
-				return
+				continue
 			}
 		}
 
@@ -130,21 +131,21 @@ func stopServerProcesses() {
 	})
 
 	// run shutdown commands
-	for _, cmd := range workflow.Commands {
-		if cmd.On != "shutdown" {
-			continue
-		}
+	// for _, cmd := range workflow.Commands {
+	// 	if cmd.On != "shutdown" {
+	// 		continue
+	// 	}
 
-		support.StatusMessageLine("Running "+cmd.Name+"...", true)
+	// 	support.StatusMessageLine("Running "+cmd.Name+"...", true)
 
-		if cmd.Silent {
-			utils.RunCommandSilent(cmd.Command)
-		} else {
-			utils.RunCommand(cmd.Command)
-		}
+	// 	if cmd.Silent {
+	// 		utils.RunCommandSilent(cmd.Command)
+	// 	} else {
+	// 		utils.RunCommand(cmd.Command)
+	// 	}
 
-		support.SuccessMessageWithCheck(cmd.Description)
-	}
+	// 	support.SuccessMessageWithCheck(cmd.Description)
+	// }
 }
 
 func main() {
@@ -171,10 +172,10 @@ func main() {
 	support.StatusMessageLine("Starting server processes...", true)
 	startServerProcesses(workflow.Servers)
 
-	cronEngine.Start()
-
 	support.StatusMessageLine("Waiting for the start of the next minute to begin event loop...", true)
 	waitForStartOfNextMinute()
+
+	cronEngine.Start()
 
 	runEventLoop(true, &workflow.EventLoop)
 }
@@ -253,7 +254,17 @@ func runTask(task *workflows.Task) {
 
 func runStartupTasks(tasks []workflows.Task) {
 	for _, task := range tasks {
-		runTask(&task)
+		if task.On == "startup" {
+			runTask(&task)
+		}
+	}
+}
+
+func runShutdownTasks(tasks []workflows.Task) {
+	for _, task := range tasks {
+		if task.On == "shutdown" {
+			runTask(&task)
+		}
 	}
 }
 
