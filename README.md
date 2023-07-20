@@ -52,6 +52,7 @@ Here is an example of the `tasks` section:
 tasks:
   - name: start containers
     command: podman-compose up -d
+    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
     on: startup
 
   - name: run migrations (rebuild db)

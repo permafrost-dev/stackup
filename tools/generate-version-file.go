@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	VERSION = "0.0.0"
-    TARGET_FILE = "app/app-version.go"
+	VERSION     = "0.0.0"
+	TARGET_FILE = "lib/version/app-version.go"
 )
 
 func RunGitCommand(args ...string) string {
@@ -39,5 +39,5 @@ func main() {
 	}
 	defer file.Close()
 
-	file.WriteString(fmt.Sprintf("package main\n\nconst APP_VERSION = \"%s-%s\"\n", VERSION, result))
+	file.WriteString(fmt.Sprintf("package version\n\nconst APP_VERSION = \"%s-%s\"\n", VERSION, result))
 }

@@ -20,18 +20,20 @@ import (
 	"github.com/stackup-app/stackup/lib/config"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/utils"
+	"github.com/stackup-app/stackup/lib/version"
 	"github.com/stackup-app/stackup/lib/workflows"
 )
 
 var (
-	displayHelp = flag.Bool("help", false, "Display help")
-	configFile  = flag.String("config", "stackup.yaml", "Load a specific config file")
-	cfg         = config.NewConfiguration()
-	workflow    = workflows.LoadWorkflowFile(config.FindExistingConfigurationFile(*configFile))
-	jsEngine    = lib.CreateNewJavascriptEngine()
+	displayHelp    = flag.Bool("help", false, "Display help")
+	displayVersion = flag.Bool("version", false, "Display version")
+	configFile     = flag.String("config", "stackup.yaml", "Load a specific config file")
+	cfg            = config.NewConfiguration()
+	workflow       = workflows.LoadWorkflowFile(config.FindExistingConfigurationFile(*configFile))
+	jsEngine       = lib.CreateNewJavascriptEngine()
 
 	cronEngine = cron.New(
-	//cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)),
+		cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)),
 	//cron.WithParser(cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)),
 	//cron.WithParser(cron.NewParser(cron.Second|cron.Minute|cron.Hour|cron.Dom|cron.Month|cron.Dow)),
 	)
@@ -40,27 +42,31 @@ var (
 	processMap       = sync.Map{}
 )
 
+func exitApp() {
+	cronEngine.Stop()
+	stopServerProcesses()
+	support.StatusMessageLine("Running shutdown tasks...", true)
+	runShutdownTasks(workflow.Tasks)
+	os.Exit(1)
+}
+
 func hookSignals() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGSEGV, syscall.SIGQUIT, syscall.SIGHUP)
 
 	go func() {
 		<-c
-		cronEngine.Stop()
-		stopServerProcesses()
-		support.StatusMessageLine("Running shutdown tasks...", true)
-		runShutdownTasks(workflow.Tasks)
-		os.Exit(1)
+		exitApp()
 	}()
 }
 
 func createScheduledTasks(defs []workflows.ScheduledTask) {
 	for _, def := range defs {
-		// _, found := scheduledTaskMap.Load(def.Name)
+		_, found := scheduledTaskMap.Load(def.Name)
 
-		// if found {
-		// 	continue
-		// }
+		if found {
+			continue
+		}
 
 		cronEngine.AddFunc(def.Cron, func() {
 			if def.Cwd != "" && jsEngine.IsEvaluatableScriptString(def.Cwd) {
@@ -71,13 +77,13 @@ func createScheduledTasks(defs []workflows.ScheduledTask) {
 			if jsEngine.IsEvaluatableScriptString(def.Command) {
 				jsEngine.Evaluate(jsEngine.GetEvaluatableScriptString(def.Command))
 			} else {
-				utils.RunCommandCwd(def.Command, def.Cwd)
+				utils.RunCommandInPath(def.Command, def.Cwd, false)
 			}
 
 			support.SuccessMessageWithCheck(def.Name)
 		})
 
-		// scheduledTaskMap.Store(def.Name, &def)
+		scheduledTaskMap.Store(def.Name, &def)
 	}
 }
 
@@ -148,6 +154,11 @@ func main() {
 		os.Exit(0)
 	}
 
+	if *displayVersion {
+		fmt.Println("StackUp version " + version.APP_VERSION)
+		os.Exit(0)
+	}
+
 	hookSignals()
 	hookKeyboard()
 
@@ -171,7 +182,7 @@ func main() {
 
 func runEventLoop(showStatusMessages bool) {
 	if showStatusMessages {
-		support.StatusMessageLine("Event loop executing at 1 min intervals, at the start of each minute.", true)
+		support.StatusMessageLine("Event loop executing.", true)
 	}
 
 	for {
@@ -180,14 +191,8 @@ func runEventLoop(showStatusMessages bool) {
 }
 
 func hookKeyboard() {
-	//reader := bufio.NewReader(os.Stdin)
 	go func() {
 		for {
-			// b, _ := reader.ReadString(' ')
-
-			// if b == 'r' {
-			// 	fmt.Println("r pressed")
-			// }
 			char, key, err := keyboard.GetSingleKey()
 
 			if err != nil {
@@ -198,8 +203,8 @@ func hookKeyboard() {
 				fmt.Println("r pressed")
 			}
 
-			if key == keyboard.KeyCtrlC {
-				//
+			if key == keyboard.KeyCtrlC || char == 'q' {
+				exitApp()
 			}
 		}
 	}()
