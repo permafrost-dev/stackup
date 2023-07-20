@@ -16,11 +16,11 @@ import (
 	"github.com/eiannone/keyboard"
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
-	"github.com/stackup-app/stackup/config"
 	"github.com/stackup-app/stackup/lib"
-	"github.com/stackup-app/stackup/support"
-	"github.com/stackup-app/stackup/utils"
-	"github.com/stackup-app/stackup/workflows"
+	"github.com/stackup-app/stackup/lib/config"
+	"github.com/stackup-app/stackup/lib/support"
+	"github.com/stackup-app/stackup/lib/utils"
+	"github.com/stackup-app/stackup/lib/workflows"
 )
 
 var (

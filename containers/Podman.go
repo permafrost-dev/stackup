@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/stackup-app/stackup/utils"
+	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type PodmanContainers []struct {

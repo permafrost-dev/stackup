@@ -7,16 +7,15 @@ import (
 	jsengine "github.com/stackup-app/stackup/lib/javascriptEngine"
 )
 
+type JavaScriptEngine struct {
+	Vm *otto.Otto
+}
+
 func CreateNewJavascriptEngine() JavaScriptEngine {
 	result := JavaScriptEngine{}
 	result.Init()
 
 	return result
-}
-
-type JavaScriptEngine struct {
-	Functions jsengine.JavascriptFunctions
-	Vm        *otto.Otto
 }
 
 func (e *JavaScriptEngine) Init() {
@@ -25,7 +24,7 @@ func (e *JavaScriptEngine) Init() {
 	}
 
 	e.Vm = otto.New()
-	e.Functions = jsengine.NewJavascriptFunctions(e.Vm)
+	jsengine.CreateJavascriptFunctions(e.Vm)
 }
 
 func (e *JavaScriptEngine) Evaluate(script string) any {

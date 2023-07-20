@@ -119,7 +119,7 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 
 | Function  	| Arguments        	| Description                                                                	|
 |-----------	|------------------	|----------------------------------------------------------------------------	|
-| env()     	| name: string     	| returns the value environment variable `name`                              	|
+| env()     	| name: string     	| returns the value of environment variable `name                             	|
 | exists()  	| filename: string 	| returns true if `filename` exists, false otherwise                         	|
 | hasFlag() 	| name: string     	| returns true if the flag `name` was specified when running the application 	|
 

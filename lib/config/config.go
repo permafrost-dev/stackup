@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/jessevdk/go-flags"
-	"github.com/stackup-app/stackup/utils"
+	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type Configuration struct {
