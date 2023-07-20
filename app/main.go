@@ -11,13 +11,12 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/eiannone/keyboard"
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
-	"github.com/stackup-app/stackup/lib"
 	"github.com/stackup-app/stackup/lib/config"
+	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/utils"
 	"github.com/stackup-app/stackup/lib/version"
@@ -30,7 +29,7 @@ var (
 	configFile     = flag.String("config", "stackup.yaml", "Load a specific config file")
 	cfg            = config.NewConfiguration()
 	workflow       = workflows.LoadWorkflowFile(config.FindExistingConfigurationFile(*configFile))
-	jsEngine       = lib.CreateNewJavascriptEngine()
+	jsEngine       = scripting.CreateNewJavascriptEngine()
 
 	cronEngine = cron.New(
 		cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)),
@@ -169,12 +168,8 @@ func runEventLoop() {
 	support.StatusMessageLine("Event loop executing.", true)
 
 	for {
-		waitForStartOfNextMinute()
+		utils.WaitForStartOfNextMinute()
 	}
-}
-
-func waitForStartOfNextMinute() {
-	time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
 }
 
 func runTask(task *workflows.Task) {
@@ -279,12 +274,12 @@ func main() {
 	startServerProcesses(workflow.Servers)
 
 	support.StatusMessageLine("Waiting for the start of the next minute to begin event loop...", true)
-	waitForStartOfNextMinute()
+	utils.WaitForStartOfNextMinute()
 
-    support.StatusMessage("Creating scheduled jobs...", true)
+	support.StatusMessage("Creating scheduled jobs...", true)
 	createScheduledTasks(workflow.Scheduler)
 	cronEngine.Start()
-    support.PrintCheckMarkLine()
+	support.PrintCheckMarkLine()
 
 	runEventLoop()
 }

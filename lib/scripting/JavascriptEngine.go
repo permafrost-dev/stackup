@@ -1,10 +1,9 @@
-package lib
+package scripting
 
 import (
 	"strings"
 
 	"github.com/robertkrimen/otto"
-	jsengine "github.com/stackup-app/stackup/lib/javascriptEngine"
 )
 
 type JavaScriptEngine struct {
@@ -24,54 +23,40 @@ func (e *JavaScriptEngine) Init() {
 	}
 
 	e.Vm = otto.New()
-	jsengine.CreateJavascriptFunctions(e.Vm)
+	CreateJavascriptFunctions(e.Vm)
 }
 
 func (e *JavaScriptEngine) Evaluate(script string) any {
-	// getResult := func(v otto.Value) any {
-	// 	switch strings.ToLower(v.Class()) {
-	// 	case "string":
-	// 		result, _ := v.ToString()
-	// 		return result
-	// 	case "boolean":
-	// 		result, _ := v.ToBoolean()
-	// 		return result
-	// 	case "number":
-	// 		result, _ := v.ToFloat()
-	// 		return result
-	// 	case "object":
-	// 		result, _ := v.Export()
-	// 		return result
-	// 	case "undefined":
-	// 		return nil
-	// 	default:
-	// 		return nil
-	// 	}
-	// }
-
 	result, _ := e.Vm.Run(script)
+
 	if result.IsBoolean() {
 		v, _ := result.ToBoolean()
 		return v
 	}
+
 	if result.IsString() {
 		v, _ := result.ToString()
 		return v
 	}
+
 	if result.IsNumber() {
 		v, _ := result.ToInteger()
 		return v
 	}
+
 	if result.IsObject() {
 		v, _ := result.Object().Value().Export()
 		return v
 	}
+
 	if result.IsNull() {
 		return nil
 	}
+
 	if result.IsUndefined() {
 		return nil
 	}
+
 	if result.IsNaN() {
 		return nil
 	}

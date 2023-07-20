@@ -17,6 +17,10 @@ import (
 	"github.com/shirou/gopsutil/process"
 )
 
+func WaitForStartOfNextMinute() {
+	time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
+}
+
 func AbsoluteFilePath(path string) string {
 	path, _ = filepath.Abs(path)
 

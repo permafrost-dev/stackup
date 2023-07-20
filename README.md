@@ -96,7 +96,7 @@ servers:
 ### Configuration: Scheduler
 
 The `scheduler` section of the configuration file is used to specify a list of tasks that the application should run on a schedule, separate from any event loop tasks. 
-Each scheduled task is defined by a `name`, a `command`, and a `cron` string.
+Each scheduled task is defined by a `name`, a `command`, a `cwd` (optionally a javascript expression), and a `cron` string.
 
 Here is an example of the `scheduler` section:
 
@@ -104,10 +104,12 @@ Here is an example of the `scheduler` section:
 scheduler:
     - name: say hello every 1 minute
       command: printf "hello world\n"
-      cron: '0 */1 * * * *'
+      cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+      cron: '0 */1 * * * *'      
 
     - name: say goodbye every 30 seconds
       command: printf "goodbye\n"
+      cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
       cron: '*/30 * * * * *'
 ```
 
@@ -116,11 +118,11 @@ Note that these cron schedules differ from the standard in that you must specify
 ## Available Functions
 
 Many of the configuration fields can be defined using a javascript expression syntax.
-To specify an expression to be evaluated, wrap the content in double braces: `{{ myfunc() }}`.
+To specify an expression to be evaluated, wrap the content in double braces: `{{ env("HOME") }}`.
 
 | Function  	| Arguments        	| Description                                                                	|
 |-----------	|------------------	|----------------------------------------------------------------------------	|
-| env()     	| name: string     	| returns the value of environment variable `name                             	|
+| env()     	| name: string     	| returns the string value of environment variable `name                       	|
 | exists()  	| filename: string 	| returns true if `filename` exists, false otherwise                         	|
 | hasFlag() 	| name: string     	| returns true if the flag `name` was specified when running the application 	|
 
