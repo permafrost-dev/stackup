@@ -60,6 +60,26 @@ func hookSignals() {
 	}()
 }
 
+func hookKeyboard() {
+	go func() {
+		for {
+			char, key, err := keyboard.GetSingleKey()
+
+			if err != nil {
+				return
+			}
+
+			if char == 'r' {
+				fmt.Println("r pressed")
+			}
+
+			if key == keyboard.KeyCtrlC || char == 'q' {
+				exitApp()
+			}
+		}
+	}()
+}
+
 func createScheduledTasks(defs []workflows.ScheduledTask) {
 	for _, def := range defs {
 		_, found := scheduledTaskMap.Load(def.Name)
@@ -135,6 +155,7 @@ func stopServerProcesses() {
 	var stopServer = func(key any, value any) {
 		support.StatusMessage("Stopping "+key.(string)+"...", false)
 		value.(*exec.Cmd).Process.Kill()
+		value.(*exec.Cmd).Process.Wait()
 		support.PrintCheckMarkLine()
 	}
 
@@ -142,6 +163,92 @@ func stopServerProcesses() {
 		stopServer(key, value)
 		return true
 	})
+}
+
+func runEventLoop() {
+	support.StatusMessageLine("Event loop executing.", true)
+
+	for {
+		waitForStartOfNextMinute()
+	}
+}
+
+func waitForStartOfNextMinute() {
+	time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
+}
+
+func runTask(task *workflows.Task) {
+	if jsEngine.IsEvaluatableScriptString(task.Cwd) {
+		script := jsEngine.GetEvaluatableScriptString(task.Cwd)
+		tempCwd := jsEngine.Evaluate(script)
+		task.Cwd = tempCwd.(string)
+	}
+
+	if task.If != "" {
+		result := jsEngine.Evaluate(task.If)
+
+		if result != nil && !result.(bool) {
+			support.SkippedMessageWithSymbol(task.Name)
+			return
+		}
+	}
+
+	if jsEngine.IsEvaluatableScriptString(task.Command) {
+		jsEngine.Evaluate(jsEngine.GetEvaluatableScriptString(task.Command))
+		support.SuccessMessageWithCheck(task.Name)
+		return
+	}
+
+	runningSilently := reflect.TypeOf(task.Silent).Kind() == reflect.Bool && task.Silent == true
+
+	support.StatusMessage(task.Name+"...", false)
+	cmd := utils.RunCommandInPath(task.Command, task.Cwd, runningSilently)
+
+	if cmd != nil {
+		if runningSilently {
+			support.PrintCheckMarkLine()
+			return
+		}
+		support.SuccessMessageWithCheck(task.Name)
+		return
+	}
+
+	if runningSilently {
+		support.PrintXMarkLine()
+		return
+	}
+	support.FailureMessageWithXMark(task.Name)
+}
+
+func runStartupTasks(tasks []workflows.Task) {
+	for _, task := range tasks {
+		if strings.EqualFold(task.On, "startup") {
+			runTask(&task)
+		}
+	}
+}
+
+func runShutdownTasks(tasks []workflows.Task) {
+	for _, task := range tasks {
+		if strings.EqualFold(task.On, "shutdown") {
+			runTask(&task)
+		}
+	}
+}
+
+func runPreconditions(checks []workflows.Precondition) {
+	for _, c := range checks {
+		if c.Check != "" {
+			result := jsEngine.Evaluate(c.Check)
+
+			if result != nil && !result.(bool) {
+				support.FailureMessageWithXMark(c.Name)
+				os.Exit(1)
+			}
+		}
+
+		support.SuccessMessageWithCheck(c.Name)
+	}
 }
 
 func main() {
@@ -174,114 +281,10 @@ func main() {
 	support.StatusMessageLine("Waiting for the start of the next minute to begin event loop...", true)
 	waitForStartOfNextMinute()
 
+    support.StatusMessage("Creating scheduled jobs...", true)
 	createScheduledTasks(workflow.Scheduler)
 	cronEngine.Start()
+    support.PrintCheckMarkLine()
 
-	runEventLoop(true)
-}
-
-func runEventLoop(showStatusMessages bool) {
-	if showStatusMessages {
-		support.StatusMessageLine("Event loop executing.", true)
-	}
-
-	for {
-		time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
-	}
-}
-
-func hookKeyboard() {
-	go func() {
-		for {
-			char, key, err := keyboard.GetSingleKey()
-
-			if err != nil {
-				return
-			}
-
-			if char == 'r' {
-				fmt.Println("r pressed")
-			}
-
-			if key == keyboard.KeyCtrlC || char == 'q' {
-				exitApp()
-			}
-		}
-	}()
-}
-
-func waitForStartOfNextMinute() {
-	time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
-}
-
-func runTask(task *workflows.Task) {
-	if jsEngine.IsEvaluatableScriptString(task.Cwd) {
-		script := jsEngine.GetEvaluatableScriptString(task.Cwd)
-		tempCwd := jsEngine.Evaluate(script)
-		task.Cwd = tempCwd.(string)
-	}
-
-	if task.If != "" {
-		result := jsEngine.Evaluate(task.If)
-
-		if result != nil && !result.(bool) {
-			support.SkippedMessageWithSymbol(task.Name)
-			return
-		}
-	}
-
-	if jsEngine.IsEvaluatableScriptString(task.Command) {
-		jsEngine.Evaluate(jsEngine.GetEvaluatableScriptString(task.Command))
-		support.SuccessMessageWithCheck(task.Name)
-	} else {
-		runningSilently := reflect.TypeOf(task.Silent).Kind() == reflect.Bool && task.Silent == true
-
-		support.StatusMessage(task.Name+"...", false)
-		cmd := utils.RunCommandInPath(task.Command, task.Cwd, runningSilently)
-
-		if cmd != nil {
-			if runningSilently {
-				support.PrintCheckMarkLine()
-				return
-			}
-			support.SuccessMessageWithCheck(task.Name)
-		} else {
-			if runningSilently {
-				support.PrintXMarkLine()
-				return
-			}
-			support.FailureMessageWithXMark(task.Name)
-		}
-	}
-}
-
-func runStartupTasks(tasks []workflows.Task) {
-	for _, task := range tasks {
-		if strings.EqualFold(task.On, "startup") {
-			runTask(&task)
-		}
-	}
-}
-
-func runShutdownTasks(tasks []workflows.Task) {
-	for _, task := range tasks {
-		if strings.EqualFold(task.On, "shutdown") {
-			runTask(&task)
-		}
-	}
-}
-
-func runPreconditions(checks []workflows.Precondition) {
-	for _, c := range checks {
-		if c.Check != "" {
-			result := jsEngine.Evaluate(c.Check)
-
-			if result != nil && !result.(bool) {
-				support.FailureMessageWithXMark(c.Name)
-				os.Exit(1)
-			}
-		}
-
-		support.SuccessMessageWithCheck(c.Name)
-	}
+	runEventLoop()
 }
