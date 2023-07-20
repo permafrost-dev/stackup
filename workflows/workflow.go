@@ -14,7 +14,6 @@ type StackupWorkflow struct {
 	Version       string          `yaml:"version"`
 	Preset        string          `yaml:"preset,omitempty"`
 	Binaries      Binaries        `yaml:"binaries"`
-	Filenames     Filenames       `yaml:"filenames"`
 	Preconditions []Precondition  `yaml:"preconditions"`
 	Tasks         []Task          `yaml:"tasks"`
 	Servers       []Server        `yaml:"servers"`
@@ -29,10 +28,6 @@ type Containers struct {
 type Binaries struct {
 	Php        string     `yaml:"php"`
 	Containers Containers `yaml:"containers"`
-}
-type Filenames struct {
-	Dotenv        []string `yaml:"dotenv"`
-	Dockercompose string   `yaml:"dockercompose"`
 }
 type Precondition struct {
 	Name  string `yaml:"name"`
@@ -58,6 +53,7 @@ type ScheduledTask struct {
 	Name    string `yaml:"name"`
 	Command string `yaml:"command"`
 	Cron    string `yaml:"cron"`
+	Cwd     string `yaml:"cwd"`
 }
 type EventLoopJob struct {
 	Name    string `yaml:"name"`

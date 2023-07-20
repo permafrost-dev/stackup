@@ -27,7 +27,7 @@ var (
 	configFile  = flag.String("config", "stackup.yaml", "Load a specific config file")
 	cfg         = config.NewConfiguration()
 	workflow    = workflows.LoadWorkflowFile(config.FindExistingConfigurationFile(*configFile))
-	jsengine    = lib.CreateNewJavascriptEngine()
+	jsEngine    = lib.CreateNewJavascriptEngine()
 
 	cronEngine = cron.New(
 		cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)),
@@ -61,11 +61,17 @@ func createScheduledTasks(defs []workflows.ScheduledTask) {
 		}
 
 		cronEngine.AddFunc(def.Cron, func() {
-			if jsengine.IsEvaluatableScriptString(def.Command) {
-				jsengine.Evaluate(jsengine.GetEvaluatableScriptString(def.Command))
-			} else {
-				utils.RunCommand(def.Command)
+			if def.Cwd != "" && jsEngine.IsEvaluatableScriptString(def.Cwd) {
+				tempCwd := jsEngine.Evaluate(jsEngine.GetEvaluatableScriptString(def.Cwd))
+				def.Cwd = tempCwd.(string)
 			}
+
+			if jsEngine.IsEvaluatableScriptString(def.Command) {
+				jsEngine.Evaluate(jsEngine.GetEvaluatableScriptString(def.Command))
+			} else {
+				utils.RunCommandCwd(def.Command, def.Cwd)
+			}
+
 			support.SuccessMessageWithCheck(def.Name)
 		})
 
@@ -77,9 +83,9 @@ func startServerProcesses(serverDefs []workflows.Server) {
 	for _, def := range serverDefs {
 		// time.Sleep(def.delay)
 
-		if jsengine.IsEvaluatableScriptString(def.Cwd) {
-			script := jsengine.GetEvaluatableScriptString(def.Cwd)
-			tempCwd := jsengine.Evaluate(script)
+		if jsEngine.IsEvaluatableScriptString(def.Cwd) {
+			script := jsEngine.GetEvaluatableScriptString(def.Cwd)
+			tempCwd := jsEngine.Evaluate(script)
 			def.Cwd = tempCwd.(string)
 		}
 
@@ -190,7 +196,7 @@ func runEventLoop(showStatusMessages bool, eventLoop *workflows.EventLoop) {
 	for {
 		for _, job := range eventLoop.Jobs {
 			support.StatusMessageLine("Running job "+job.Name, true)
-			job.Cwd = jsengine.Evaluate(job.Cwd).(string)
+			job.Cwd = jsEngine.Evaluate(job.Cwd).(string)
 			utils.RunCommandEx(job.Command, job.Cwd)
 		}
 
@@ -212,14 +218,14 @@ func waitForStartOfNextMinute() {
 }
 
 func runTask(task *workflows.Task) {
-	if jsengine.IsEvaluatableScriptString(task.Cwd) {
-		script := jsengine.GetEvaluatableScriptString(task.Cwd)
-		tempCwd := jsengine.Evaluate(script)
+	if jsEngine.IsEvaluatableScriptString(task.Cwd) {
+		script := jsEngine.GetEvaluatableScriptString(task.Cwd)
+		tempCwd := jsEngine.Evaluate(script)
 		task.Cwd = tempCwd.(string)
 	}
 
 	if task.If != "" {
-		result := jsengine.Evaluate(task.If)
+		result := jsEngine.Evaluate(task.If)
 
 		if result != nil && !result.(bool) {
 			support.SkippedMessageWithSymbol(task.Name)
@@ -227,8 +233,8 @@ func runTask(task *workflows.Task) {
 		}
 	}
 
-	if jsengine.IsEvaluatableScriptString(task.Command) {
-		jsengine.Evaluate(jsengine.GetEvaluatableScriptString(task.Command))
+	if jsEngine.IsEvaluatableScriptString(task.Command) {
+		jsEngine.Evaluate(jsEngine.GetEvaluatableScriptString(task.Command))
 		support.SuccessMessageWithCheck(task.Name)
 	} else {
 		runningSilently := reflect.TypeOf(task.Silent).Kind() == reflect.Bool && task.Silent == true
@@ -271,7 +277,7 @@ func runShutdownTasks(tasks []workflows.Task) {
 func runPreconditions(checks []workflows.Precondition) {
 	for _, c := range checks {
 		if c.Check != "" {
-			result := jsengine.Evaluate(c.Check)
+			result := jsEngine.Evaluate(c.Check)
 
 			if result != nil && !result.(bool) {
 				support.FailureMessageWithXMark(c.Name)
