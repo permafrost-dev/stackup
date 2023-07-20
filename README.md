@@ -24,7 +24,7 @@ The application is configured using a YAML file. This file contains a list of ta
 
 ### Configuration: Preconditions
 
-The `preconditions` section of the configuration file is used to specify a list of conditions that must be met before the application can run. Each precondition is defined by a `name` and a `check`. The `name` is a human-readable description of the precondition, and the `check` is a javascript expression that returns a boolean value indicating whether the precondition is met.
+The `preconditions` section of the configuration file is used to specify a list of conditions that must be met before the tasks and servers can run. Each precondition is defined by a `name` and a `check`. The `name` is a human-readable description of the precondition, and the `check` is a javascript expression that returns a boolean value indicating whether the precondition is met. Unlike other fields, the `check` field does not need to be wrapped in double braces; it is always interpreted as a javascript expression.
 
 Here is an example of the `preconditions` section:
 
@@ -73,9 +73,9 @@ tasks:
 
 ### Configuration: Servers
 
-The `servers` section of the configuration file is used to specify a list of servers processes that the application should start. Each server is defined by a name, a command, a cwd (current working directory), and an optional platforms field.
+The `servers` section of the configuration file is used to specify a list of servers processes that the application should start. Each server is defined by a `name`, a `command`, a `cwd` (current working directory), and an optional `platforms` field.
 
-Note that the `command` values are wrapped in double braces, which indicates that they should be interpreted as script expressions.
+Note that the `cwd` values are wrapped in double braces, which indicates that they should be interpreted as script expressions.
 
 ```yaml
 servers:
@@ -115,6 +115,10 @@ scheduler:
 
 Note that these cron schedules differ from the standard in that you must specify seconds as the first item, followed by the usual items (minute, hour, etc.).
 
+### Example Configuration
+
+See the [example configuration](./templates/stackup.dist.yaml) for an example that brings up a Laravel-based backend and a Next.js frontend stack.
+
 ## Available Functions
 
 Many of the configuration fields can be defined using a javascript expression syntax.
@@ -133,6 +137,8 @@ go mod tidy
 ```
 
 ## Building the project
+
+`stackup` uses [task](https://github.com/go-task/task) for running tasks, which is a tool similar to `make`. 
 
 ```bash
 task build

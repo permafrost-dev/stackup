@@ -13,12 +13,13 @@ run:
   # but default dirs are skipped independently of this option's value (see skip-dirs-use-default).
   # "/" will be replaced by current OS file path separator to properly work on Windows.
   skip-dirs:
-    - dist
-    - build
+    - .custom-hooks
     - .github
     - .vscode
-    - .custom-hooks
     - assets
+    - build
+    - dist
+    - templates
     - tools
 
   # Which files to skip: they will be analyzed, but issues from them won't be reported.
@@ -38,29 +39,29 @@ run:
 linters:
   disable:
     - errcheck
-    - unused
+    - gosimple
+    - nestif
     - staticcheck
     - typecheck
-    - nestif
-    - gosimple
+    - unused
   enable:
-    # - errcheck
-    # - funlen
-    # - gocritic
-    # - gocyclo
-    #- goimports
-    # - gosec
-    #- gosimple
     - govet
-    # - ineffassign
     - maintidx
     - misspell
-    #- nestif
-    # - revive
-    # - staticcheck
-    # - typecheck
     - unparam
-    # - unused
+    #- errcheck
+    #- funlen
+    #- gocritic
+    #- gocyclo
+    #- goimports
+    #- gosec
+    #- gosimple
+    #- ineffassign
+    #- nestif
+    #- revive
+    #- staticcheck
+    #- typecheck
+    #- unused
 
 severity:
   default-severity: warning
@@ -88,7 +89,6 @@ linters-settings:
 
   misspell:
     locale: US
-
 
   nestif:
     max-nesting: 3

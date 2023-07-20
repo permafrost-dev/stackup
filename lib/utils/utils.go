@@ -17,6 +17,13 @@ import (
 	"github.com/shirou/gopsutil/process"
 )
 
+func KillProcessOnWindows(cmd *exec.Cmd) error {
+    kill := exec.Command("TASKKILL", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid))
+    kill.Stderr = os.Stderr
+    kill.Stdout = os.Stdout
+    return kill.Run()
+ }
+
 func WaitForStartOfNextMinute() {
 	time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
 }

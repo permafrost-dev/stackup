@@ -136,6 +136,7 @@ func startServerProcesses(serverDefs []workflows.Server) {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Dir = def.Cwd
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		cmd.Start()
 
 		support.PrintCheckMarkLine()
@@ -152,9 +153,17 @@ func startServerProcesses(serverDefs []workflows.Server) {
 
 func stopServerProcesses() {
 	var stopServer = func(key any, value any) {
+        if (value.(*exec.Cmd).ProcessState.Exited()) {
+            return
+        }
+        
 		support.StatusMessage("Stopping "+key.(string)+"...", false)
-		value.(*exec.Cmd).Process.Kill()
-		value.(*exec.Cmd).Process.Wait()
+        syscall.Kill(-value.(*exec.Cmd).Process.Pid, syscall.SIGKILL)
+
+		if runtime.GOOS == "windows" {
+			utils.KillProcessOnWindows(value.(*exec.Cmd))
+		}
+
 		support.PrintCheckMarkLine()
 	}
 
