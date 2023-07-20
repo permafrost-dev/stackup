@@ -27,15 +27,11 @@ var (
 	displayHelp    = flag.Bool("help", false, "Display help")
 	displayVersion = flag.Bool("version", false, "Display version")
 	configFile     = flag.String("config", "stackup.yaml", "Load a specific config file")
-	cfg            = config.NewConfiguration()
-	workflow       = workflows.LoadWorkflowFile(config.FindExistingConfigurationFile(*configFile))
-	jsEngine       = scripting.CreateNewJavascriptEngine()
 
-	cronEngine = cron.New(
-		cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)),
-	//cron.WithParser(cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)),
-	//cron.WithParser(cron.NewParser(cron.Second|cron.Minute|cron.Hour|cron.Dom|cron.Month|cron.Dow)),
-	)
+	cfg        config.Configuration
+	workflow   workflows.StackupWorkflow
+	jsEngine   scripting.JavaScriptEngine
+	cronEngine *cron.Cron
 
 	scheduledTaskMap = sync.Map{}
 	processMap       = sync.Map{}
@@ -81,25 +77,30 @@ func hookKeyboard() {
 
 func createScheduledTasks(defs []workflows.ScheduledTask) {
 	for _, def := range defs {
-		_, found := scheduledTaskMap.Load(def.Name)
+		// _, found := scheduledTaskMap.Load(def.Name)
 
-		if found {
-			continue
-		}
+		// if found {
+		// 	continue
+		// }
 
-		cronEngine.AddFunc(def.Cron, func() {
-			if def.Cwd != "" && jsEngine.IsEvaluatableScriptString(def.Cwd) {
-				tempCwd := jsEngine.Evaluate(jsEngine.GetEvaluatableScriptString(def.Cwd))
-				def.Cwd = tempCwd.(string)
+		cron := def.Cron
+		command := def.Command
+		cwd := def.Cwd
+		name := def.Name
+
+		cronEngine.AddFunc(cron, func() {
+			if cwd != "" && jsEngine.IsEvaluatableScriptString(cwd) {
+				tempCwd := jsEngine.Evaluate(jsEngine.GetEvaluatableScriptString(cwd))
+				cwd = tempCwd.(string)
 			}
 
-			if jsEngine.IsEvaluatableScriptString(def.Command) {
-				jsEngine.Evaluate(jsEngine.GetEvaluatableScriptString(def.Command))
+			if jsEngine.IsEvaluatableScriptString(command) {
+				jsEngine.Evaluate(jsEngine.GetEvaluatableScriptString(command))
 			} else {
-				utils.RunCommandInPath(def.Command, def.Cwd, false)
+				utils.RunCommandInPath(command, cwd, false)
 			}
 
-			support.SuccessMessageWithCheck(def.Name)
+			support.SuccessMessageWithCheck(name)
 		})
 
 		scheduledTaskMap.Store(def.Name, &def)
@@ -153,12 +154,12 @@ func startServerProcesses(serverDefs []workflows.Server) {
 
 func stopServerProcesses() {
 	var stopServer = func(key any, value any) {
-        if (value.(*exec.Cmd).ProcessState.Exited()) {
-            return
-        }
-        
+		// if value.(*exec.Cmd).ProcessState.Exited() {
+		// 	return
+		// }
+
 		support.StatusMessage("Stopping "+key.(string)+"...", false)
-        syscall.Kill(-value.(*exec.Cmd).Process.Pid, syscall.SIGKILL)
+		syscall.Kill(-value.(*exec.Cmd).Process.Pid, syscall.SIGKILL)
 
 		if runtime.GOOS == "windows" {
 			utils.KillProcessOnWindows(value.(*exec.Cmd))
@@ -255,9 +256,20 @@ func runPreconditions(checks []workflows.Precondition) {
 	}
 }
 
+func initGlobals() {
+	cfg = config.NewConfiguration()
+	workflow = workflows.LoadWorkflowFile(config.FindExistingConfigurationFile(*configFile))
+	jsEngine = scripting.CreateNewJavascriptEngine()
+	cronEngine = cron.New(
+		cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)),
+		//cron.WithParser(cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)),
+		//cron.WithParser(cron.NewParser(cron.Second|cron.Minute|cron.Hour|cron.Dom|cron.Month|cron.Dow)),
+	)
+}
+
 func main() {
 	godotenv.Load()
-
+	initGlobals()
 	flag.Parse()
 
 	if *displayHelp {
@@ -285,7 +297,7 @@ func main() {
 	support.StatusMessageLine("Waiting for the start of the next minute to begin event loop...", true)
 	utils.WaitForStartOfNextMinute()
 
-	support.StatusMessage("Creating scheduled jobs...", true)
+	support.StatusMessage("Creating scheduled jobs...", false)
 	createScheduledTasks(workflow.Scheduler)
 	cronEngine.Start()
 	support.PrintCheckMarkLine()

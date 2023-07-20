@@ -102,18 +102,16 @@ Here is an example of the `scheduler` section:
 
 ```yaml
 scheduler:
-    - name: say hello every 1 minute
+    - name: say hello every 2 minutes
       command: printf "hello world\n"
       cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
-      cron: '0 */1 * * * *'      
+      cron: '*/2 * * * *'
 
-    - name: say goodbye every 30 seconds
+    - name: say goodbye every 60 seconds
       command: printf "goodbye\n"
       cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
-      cron: '*/30 * * * * *'
+      cron: '* * * * *'
 ```
-
-Note that these cron schedules differ from the standard in that you must specify seconds as the first item, followed by the usual items (minute, hour, etc.).
 
 ### Example Configuration
 
