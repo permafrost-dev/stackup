@@ -12,23 +12,12 @@ type StackupWorkflow struct {
 	Name          string          `yaml:"name"`
 	Description   string          `yaml:"description"`
 	Version       string          `yaml:"version"`
-	Preset        string          `yaml:"preset,omitempty"`
-	Binaries      Binaries        `yaml:"binaries"`
 	Preconditions []Precondition  `yaml:"preconditions"`
 	Tasks         []Task          `yaml:"tasks"`
 	Servers       []Server        `yaml:"servers"`
 	Scheduler     []ScheduledTask `yaml:"scheduler"`
-	EventLoop     EventLoop       `yaml:"event-loop"`
 }
 
-type Containers struct {
-	Compose string `yaml:"compose"`
-	Manager string `yaml:"manager"`
-}
-type Binaries struct {
-	Php        string     `yaml:"php"`
-	Containers Containers `yaml:"containers"`
-}
 type Precondition struct {
 	Name  string `yaml:"name"`
 	Check string `yaml:"check"`
@@ -54,15 +43,6 @@ type ScheduledTask struct {
 	Command string `yaml:"command"`
 	Cron    string `yaml:"cron"`
 	Cwd     string `yaml:"cwd"`
-}
-type EventLoopJob struct {
-	Name    string `yaml:"name"`
-	Command string `yaml:"command"`
-	Cwd     string `yaml:"cwd"`
-}
-type EventLoop struct {
-	Interval string         `yaml:"interval"`
-	Jobs     []EventLoopJob `yaml:"jobs"`
 }
 
 type WorkflowState struct {

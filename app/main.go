@@ -1,8 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"flag"
+	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/eiannone/keyboard"
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
 	"github.com/stackup-app/stackup/config"
@@ -30,8 +31,9 @@ var (
 	jsEngine    = lib.CreateNewJavascriptEngine()
 
 	cronEngine = cron.New(
-		cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)),
-		cron.WithParser(cron.NewParser(cron.Second|cron.Minute|cron.Hour|cron.Dom|cron.Month|cron.Dow)),
+	//cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)),
+	//cron.WithParser(cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)),
+	//cron.WithParser(cron.NewParser(cron.Second|cron.Minute|cron.Hour|cron.Dom|cron.Month|cron.Dow)),
 	)
 
 	scheduledTaskMap = sync.Map{}
@@ -54,11 +56,11 @@ func hookSignals() {
 
 func createScheduledTasks(defs []workflows.ScheduledTask) {
 	for _, def := range defs {
-		_, found := scheduledTaskMap.Load(def.Name)
+		// _, found := scheduledTaskMap.Load(def.Name)
 
-		if found {
-			continue
-		}
+		// if found {
+		// 	continue
+		// }
 
 		cronEngine.AddFunc(def.Cron, func() {
 			if def.Cwd != "" && jsEngine.IsEvaluatableScriptString(def.Cwd) {
@@ -75,13 +77,12 @@ func createScheduledTasks(defs []workflows.ScheduledTask) {
 			support.SuccessMessageWithCheck(def.Name)
 		})
 
-		scheduledTaskMap.Store(def.Name, &def)
+		// scheduledTaskMap.Store(def.Name, &def)
 	}
 }
 
 func startServerProcesses(serverDefs []workflows.Server) {
 	for _, def := range serverDefs {
-		// time.Sleep(def.delay)
 
 		if jsEngine.IsEvaluatableScriptString(def.Cwd) {
 			script := jsEngine.GetEvaluatableScriptString(def.Cwd)
@@ -135,23 +136,6 @@ func stopServerProcesses() {
 		stopServer(key, value)
 		return true
 	})
-
-	// run shutdown commands
-	// for _, cmd := range workflow.Commands {
-	// 	if cmd.On != "shutdown" {
-	// 		continue
-	// 	}
-
-	// 	support.StatusMessageLine("Running "+cmd.Name+"...", true)
-
-	// 	if cmd.Silent {
-	// 		utils.RunCommandSilent(cmd.Command)
-	// 	} else {
-	// 		utils.RunCommand(cmd.Command)
-	// 	}
-
-	// 	support.SuccessMessageWithCheck(cmd.Description)
-	// }
 }
 
 func main() {
@@ -170,8 +154,6 @@ func main() {
 	support.StatusMessageLine("Running precondition checks...", true)
 	runPreconditions(workflow.Preconditions)
 
-	createScheduledTasks(workflow.Scheduler)
-
 	support.StatusMessageLine("Running startup tasks...", true)
 	runStartupTasks(workflow.Tasks)
 
@@ -181,34 +163,44 @@ func main() {
 	support.StatusMessageLine("Waiting for the start of the next minute to begin event loop...", true)
 	waitForStartOfNextMinute()
 
+	createScheduledTasks(workflow.Scheduler)
 	cronEngine.Start()
 
-	runEventLoop(true, &workflow.EventLoop)
+	runEventLoop(true)
 }
 
-func runEventLoop(showStatusMessages bool, eventLoop *workflows.EventLoop) {
+func runEventLoop(showStatusMessages bool) {
 	if showStatusMessages {
 		support.StatusMessageLine("Event loop executing at 1 min intervals, at the start of each minute.", true)
 	}
 
-	interval, _ := time.ParseDuration(eventLoop.Interval)
-
 	for {
-		for _, job := range eventLoop.Jobs {
-			support.StatusMessageLine("Running job "+job.Name, true)
-			job.Cwd = jsEngine.Evaluate(job.Cwd).(string)
-			utils.RunCommandEx(job.Command, job.Cwd)
-		}
-
-		time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(interval)))
+		time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
 	}
 }
 
 func hookKeyboard() {
-	reader := bufio.NewReader(os.Stdin)
+	//reader := bufio.NewReader(os.Stdin)
 	go func() {
 		for {
-			reader.ReadByte()
+			// b, _ := reader.ReadString(' ')
+
+			// if b == 'r' {
+			// 	fmt.Println("r pressed")
+			// }
+			char, key, err := keyboard.GetSingleKey()
+
+			if err != nil {
+				return
+			}
+
+			if char == 'r' {
+				fmt.Println("r pressed")
+			}
+
+			if key == keyboard.KeyCtrlC {
+				//
+			}
 		}
 	}()
 }
@@ -260,7 +252,7 @@ func runTask(task *workflows.Task) {
 
 func runStartupTasks(tasks []workflows.Task) {
 	for _, task := range tasks {
-		if task.On == "startup" {
+		if strings.EqualFold(task.On, "startup") {
 			runTask(&task)
 		}
 	}
@@ -268,7 +260,7 @@ func runStartupTasks(tasks []workflows.Task) {
 
 func runShutdownTasks(tasks []workflows.Task) {
 	for _, task := range tasks {
-		if task.On == "shutdown" {
+		if strings.EqualFold(task.On, "shutdown") {
 			runTask(&task)
 		}
 	}
@@ -282,7 +274,6 @@ func runPreconditions(checks []workflows.Precondition) {
 			if result != nil && !result.(bool) {
 				support.FailureMessageWithXMark(c.Name)
 				os.Exit(1)
-
 			}
 		}
 

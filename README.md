@@ -6,11 +6,11 @@
 
 ---
 
-a single application to manage your entire dev stack.
+a single application to spin up your entire dev stack.
 
 ## About Stackup
 
-The application we've developed is a comprehensive tool designed to manage your entire development stack. It's a one-stop solution that brings together all the elements of your development environment, providing a unified interface to control and monitor each component. This includes everything from your frontend and backend projects, to databases, servers, queues, and even third-party services.
+The application we've developed is a comprehensive tool designed to manage your entire development stack. It's a one-stop solution that brings together all the elements of your development environment, providing a unified interface to control and monitor each component.
 
 One of the key features of this application is its ability to automate routine tasks. With a simple configuration, you can define a sequence of tasks that your projects require, such as starting containers, running database migrations, or seeding data. This automation not only saves you time but also ensures consistency across your development environment.
 
@@ -44,14 +44,13 @@ preconditions:
 
 The `tasks` section of the configuration file is used to specify a list of tasks that the application should perform. Tasks are run synchronously in the order they are defined, either on startup or shutdown. 
 
-Each task is defined by a `name`, an optional `message`, an optional `if` condition that is a javascript expression, a `cwd` that can be a javascript expression, an optional `silent` flag, an `on` condition that can be either `startup` or `shutdown`, and a `command`. 
+Each task is defined by a `name`, an optional `if` condition that is a javascript expression, a `cwd` that can be a javascript expression, an optional `silent` flag, an `on` condition that can be either `startup` or `shutdown`, and a `command`. 
 
 Here is an example of the `tasks` section:
 
 ```yaml
 tasks:
   - name: start containers
-    message: Starting containers...
     command: podman-compose up -d
     on: startup
 
