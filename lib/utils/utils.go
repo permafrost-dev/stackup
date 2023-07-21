@@ -18,11 +18,13 @@ import (
 )
 
 func KillProcessOnWindows(cmd *exec.Cmd) error {
-    kill := exec.Command("TASKKILL", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid))
-    kill.Stderr = os.Stderr
-    kill.Stdout = os.Stdout
-    return kill.Run()
- }
+	cmd.Process.Kill()
+	return nil
+	// kill := exec.Command("TASKKILL", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid))
+	// kill.Stderr = os.Stderr
+	// kill.Stdout = os.Stdout
+	// return kill.Run()
+}
 
 func WaitForStartOfNextMinute() {
 	time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
@@ -79,7 +81,7 @@ func RunCommandInPath(input string, dir string, silent bool) *exec.Cmd {
 	c.Dir = dir
 
 	if err := c.Run(); err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	return c
@@ -100,7 +102,7 @@ func RunCommand(input string) *exec.Cmd {
 
 	// Start the command
 	if err := c.Run(); err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	return c
@@ -120,7 +122,7 @@ func RunCommandSilent(input string) *exec.Cmd {
 
 	// Start the command
 	if err := c.Run(); err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	return c
@@ -142,13 +144,13 @@ func RunCommandEx(input string, cwd string) *exec.Cmd {
 
 	// Start the command
 	if err := c.Run(); err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	return c
 }
 
-func StartCommand(input string) (*exec.Cmd, error) {
+func StartCommand(input string, cwd string) (*exec.Cmd, error) {
 	// Split the input into command and arguments
 	parts := strings.Split(input, " ")
 	cmd := parts[0]
@@ -157,6 +159,7 @@ func StartCommand(input string) (*exec.Cmd, error) {
 	c := exec.Command(cmd, args...)
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
+	c.Dir = cwd
 
 	return c, nil
 }
