@@ -2,6 +2,8 @@ env:
   - GO111MODULE=on
   - CGO_ENABLED=0
 
+dist: build
+
 before:
   hooks:
     - task mod
@@ -14,7 +16,7 @@ archives:
         format: zip
 
 builds:
-  - id: nonwindows
+  - id: stackup
     main: ./app
     binary: stackup
     mod_timestamp: '{{ .CommitTimestamp }}'
@@ -22,18 +24,12 @@ builds:
       - -trimpath
     ldflags:
       - -s -w -X main.build={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
-    goos:
-      - darwin
-      - linux
-    goarch:
-      - amd64
-      - arm64
     targets:
       - linux_amd64
       - darwin_arm64
       - darwin_amd64
 
-  - id: windows
+  - id: stackup-windows
     main: ./app/main-windows.go
     binary: stackup
     mod_timestamp: '{{ .CommitTimestamp }}'
@@ -42,10 +38,6 @@ builds:
       - -tags=WINDOWS
     ldflags:
       - -s -w -X main.build={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
-    goos:
-      - windows
-    goarch:
-      - amd64
     targets:
       - windows_amd64
 
