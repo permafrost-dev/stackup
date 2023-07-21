@@ -3,14 +3,19 @@ description: laravel application stack
 version: 1.0.0
 
 preconditions:
+    - name: dependencies are installed
+      check: binaryExists("php") && binaryExists("node")
+
     - name: frontend project exists
       check: exists(env("FRONTEND_PROJECT_PATH"))
 
     - name: backend project has docker-compose file
       check: exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/docker-compose.yml")
 
-    - name: backend project is laravel project
-      check: exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/artisan")
+    - name: backend project is a laravel project
+      check: |
+        exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/artisan") &&
+        exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/composer.json")
 
 tasks:
   - name: spin up containers
@@ -30,29 +35,52 @@ tasks:
     command: php artisan migrate
     cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
     on: startup
-
+    
   - name: stop containers
     command: podman-compose down
     cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
     silent: true
     on: shutdown
 
-servers:
-  - name: frontend-httpd
+  - name: run artisan scheduler
+    id: artisan-scheduler
+    command: php artisan schedule:run
+    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    on: schedule
+
+  - name: frontend httpd (linux, macos)
+    id: frontend-httpd-linux
     command: node ./node_modules/.bin/next dev
     cwd: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    platforms: ['linux', 'darwin']
+    on: server
+
+  - name: frontend httpd (windows)
+    id: frontend-httpd-windows
+    command: npm run dev
+    cwd: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    platforms: ['windows']
+    on: server
 
   - name: horizon queue
+    id: horizon-queue
     command: php artisan horizon
     cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
     platforms: ['linux', 'darwin']
+    on: server
 
-  - name: httpd
+  - name: backend httpd
+    id: backend-httpd
     command: php artisan serve
     cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    on: server
+
+servers:
+  - task: frontend-httpd-linux
+  - task: frontend-httpd-windows
+  - task: horizon-queue
+  - task: backend-httpd
 
 scheduler:
-    - name: run artisan scheduler
-      command: php artisan schedule:run
-      cron: '* * * * * *'
-      cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    - task: artisan-scheduler
+      cron: '* * * * *'

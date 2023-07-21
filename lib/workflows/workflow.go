@@ -23,26 +23,22 @@ type Precondition struct {
 	Check string `yaml:"check"`
 }
 type Task struct {
-	Name    string `yaml:"name"`
-	Command string `yaml:"command"`
-	If      string `yaml:"if,omitempty"`
-	Silent  bool   `yaml:"silent"`
-	Cwd     string `yaml:"cwd"`
-	On      string `yaml:"on"`
-	Result  *exec.Cmd
-}
-type Server struct {
 	Name      string   `yaml:"name"`
 	Command   string   `yaml:"command"`
-	Message   string   `yaml:"message,omitempty"`
+	If        string   `yaml:"if,omitempty"`
+	Id        string   `yaml:"id,omitempty"`
+	Silent    bool     `yaml:"silent"`
 	Cwd       string   `yaml:"cwd"`
+	On        string   `yaml:"on"`
 	Platforms []string `yaml:"platforms,omitempty"`
+	Result    *exec.Cmd
+}
+type Server struct {
+	Task string `yaml:"task"`
 }
 type ScheduledTask struct {
-	Name    string `yaml:"name"`
-	Command string `yaml:"command"`
-	Cron    string `yaml:"cron"`
-	Cwd     string `yaml:"cwd"`
+	Task string `yaml:"task"`
+	Cron string `yaml:"cron"`
 }
 
 type WorkflowState struct {
@@ -103,4 +99,14 @@ func LoadWorkflowFile(filename string) StackupWorkflow {
 	}
 
 	return result
+}
+
+func (workflow *StackupWorkflow) FindTaskById(id string) *Task {
+	for _, task := range workflow.Tasks {
+		if task.Id == id && len(task.Id) > 0 {
+			return &task
+		}
+	}
+
+	return nil
 }

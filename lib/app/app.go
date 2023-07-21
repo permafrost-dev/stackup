@@ -105,64 +105,25 @@ func (a *App) exitApp() {
 
 func (a *App) createScheduledTasks() {
 	for _, def := range a.workflow.Scheduler {
+		task := a.workflow.FindTaskById(def.Task)
+
+		if task == nil || task.On != "schedule" {
+			support.FailureMessageWithXMark("Task " + def.Task + " not found.")
+			continue
+		}
+
 		cron := def.Cron
-		command := def.Command
-		cwd := def.Cwd
-		name := def.Name
+		taskId := def.Task
 
 		a.cronEngine.AddFunc(cron, func() {
-			if cwd != "" && a.jsEngine.IsEvaluatableScriptString(cwd) {
-				tempCwd := a.jsEngine.Evaluate(a.jsEngine.GetEvaluatableScriptString(cwd))
-				cwd = tempCwd.(string)
-			}
-
-			if a.jsEngine.IsEvaluatableScriptString(command) {
-				a.jsEngine.Evaluate(a.jsEngine.GetEvaluatableScriptString(command))
-			} else {
-				utils.RunCommandInPath(command, cwd, false)
-			}
-
-			support.SuccessMessageWithCheck(name)
+			task := a.workflow.FindTaskById(taskId)
+			a.runTask(task, true)
 		})
 
-		a.scheduledTaskMap.Store(def.Name, &def)
+		a.scheduledTaskMap.Store(def.Task, &def)
 	}
-}
 
-func (a *App) startServerProcesses() {
-	for _, def := range a.workflow.Servers {
-
-		if a.jsEngine.IsEvaluatableScriptString(def.Cwd) {
-			script := a.jsEngine.GetEvaluatableScriptString(def.Cwd)
-			tempCwd := a.jsEngine.Evaluate(script)
-			def.Cwd = tempCwd.(string)
-		}
-
-		if def.Platforms != nil {
-			foundPlatform := false
-			for _, name := range def.Platforms {
-				if strings.EqualFold(runtime.GOOS, name) {
-					foundPlatform = true
-					break
-				}
-			}
-
-			if !foundPlatform {
-				support.WarningMessage("Skipping " + def.Name + ", it is not supported on this operating system.")
-				continue
-			}
-		}
-
-		support.StatusMessage(def.Name+"...", false)
-
-		cmd, _ := utils.StartCommand(def.Command, def.Cwd)
-		a.CmdStartCallback(cmd)
-		cmd.Start()
-
-		support.PrintCheckMarkLine()
-
-		a.processMap.Store(def.Name, cmd)
-	}
+	a.cronEngine.Start()
 }
 
 func (a *App) stopServerProcesses() {
@@ -188,7 +149,7 @@ func (a *App) runEventLoop() {
 	}
 }
 
-func (a *App) runTask(task *workflows.Task) {
+func (a *App) runTask(task *workflows.Task, synchronous bool) {
 	if a.jsEngine.IsEvaluatableScriptString(task.Cwd) {
 		script := a.jsEngine.GetEvaluatableScriptString(task.Cwd)
 		tempCwd := a.jsEngine.Evaluate(script)
@@ -204,6 +165,21 @@ func (a *App) runTask(task *workflows.Task) {
 		}
 	}
 
+	if task.Platforms != nil {
+		foundPlatform := false
+		for _, name := range task.Platforms {
+			if strings.EqualFold(runtime.GOOS, name) {
+				foundPlatform = true
+				break
+			}
+		}
+
+		if !foundPlatform {
+			support.WarningMessage("Skipping " + task.Name + ", it is not supported on this operating system.")
+			return
+		}
+	}
+
 	if a.jsEngine.IsEvaluatableScriptString(task.Command) {
 		a.jsEngine.Evaluate(a.jsEngine.GetEvaluatableScriptString(task.Command))
 		support.SuccessMessageWithCheck(task.Name)
@@ -214,28 +190,41 @@ func (a *App) runTask(task *workflows.Task) {
 
 	support.StatusMessage(task.Name+"...", false)
 
-	cmd := utils.RunCommandInPath(task.Command, task.Cwd, runningSilently)
+	if synchronous {
+		cmd := utils.RunCommandInPath(task.Command, task.Cwd, runningSilently)
 
-	if cmd != nil {
-		if runningSilently {
-			support.PrintCheckMarkLine()
-			return
+		if cmd != nil {
+			if runningSilently {
+				support.PrintCheckMarkLine()
+			} else {
+				support.SuccessMessageWithCheck(task.Name)
+			}
 		}
-		support.SuccessMessageWithCheck(task.Name)
+
+		if cmd == nil {
+			if runningSilently {
+				support.PrintXMarkLine()
+			} else {
+				support.FailureMessageWithXMark(task.Name)
+			}
+		}
+
 		return
 	}
 
-	if runningSilently {
-		support.PrintXMarkLine()
-		return
-	}
-	support.FailureMessageWithXMark(task.Name)
+	cmd, _ := utils.StartCommand(task.Command, task.Cwd)
+	a.CmdStartCallback(cmd)
+	cmd.Start()
+
+	support.PrintCheckMarkLine()
+
+	a.processMap.Store(task.Name, cmd)
 }
 
 func (a *App) runStartupTasks() {
 	for _, task := range a.workflow.Tasks {
 		if strings.EqualFold(task.On, "startup") {
-			a.runTask(&task)
+			a.runTask(&task, true)
 		}
 	}
 }
@@ -243,8 +232,21 @@ func (a *App) runStartupTasks() {
 func (a *App) runShutdownTasks() {
 	for _, task := range a.workflow.Tasks {
 		if strings.EqualFold(task.On, "shutdown") {
-			a.runTask(&task)
+			a.runTask(&task, true)
 		}
+	}
+}
+
+func (a *App) runServerTasks() {
+	for _, def := range a.workflow.Servers {
+		task := a.workflow.FindTaskById(def.Task)
+
+		if task == nil || !strings.EqualFold(task.On, "server") {
+			support.FailureMessageWithXMark("Task " + def.Task + " not found.")
+			continue
+		}
+
+		a.runTask(task, false)
 	}
 }
 
@@ -287,15 +289,13 @@ func (a *App) Run() {
 	a.runStartupTasks()
 
 	support.StatusMessageLine("Starting server processes...", true)
-	a.startServerProcesses()
+	a.runServerTasks()
 
-	support.StatusMessageLine("Waiting for the start of the next minute to begin event loop...", true)
-	utils.WaitForStartOfNextMinute()
-
-	support.StatusMessage("Creating scheduled jobs...", false)
+	support.StatusMessage("Creating scheduled tasks...", false)
 	a.createScheduledTasks()
-	a.cronEngine.Start()
 	support.PrintCheckMarkLine()
+
+	utils.WaitForStartOfNextMinute()
 
 	a.runEventLoop()
 }

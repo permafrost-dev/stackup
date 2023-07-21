@@ -101,21 +101,21 @@ servers:
 
 ### Configuration: Scheduler
 
-The `scheduler` section of the configuration file is used to specify a list of tasks that the application should run on a schedule, separate from any event loop tasks. 
-Each scheduled task is defined by a `name`, a `command`, a `cwd` (optionally a javascript expression), and a `cron` string.
+The `scheduler` section of the configuration file is used to specify a list of tasks that the application should run on a schedule.
+Each entry should contain a `task` id and a `cron` expression.  The `task` value must be equal to the `id` of` a `task` that has been defined and has an `on` value of `schedule`.
 
-Here is an example of the `scheduler` section:
+Here is an example of the `scheduler` section and its associated `tasks` section:
 
 ```yaml
-scheduler:
-    - name: say hello every 2 minutes
-      command: printf "hello world\n"
-      cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
-      cron: '*/2 * * * *'
+tasks:
+  - name: run artisan scheduler
+    id: artisan-scheduler
+    command: php artisan schedule:run
+    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    on: schedule
 
-    - name: say goodbye every 60 seconds
-      command: printf "goodbye\n"
-      cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+scheduler:
+    - task: artisan-scheduler
       cron: '* * * * *'
 ```
 
