@@ -80,3 +80,5 @@ go.work
 dist/
 build/
 .task/
+
+dist/
