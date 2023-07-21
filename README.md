@@ -42,67 +42,79 @@ preconditions:
 
 ### Configuration: Tasks
 
-The `tasks` section of the configuration file is used to specify a list of tasks that the application should perform. Tasks are run synchronously in the order they are defined, either on startup or shutdown. 
+The `tasks` section of the configuration file is used to specify all tasks that can be run during startup, shutdown, as a server, or as a scheduled task.
 
-Each task is defined by a `name`, an optional `if` condition that is a javascript expression that determines if the task should run or be skipped, a `cwd` that can be a javascript expression, an optional `silent` flag, an `on` condition that can be either `startup` or `shutdown`, and a `command`. 
+Items in `tasks` follow this structure:
+
+```yaml
+- name: [REQUIRED] The name of the task (e.g. "spin up containers")
+  id: [REQUIRED] A unique identifier for the task (e.g. "start-containers")
+  if: [OPTIONAL] A javascript expression that must be true for the task to run (e.g. "hasFlag('seed')") (default: always run)
+  command: [REQUIRED] The command to run for the task (e.g. "podman-compose up -d")
+  path: [REQUIRED] The path to the directory where the command should be run, wrapped in double curly braces to be evaluated as a javascript expression (e.g. "{{ env('LOCAL_BACKEND_PROJECT_PATH') }}")
+  silent: [OPTIONAL] Whether to suppress output from the command (default: false)
+  platforms: [OPTIONAL] A list of platforms where the task should be run (default: all platforms)
+```
+
+Note that the `path` value can be wrapped in double braces to indicate that it should be interpreted as a javascript expression.
 
 Here is an example of the `tasks` section:
 
 ```yaml
 tasks:
-  - name: start containers
+  - name: spin up containers
+    id: start-containers
     command: podman-compose up -d
-    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
-    on: startup
+    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    silent: true
 
   - name: run migrations (rebuild db)
+    id: run-migrations-fresh
     if: hasFlag("seed")
     command: php artisan migrate:fresh --seed
-    on: startup
+    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
 
   - name: run migrations (no seeding)
+    id: run-migrations-no-seed
     if: '!hasFlag("seed")'
     command: php artisan migrate
-    on: startup
+    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
 
-  - name: stop containers
-    message: Stopping containers...
-    command: podman-compose down
-    on: shutdown
+  - name: seed temp quickbooks refresh token for dev
+    id: seed-quickbooks-token
+    command: php artisan qb:create-test-token
+    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    silent: true
+```
+
+### Configuration: Startup & Shutdown
+
+The `startup` and `shutdown` sections of the configuration define the tasks that should be run synchronously during either startup or shutdown.  The values listed must match a defined task `id`.
+
+```yaml
+startup:
+  - task: start-containers
+  - task: run-migrations
+
+shutdown:
+  - task: stop-containers
 ```
 
 ### Configuration: Servers
 
-The `servers` section of the configuration file is used to specify a list of servers processes that the application should start. Each server is defined by a `name`, a `command`, a `cwd` (current working directory), and an optional `platforms` field. Available `platform` values are `linux`, `darwin` (macOS), or `windows`.
-
-Note that the `cwd` values are wrapped in double braces, which indicates that they should be interpreted as script expressions.
+The `servers` section of the configuration file is used to specify a list of tasks that the application should start as server processes. The values listed must match a defined task `id`.
 
 ```yaml
 servers:
-  - name: frontend httpd (linux, macos)
-    command: node ./node_modules/.bin/next dev
-    cwd: '{{ env("FRONTEND_PROJECT_PATH") }}'
-    platforms: ['linux', 'darwin']
-
-  - name: frontend httpd (windows)
-    command: npm run dev
-    cwd: '{{ env("FRONTEND_PROJECT_PATH") }}'
-    platforms: ['windows']
-
-  - name: horizon queue
-    command: php artisan horizon
-    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
-    platforms: ['linux', 'darwin']
-
-  - name: backend httpd
-    command: php artisan serve
-    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+  - task: frontend-httpd
+  - task: backend-httpd
+  - task: horizon-queue
 ```
 
 ### Configuration: Scheduler
 
 The `scheduler` section of the configuration file is used to specify a list of tasks that the application should run on a schedule.
-Each entry should contain a `task` id and a `cron` expression.  The `task` value must be equal to the `id` of` a `task` that has been defined and has an `on` value of `schedule`.
+Each entry should contain a `task` id and a `cron` expression.  The `task` value must be equal to the `id` of a `task` that has been defined.
 
 Here is an example of the `scheduler` section and its associated `tasks` section:
 
@@ -111,8 +123,7 @@ tasks:
   - name: run artisan scheduler
     id: artisan-scheduler
     command: php artisan schedule:run
-    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
-    on: schedule
+    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
 
 scheduler:
     - task: artisan-scheduler
