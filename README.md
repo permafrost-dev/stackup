@@ -8,15 +8,15 @@
 
 a single application to spin up your entire dev stack.
 
-## About Stackup
+## About
 
-The application we've developed is a comprehensive tool designed to manage your entire development stack. It's a one-stop solution that brings together all the elements of your development environment, providing a unified interface to control and monitor each component.
+`StackUp` is a tool for developers that automates the process of spinning up complicated development environments.  It allows you to defines a series of steps that execute in order on startup and shutdown, as well as a list of server processes that should be started. A good example of a use case for `StackUp` is a web application running a Laravel backend, uses the Horizon queue manager, relies on several containers such as MySQL and Redis, and has a frontend written in Next.js. In this instance a developer would need to spin up all of the containers, run the horizon daemon, start an httpd for the backend, and run `npm run dev` to start the Next.js frontend httpd server. `StackUp` automates this entire process with a single configuration file.
 
 One of the key features of this application is its ability to automate routine tasks. With a simple configuration, you can define a sequence of tasks that your projects require, such as starting containers, running database migrations, or seeding data. This automation not only saves you time but also ensures consistency across your development environment.
 
-It also includes a robust precondition system. Before running tasks or starting servers, checks are performed to ensure everything is set up correctly. This feature helps prevent common issues that can occur when the environment is not properly configured.
+It also includes a robust precondition system. Before doing anything, checks can be performed to ensure everything is set up correctly. This feature helps prevent common issues that occur when the environment is not properly configured.
 
-In essence, this application is designed to streamline your development process. It takes care of the repetitive and mundane aspects of setting up and managing a development environment, allowing you to focus on what truly matters - writing great code. Whether you're a solo developer or part of a large team, this application can significantly enhance your productivity and efficiency.
+`StackUp` is designed to streamline your development process - it takes care of the repetitive and mundane aspects of managing a development environment, allowing you to focus on what truly matters - writing great code. Whether you're a solo developer or part of a large team, it will significantly enhance your productivity and efficiency.
 
 ## Configuration
 
@@ -44,7 +44,7 @@ preconditions:
 
 The `tasks` section of the configuration file is used to specify a list of tasks that the application should perform. Tasks are run synchronously in the order they are defined, either on startup or shutdown. 
 
-Each task is defined by a `name`, an optional `if` condition that is a javascript expression, a `cwd` that can be a javascript expression, an optional `silent` flag, an `on` condition that can be either `startup` or `shutdown`, and a `command`. 
+Each task is defined by a `name`, an optional `if` condition that is a javascript expression that determines if the task should run or be skipped, a `cwd` that can be a javascript expression, an optional `silent` flag, an `on` condition that can be either `startup` or `shutdown`, and a `command`. 
 
 Here is an example of the `tasks` section:
 
@@ -73,22 +73,28 @@ tasks:
 
 ### Configuration: Servers
 
-The `servers` section of the configuration file is used to specify a list of servers processes that the application should start. Each server is defined by a `name`, a `command`, a `cwd` (current working directory), and an optional `platforms` field.
+The `servers` section of the configuration file is used to specify a list of servers processes that the application should start. Each server is defined by a `name`, a `command`, a `cwd` (current working directory), and an optional `platforms` field. Available `platform` values are `linux`, `darwin` (macOS), or `windows`.
 
 Note that the `cwd` values are wrapped in double braces, which indicates that they should be interpreted as script expressions.
 
 ```yaml
 servers:
-  - name: frontend-httpd
+  - name: frontend httpd (linux, macos)
     command: node ./node_modules/.bin/next dev
     cwd: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    platforms: ['linux', 'darwin']
+
+  - name: frontend httpd (windows)
+    command: npm run dev
+    cwd: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    platforms: ['windows']
 
   - name: horizon queue
     command: php artisan horizon
     cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
     platforms: ['linux', 'darwin']
 
-  - name: httpd
+  - name: backend httpd
     command: php artisan serve
     cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
 ```
@@ -122,11 +128,12 @@ See the [example configuration](./templates/stackup.dist.yaml) for an example th
 Many of the configuration fields can be defined using a javascript expression syntax.
 To specify an expression to be evaluated, wrap the content in double braces: `{{ env("HOME") }}`.
 
-| Function  	| Arguments        	| Description                                                                	|
-|-----------	|------------------	|----------------------------------------------------------------------------	|
-| env()     	| name: string     	| returns the string value of environment variable `name                       	|
-| exists()  	| filename: string 	| returns true if `filename` exists, false otherwise                         	|
-| hasFlag() 	| name: string     	| returns true if the flag `name` was specified when running the application 	|
+| Function   | Arguments         | Description                                                                 |
+|----------- |------------------ |---------------------------------------------------------------------------- |
+| `binaryExists()`| name: string   | returns true if the specified binary exists in `$PATH`, otherwise false       |
+| `env()`      | name: string      | returns the string value of environment variable `name                        |
+| `exists()`   | filename: string  | returns true if `filename` exists, false otherwise                          |
+| `hasFlag()`  | name: string      | returns true if the flag `name` was specified when running the application  |
 
 ## Setup
 

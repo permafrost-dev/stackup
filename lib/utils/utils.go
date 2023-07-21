@@ -17,6 +17,11 @@ import (
 	"github.com/shirou/gopsutil/process"
 )
 
+func BinaryExistsInPath(binary string) bool {
+	_, err := exec.LookPath(binary)
+	return err == nil
+}
+
 func KillProcessOnWindows(cmd *exec.Cmd) error {
 	cmd.Process.Kill()
 	return nil
