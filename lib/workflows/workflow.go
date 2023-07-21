@@ -14,6 +14,8 @@ type StackupWorkflow struct {
 	Version       string          `yaml:"version"`
 	Preconditions []Precondition  `yaml:"preconditions"`
 	Tasks         []Task          `yaml:"tasks"`
+    Startup       []StartupItem   `yaml:"startup"`
+    Shutdown      []ShutdownItem  `yaml:"shutdown"`
 	Servers       []Server        `yaml:"servers"`
 	Scheduler     []ScheduledTask `yaml:"scheduler"`
 }
@@ -22,20 +24,31 @@ type Precondition struct {
 	Name  string `yaml:"name"`
 	Check string `yaml:"check"`
 }
+
 type Task struct {
 	Name      string   `yaml:"name"`
 	Command   string   `yaml:"command"`
 	If        string   `yaml:"if,omitempty"`
 	Id        string   `yaml:"id,omitempty"`
 	Silent    bool     `yaml:"silent"`
-	Cwd       string   `yaml:"cwd"`
-	On        string   `yaml:"on"`
+	Path      string   `yaml:"path"`
+	Type      string   `yaml:"type"`
 	Platforms []string `yaml:"platforms,omitempty"`
 	Result    *exec.Cmd
 }
+
+type StartupItem struct {
+	Task string `yaml:"task"`
+}
+
+type ShutdownItem struct {
+	Task string `yaml:"task"`
+}
+
 type Server struct {
 	Task string `yaml:"task"`
 }
+
 type ScheduledTask struct {
 	Task string `yaml:"task"`
 	Cron string `yaml:"cron"`

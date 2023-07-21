@@ -107,7 +107,7 @@ func (a *App) createScheduledTasks() {
 	for _, def := range a.workflow.Scheduler {
 		task := a.workflow.FindTaskById(def.Task)
 
-		if task == nil || task.On != "schedule" {
+		if task == nil {
 			support.FailureMessageWithXMark("Task " + def.Task + " not found.")
 			continue
 		}
@@ -150,10 +150,10 @@ func (a *App) runEventLoop() {
 }
 
 func (a *App) runTask(task *workflows.Task, synchronous bool) {
-	if a.jsEngine.IsEvaluatableScriptString(task.Cwd) {
-		script := a.jsEngine.GetEvaluatableScriptString(task.Cwd)
+	if a.jsEngine.IsEvaluatableScriptString(task.Path) {
+		script := a.jsEngine.GetEvaluatableScriptString(task.Path)
 		tempCwd := a.jsEngine.Evaluate(script)
-		task.Cwd = tempCwd.(string)
+		task.Path = tempCwd.(string)
 	}
 
 	if task.If != "" {
@@ -191,7 +191,7 @@ func (a *App) runTask(task *workflows.Task, synchronous bool) {
 	support.StatusMessage(task.Name+"...", false)
 
 	if synchronous {
-		cmd := utils.RunCommandInPath(task.Command, task.Cwd, runningSilently)
+		cmd := utils.RunCommandInPath(task.Command, task.Path, runningSilently)
 
 		if cmd != nil {
 			if runningSilently {
@@ -212,7 +212,7 @@ func (a *App) runTask(task *workflows.Task, synchronous bool) {
 		return
 	}
 
-	cmd, _ := utils.StartCommand(task.Command, task.Cwd)
+	cmd, _ := utils.StartCommand(task.Command, task.Path)
 	a.CmdStartCallback(cmd)
 	cmd.Start()
 
@@ -222,18 +222,28 @@ func (a *App) runTask(task *workflows.Task, synchronous bool) {
 }
 
 func (a *App) runStartupTasks() {
-	for _, task := range a.workflow.Tasks {
-		if strings.EqualFold(task.On, "startup") {
-			a.runTask(&task, true)
+	for _, def := range a.workflow.Startup {
+		task := a.workflow.FindTaskById(def.Task)
+
+		if task == nil {
+			support.FailureMessageWithXMark("Task " + def.Task + " not found.")
+			continue
 		}
+
+		a.runTask(task, true)
 	}
 }
 
 func (a *App) runShutdownTasks() {
-	for _, task := range a.workflow.Tasks {
-		if strings.EqualFold(task.On, "shutdown") {
-			a.runTask(&task, true)
+	for _, def := range a.workflow.Shutdown {
+		task := a.workflow.FindTaskById(def.Task)
+
+		if task == nil {
+			support.FailureMessageWithXMark("Task " + def.Task + " not found.")
+			continue
 		}
+
+		a.runTask(task, true)
 	}
 }
 
@@ -241,7 +251,7 @@ func (a *App) runServerTasks() {
 	for _, def := range a.workflow.Servers {
 		task := a.workflow.FindTaskById(def.Task)
 
-		if task == nil || !strings.EqualFold(task.On, "server") {
+		if task == nil {
 			support.FailureMessageWithXMark("Task " + def.Task + " not found.")
 			continue
 		}
