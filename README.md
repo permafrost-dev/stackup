@@ -80,11 +80,11 @@ tasks:
     command: php artisan migrate
     path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
 
-  - name: seed temp quickbooks refresh token for dev
-    id: seed-quickbooks-token
-    command: php artisan qb:create-test-token
-    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
-    silent: true
+  - name: frontend httpd (linux, macos)
+    id: frontend-httpd-linux
+    command: node ./node_modules/.bin/next dev
+    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    platforms: ['linux', 'darwin']
 ```
 
 ### Configuration: Startup & Shutdown
