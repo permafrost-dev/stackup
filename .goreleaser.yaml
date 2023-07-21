@@ -7,18 +7,17 @@ before:
     - task mod
     - task update-version-file
 
-universal_binaries:
-  - replace: false
-
 archives:
-  - format: zip
+  - format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
 
 builds:
-  - id: stackup
+  - id: nonwindows
     main: ./app
     binary: stackup
     mod_timestamp: '{{ .CommitTimestamp }}'
-    no_unique_dist_dir: true
     flags:
       - -trimpath
     ldflags:
@@ -26,13 +25,29 @@ builds:
     goos:
       - darwin
       - linux
-      - windows
     goarch:
       - amd64
       - arm64
-    ignore:
-      - goos: windows
-        goarch: arm64
+    targets:
+      - linux_amd64
+      - darwin_arm64
+      - darwin_amd64
+
+  - id: windows
+    main: ./app/main-windows.go
+    binary: stackup
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    flags:
+      - -trimpath
+      - -tags=WINDOWS
+    ldflags:
+      - -s -w -X main.build={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+    goos:
+      - windows
+    goarch:
+      - amd64
+    targets:
+      - windows_amd64
 
 # brews:
 #   -
