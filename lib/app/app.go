@@ -53,6 +53,10 @@ func (a *App) init() {
 	a.workflow = workflows.LoadWorkflowFile(*a.flags.ConfigFile)
 	a.jsEngine = scripting.CreateNewJavascriptEngine()
 	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
+
+	for _, task := range a.workflow.Tasks {
+		task.Initialize()
+	}
 }
 
 func (a *App) hookSignals() {
@@ -138,6 +142,13 @@ func (a *App) runEventLoop() {
 }
 
 func (a *App) runTask(task *workflows.Task, synchronous bool) {
+	if task.RunCount >= task.MaxRuns {
+		support.SkippedMessageWithSymbol(task.Name)
+		return
+	}
+
+	task.RunCount++
+
 	if a.jsEngine.IsEvaluatableScriptString(task.Path) {
 		tempCwd := a.jsEngine.Evaluate(a.jsEngine.GetEvaluatableScriptString(task.Path))
 		task.Path = tempCwd.(string)
@@ -183,20 +194,16 @@ func (a *App) runTask(task *workflows.Task, synchronous bool) {
 func (a *App) runTaskSyncWithStatusMessages(task *workflows.Task, command string, runningSilently bool) {
 	cmd := utils.RunCommandInPath(command, task.Path, runningSilently)
 
-	if cmd != nil {
-		if runningSilently {
-			support.PrintCheckMarkLine()
-		} else {
-			support.SuccessMessageWithCheck(task.Name)
-		}
+	if cmd != nil && runningSilently {
+		support.PrintCheckMarkLine()
+	} else if cmd != nil {
+		support.SuccessMessageWithCheck(task.Name)
 	}
 
-	if cmd == nil {
-		if runningSilently {
-			support.PrintXMarkLine()
-		} else {
-			support.FailureMessageWithXMark(task.Name)
-		}
+	if cmd == nil && runningSilently {
+		support.PrintXMarkLine()
+	} else if cmd == nil {
+		support.FailureMessageWithXMark(task.Name)
 	}
 }
 

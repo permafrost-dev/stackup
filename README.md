@@ -67,6 +67,7 @@ Items in `tasks` follow this structure:
 | path      | The path to the directory where the command should be run                                                  | yes       |
 | silent    | Whether to suppress output from the command `(default: false)`                                               | no        |
 | platforms | A list of platforms where the task should be run `(default: all platforms)`                                  | no        |
+| maxRuns   | An integer that specifies the maximum number of times the task can run (value of 0 means always run)         | no        |
 
 Note that the `path` value can be wrapped in double braces to indicate that it should be interpreted as a javascript expression.
 

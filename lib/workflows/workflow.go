@@ -36,7 +36,9 @@ type Task struct {
 	Path      string   `yaml:"path"`
 	Type      string   `yaml:"type"`
 	Platforms []string `yaml:"platforms,omitempty"`
+	MaxRuns   int      `yaml:"maxRuns,omitempty"`
 	Result    *exec.Cmd
+	RunCount  int
 }
 
 type StartupItem struct {
@@ -129,4 +131,12 @@ func (task *Task) CanRunOnCurrentPlatform() bool {
 	}
 
 	return foundPlatform
+}
+
+func (task *Task) Initialize() {
+	task.RunCount = 0
+
+	if task.MaxRuns <= 0 {
+		task.MaxRuns = 999999999
+	}
 }
