@@ -10,9 +10,9 @@ a single application to spin up your entire dev stack.
 
 ## About
 
-`StackUp` is a tool for developers that automates the process of spinning up complicated development environments.  It allows you to defines a series of steps that execute in order on startup and shutdown, as well as a list of server processes that should be started. A good example of a use case for `StackUp` is a web application running a Laravel backend, uses the Horizon queue manager, relies on several containers such as MySQL and Redis, and has a frontend written in Next.js. In this instance a developer would need to spin up all of the containers, run the horizon daemon, start an httpd for the backend, and run `npm run dev` to start the Next.js frontend httpd server. `StackUp` automates this entire process with a single configuration file.
+`StackUp` is a tool for developers that automates the process of spinning up complicated development environments.  It allows you to defines a series of steps that execute in order on startup and shutdown, as well as a list of server processes that should be started.
 
-One of the key features of this application is its ability to automate routine tasks. With a simple configuration, you can define a sequence of tasks that your projects require, such as starting containers, running database migrations, or seeding data. This automation not only saves you time but also ensures consistency across your development environment.
+One of the key features of this application is its ability to automate routine tasks. With a simple configuration, you can define a sequence of tasks that your project requires, such as starting containers, running database migrations, or seeding data. This automation not only saves you time but also ensures consistency across your development environment.
 
 It also includes a robust precondition system. Before doing anything, checks can be performed to ensure everything is set up correctly. This feature helps prevent common issues that occur when the environment is not properly configured.
 
