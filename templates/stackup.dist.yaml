@@ -17,63 +17,13 @@ preconditions:
         exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/artisan") &&
         exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/composer.json")
 
-tasks:
-  - name: spin up containers
-    command: podman-compose up -d
-    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
-    silent: true
-    on: startup
+startup:
+  - task: start-containers
+  - task: run-migrations-fresh
+  - task: run-migrations-no-seed
 
-  - name: run migrations (rebuild db)
-    if: hasFlag("seed")
-    command: php artisan migrate:fresh --seed
-    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
-    on: startup
-
-  - name: run migrations (no seeding)
-    if: '!hasFlag("seed")'
-    command: php artisan migrate
-    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
-    on: startup
-    
-  - name: stop containers
-    command: podman-compose down
-    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
-    silent: true
-    on: shutdown
-
-  - name: run artisan scheduler
-    id: artisan-scheduler
-    command: php artisan schedule:run
-    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
-    on: schedule
-
-  - name: frontend httpd (linux, macos)
-    id: frontend-httpd-linux
-    command: node ./node_modules/.bin/next dev
-    cwd: '{{ env("FRONTEND_PROJECT_PATH") }}'
-    platforms: ['linux', 'darwin']
-    on: server
-
-  - name: frontend httpd (windows)
-    id: frontend-httpd-windows
-    command: npm run dev
-    cwd: '{{ env("FRONTEND_PROJECT_PATH") }}'
-    platforms: ['windows']
-    on: server
-
-  - name: horizon queue
-    id: horizon-queue
-    command: php artisan horizon
-    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
-    platforms: ['linux', 'darwin']
-    on: server
-
-  - name: backend httpd
-    id: backend-httpd
-    command: php artisan serve
-    cwd: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
-    on: server
+shutdown:
+  - task: stop-containers
 
 servers:
   - task: frontend-httpd-linux
@@ -84,3 +34,56 @@ servers:
 scheduler:
     - task: artisan-scheduler
       cron: '* * * * *'
+
+tasks:
+  - name: spin up containers
+    id: start-containers
+    command: podman-compose up -d
+    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    silent: true
+
+  - name: run migrations (rebuild db)
+    id: run-migrations-fresh
+    if: hasFlag("seed")
+    command: php artisan migrate:fresh --seed
+    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+
+  - name: run migrations (no seeding)
+    id: run-migrations-no-seed
+    if: '!hasFlag("seed")'
+    command: php artisan migrate
+    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+
+  - name: stop containers
+    id: stop-containers
+    command: podman-compose down
+    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    silent: true
+
+  - name: run artisan scheduler
+    id: artisan-scheduler
+    command: php artisan schedule:run
+    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+
+  - name: frontend httpd (linux, macos)
+    id: frontend-httpd-linux
+    command: node ./node_modules/.bin/next dev
+    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    platforms: ['linux', 'darwin']
+
+  - name: frontend httpd (windows)
+    id: frontend-httpd-windows
+    command: npm run dev
+    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    platforms: ['windows']
+
+  - name: horizon queue
+    id: horizon-queue
+    command: php artisan horizon
+    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    platforms: ['linux', 'darwin']
+
+  - name: backend httpd
+    id: backend-httpd
+    command: php artisan serve
+    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
