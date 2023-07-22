@@ -18,7 +18,7 @@ It also includes a robust precondition system. Before doing anything, checks can
 
 ## Configuration
 
-The application is configured using a YAML file. This file contains a list of tasks that the application should perform, as well as a list of servers that the application should start. The file also contains a list of preconditions that must be met before the application can run.
+The application is configured using a YAML file containing five sections: `preconditions`, `tasks`, `startup`, `shutdown`, and `scheduler`.
 
 ### Configuration: Preconditions
 
