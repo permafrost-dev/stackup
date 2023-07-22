@@ -12,6 +12,7 @@ func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("env", createJavascriptFunctionEnv)
 	vm.Set("exec", createJavascriptFunctionExec)
 	vm.Set("exists", createJavascriptFunctionExists)
+	vm.Set("getCwd", createGetCurrentWorkingDirectory)
 	vm.Set("hasFlag", createJavascriptFunctionHasFlag)
 }
 
@@ -19,6 +20,12 @@ func getResult(call otto.FunctionCall, v any) otto.Value {
 	result, _ := call.Otto.ToValue(v)
 
 	return result
+}
+
+func createGetCurrentWorkingDirectory(call otto.FunctionCall) otto.Value {
+	result, _ := os.Getwd()
+
+	return getResult(call, result)
 }
 
 func createBinaryExists(call otto.FunctionCall) otto.Value {
