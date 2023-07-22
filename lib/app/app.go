@@ -6,15 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"runtime"
-	"strings"
 	"sync"
 	"syscall"
 
 	"github.com/eiannone/keyboard"
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
-	"github.com/stackup-app/stackup/lib/config"
 	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/utils"
@@ -31,7 +28,6 @@ type AppFlags struct {
 }
 
 type App struct {
-	cfg                 config.Configuration
 	workflow            workflows.StackupWorkflow
 	jsEngine            scripting.JavaScriptEngine
 	cronEngine          *cron.Cron
@@ -54,8 +50,7 @@ func (a *App) init() {
 	a.scheduledTaskMap = sync.Map{}
 	a.processMap = sync.Map{}
 
-	a.cfg = config.NewConfiguration()
-	a.workflow = workflows.LoadWorkflowFile(config.FindExistingConfigurationFile(*a.flags.ConfigFile))
+	a.workflow = workflows.LoadWorkflowFile(*a.flags.ConfigFile)
 	a.jsEngine = scripting.CreateNewJavascriptEngine()
 	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
 }
@@ -144,8 +139,7 @@ func (a *App) runEventLoop() {
 
 func (a *App) runTask(task *workflows.Task, synchronous bool) {
 	if a.jsEngine.IsEvaluatableScriptString(task.Path) {
-		script := a.jsEngine.GetEvaluatableScriptString(task.Path)
-		tempCwd := a.jsEngine.Evaluate(script)
+		tempCwd := a.jsEngine.Evaluate(a.jsEngine.GetEvaluatableScriptString(task.Path))
 		task.Path = tempCwd.(string)
 	}
 
@@ -158,19 +152,9 @@ func (a *App) runTask(task *workflows.Task, synchronous bool) {
 		}
 	}
 
-	if task.Platforms != nil {
-		foundPlatform := false
-		for _, name := range task.Platforms {
-			if strings.EqualFold(runtime.GOOS, name) {
-				foundPlatform = true
-				break
-			}
-		}
-
-		if !foundPlatform {
-			support.WarningMessage("Skipping " + task.Name + ", it is not supported on this operating system.")
-			return
-		}
+	if !task.CanRunOnCurrentPlatform() {
+		support.WarningMessage("Skipping " + task.Name + ", it is not supported on this operating system.")
+		return
 	}
 
 	command := task.Command

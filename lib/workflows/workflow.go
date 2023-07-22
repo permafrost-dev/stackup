@@ -3,6 +3,8 @@ package workflows
 import (
 	"io/ioutil"
 	"os/exec"
+	"runtime"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -14,8 +16,8 @@ type StackupWorkflow struct {
 	Version       string          `yaml:"version"`
 	Preconditions []Precondition  `yaml:"preconditions"`
 	Tasks         []Task          `yaml:"tasks"`
-    Startup       []StartupItem   `yaml:"startup"`
-    Shutdown      []ShutdownItem  `yaml:"shutdown"`
+	Startup       []StartupItem   `yaml:"startup"`
+	Shutdown      []ShutdownItem  `yaml:"shutdown"`
 	Servers       []Server        `yaml:"servers"`
 	Scheduler     []ScheduledTask `yaml:"scheduler"`
 }
@@ -86,18 +88,6 @@ type ServerProcess struct {
 	Status    string
 }
 
-// func (p *ServerProcess) IsRunning() bool {
-// 	return p.Status == "running"
-// }
-
-// func (p *ServerProcess) GetCpuUsage() float64 {
-// 	return utils.CheckProcessCpuLoad(p.Pid)
-// }
-
-// func (p *ServerProcess) GetMemoryUsage() float64 {
-// 	return utils.CheckProcessMemoryUsage(p.Pid)
-// }
-
 func LoadWorkflowFile(filename string) StackupWorkflow {
 	var result StackupWorkflow
 
@@ -122,4 +112,21 @@ func (workflow *StackupWorkflow) FindTaskById(id string) *Task {
 	}
 
 	return nil
+}
+
+func (task *Task) CanRunOnCurrentPlatform() bool {
+	if task.Platforms == nil || len(task.Platforms) == 0 {
+		return true
+	}
+
+	foundPlatform := false
+
+	for _, name := range task.Platforms {
+		if strings.EqualFold(runtime.GOOS, name) {
+			foundPlatform = true
+			break
+		}
+	}
+
+	return foundPlatform
 }
