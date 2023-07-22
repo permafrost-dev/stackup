@@ -104,6 +104,8 @@ shutdown:
 
 The `servers` section of the configuration file is used to specify a list of tasks that the application should start as server processes. The values listed must match a defined task `id`.
 
+Server processes are started in the order that they are defined, however the application does not wait for the process to start before starting the next task.  If you need to wait for a task to complete, it should be run in the `startup` configuration section.
+
 ```yaml
 servers:
   - task: frontend-httpd
