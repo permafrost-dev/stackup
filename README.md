@@ -16,9 +16,23 @@ One of the key features of this application is its ability to automate routine t
 
 It also includes a robust precondition system. Before doing anything, checks can be performed to ensure everything is set up correctly. This feature helps prevent common issues that occur when the environment is not properly configured.
 
+## Running StackUp
+
+To run `StackUp`, simply run the binary in a directory containing a `stackup.yaml` configuration file:
+
+```bash
+stackup
+```
+
+or, specify a configuration filename:
+
+```bash
+stackup --config stackup.dev.yaml
+```
+
 ## Configuration
 
-The application is configured using a YAML file containing five sections: `preconditions`, `tasks`, `startup`, `shutdown`, and `scheduler`.
+The application is configured using a YAML file named `stackup.yaml` containing five sections: `preconditions`, `tasks`, `startup`, `shutdown`, and `scheduler`.
 
 ### Configuration: Preconditions
 
