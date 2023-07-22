@@ -16,8 +16,6 @@ One of the key features of this application is its ability to automate routine t
 
 It also includes a robust precondition system. Before doing anything, checks can be performed to ensure everything is set up correctly. This feature helps prevent common issues that occur when the environment is not properly configured.
 
-`StackUp` is designed to streamline your development process - it takes care of the repetitive and mundane aspects of managing a development environment, allowing you to focus on what truly matters - writing great code. Whether you're a solo developer or part of a large team, it will significantly enhance your productivity and efficiency.
-
 ## Configuration
 
 The application is configured using a YAML file. This file contains a list of tasks that the application should perform, as well as a list of servers that the application should start. The file also contains a list of preconditions that must be met before the application can run.
