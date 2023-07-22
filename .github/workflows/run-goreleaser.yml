@@ -12,7 +12,8 @@ permissions:
   packages: write
 
 jobs:
-  prepare:
+
+  build-and-release:
     runs-on: ubuntu-latest
 
     strategy:
@@ -38,6 +39,7 @@ jobs:
       - shell: bash
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
       - id: cache
         uses: actions/cache@v3
         with:
@@ -48,47 +50,8 @@ jobs:
         with:
           distribution: goreleaser-pro
           version: latest
-          args: release --clean --skip-docker --split
+          args: release --clean --skip-docker
         env:
           GOOS: ${{ matrix.GOOS }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
-
-  release:
-    runs-on: ubuntu-latest
-    needs: prepare
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - uses: sigstore/cosign-installer@v2.7.0
-      - uses: actions/setup-go@v4
-        with:
-          go-version: '>=1.20.0'
-
-      - shell: bash
-        run: |
-          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-      - uses: actions/cache@v3
-        with:
-          path: dist/linux
-          key: linux-${{ env.sha_short }}
-      - uses: actions/cache@v3
-        with:
-          path: dist/darwin
-          key: darwin-${{ env.sha_short }}
-      - uses: actions/cache@v3
-        with:
-          path: dist/windows
-          key: windows-${{ env.sha_short }}
-
-      # release
-      - uses: goreleaser/goreleaser-action@v4
-        if: steps.cache.outputs.cache-hit != 'true'
-        with:
-          distribution: goreleaser-pro
-          version: latest
-          args: continue --merge
-        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
