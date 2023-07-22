@@ -46,15 +46,15 @@ The `tasks` section of the configuration file is used to specify all tasks that 
 
 Items in `tasks` follow this structure:
 
-```yaml
-- name: [REQUIRED] The name of the task (e.g. "spin up containers")
-  id: [REQUIRED] A unique identifier for the task (e.g. "start-containers")
-  if: [OPTIONAL] A javascript expression that must be true for the task to run (e.g. "hasFlag('seed')") (default: always run)
-  command: [REQUIRED] The command to run for the task (e.g. "podman-compose up -d")
-  path: [REQUIRED] The path to the directory where the command should be run, wrapped in double curly braces to be evaluated as a javascript expression (e.g. "{{ env('LOCAL_BACKEND_PROJECT_PATH') }}")
-  silent: [OPTIONAL] Whether to suppress output from the command (default: false)
-  platforms: [OPTIONAL] A list of platforms where the task should be run (default: all platforms)
-```
+| field     | description                                                                                                | required? |
+|-----------|------------------------------------------------------------------------------------------------------------|-----------|
+| name      | The name of the task (e.g. `spin up containers`)                                                           | yes       |
+| id        | A unique identifier for the task (e.g. `start-containers`)                                                 | yes       |
+| if        | A condition that must be true for the task to run (e.g. `hasFlag('seed')`)                                 | no        |
+| command   | The command to run for the task (e.g. `podman-compose up -d`)                                              | yes       |
+| path      | The path to the directory where the command should be run                                                  | yes       |
+| silent    | Whether to suppress output from the command `(default: false)`                                               | no        |
+| platforms | A list of platforms where the task should be run `(default: all platforms)`                                  | no        |
 
 Note that the `path` value can be wrapped in double braces to indicate that it should be interpreted as a javascript expression.
 
@@ -77,7 +77,7 @@ tasks:
   - name: run migrations (no seeding)
     id: run-migrations-no-seed
     if: '!hasFlag("seed")'
-    command: php artisan migrate
+    run: php artisan migrate
     path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
 
   - name: frontend httpd (linux, macos)
