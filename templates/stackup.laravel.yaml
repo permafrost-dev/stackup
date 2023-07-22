@@ -1,0 +1,62 @@
+name: my stack
+description: laravel application stack
+version: 1.0.0
+
+preconditions:
+    - name: dependencies are installed
+      check: binaryExists("php")
+
+    - name: project is a laravel application
+      check: exists(getCwd() + "/artisan") && exists(getCwd() + "/composer.json")
+
+startup:
+  - task: start-containers
+  - task: run-migrations-fresh
+  - task: run-migrations-no-seed
+
+shutdown:
+  - task: stop-containers
+
+servers:
+  - task: horizon-queue
+  - task: httpd
+
+scheduler:
+    - task: artisan-scheduler
+      cron: '* * * * *'
+
+tasks:
+  - name: spin up containers
+    id: start-containers
+    if: exists(getCwd() + "/docker-compose.yml")
+    command: podman-compose up -d
+    silent: true
+
+  - name: run migrations (rebuild db)
+    id: run-migrations-fresh
+    if: hasFlag("seed")
+    command: php artisan migrate:fresh --seed
+
+  - name: run migrations (no seeding)
+    id: run-migrations-no-seed
+    if: '!hasFlag("seed")'
+    command: php artisan migrate
+
+  - name: stop containers
+    id: stop-containers
+    if: exists(getCwd() + "/docker-compose.yml")
+    command: podman-compose down
+    silent: true
+
+  - name: run artisan scheduler
+    id: artisan-scheduler
+    command: php artisan schedule:run
+
+  - name: horizon queue
+    id: horizon-queue
+    command: php artisan horizon
+    platforms: ['linux', 'darwin']
+
+  - name: httpd
+    id: httpd
+    command: php artisan serve
