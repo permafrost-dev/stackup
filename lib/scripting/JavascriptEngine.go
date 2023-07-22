@@ -6,6 +6,8 @@ import (
 	"github.com/robertkrimen/otto"
 )
 
+type EvaluateFunction func(script string) any
+
 type JavaScriptEngine struct {
 	Vm *otto.Otto
 }
@@ -27,6 +29,10 @@ func (e *JavaScriptEngine) Init() {
 }
 
 func (e *JavaScriptEngine) Evaluate(script string) any {
+	if e.IsEvaluatableScriptString(script) {
+		script = e.GetEvaluatableScriptString(script)
+	}
+
 	result, _ := e.Vm.Run(script)
 
 	if result.IsBoolean() {
@@ -74,5 +80,7 @@ func (e *JavaScriptEngine) GetEvaluatableScriptString(s string) string {
 }
 
 func (e *JavaScriptEngine) IsEvaluatableScriptString(s string) bool {
-	return strings.HasPrefix(s, "{{") && strings.HasSuffix(s, "}}")
+	temp := strings.TrimSpace(s)
+
+	return strings.HasPrefix(temp, "{{") && strings.HasSuffix(temp, "}}")
 }

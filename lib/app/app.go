@@ -29,7 +29,7 @@ type AppFlags struct {
 
 type App struct {
 	workflow            workflows.StackupWorkflow
-	jsEngine            scripting.JavaScriptEngine
+	jsEngine            *scripting.JavaScriptEngine
 	cronEngine          *cron.Cron
 	scheduledTaskMap    sync.Map
 	processMap          sync.Map
@@ -51,11 +51,13 @@ func (a *App) init() {
 	a.processMap = sync.Map{}
 
 	a.workflow = workflows.LoadWorkflowFile(*a.flags.ConfigFile)
-	a.jsEngine = scripting.CreateNewJavascriptEngine()
+	jsEngine := scripting.CreateNewJavascriptEngine()
+	a.jsEngine = &jsEngine
 	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
 
 	for _, task := range a.workflow.Tasks {
 		task.Initialize()
+		task.JsEngine = a.jsEngine
 	}
 }
 
@@ -142,7 +144,7 @@ func (a *App) runEventLoop() {
 }
 
 func (a *App) runTask(task *workflows.Task, synchronous bool) {
-	if task.RunCount >= task.MaxRuns {
+	if task.RunCount >= task.MaxRuns && task.MaxRuns > 0 {
 		support.SkippedMessageWithSymbol(task.Name)
 		return
 	}
@@ -150,17 +152,13 @@ func (a *App) runTask(task *workflows.Task, synchronous bool) {
 	task.RunCount++
 
 	if a.jsEngine.IsEvaluatableScriptString(task.Path) {
-		tempCwd := a.jsEngine.Evaluate(a.jsEngine.GetEvaluatableScriptString(task.Path))
+		tempCwd := a.jsEngine.Evaluate(task.Path)
 		task.Path = tempCwd.(string)
 	}
 
-	if task.If != "" {
-		result := a.jsEngine.Evaluate(task.If)
-
-		if result != nil && !result.(bool) {
-			support.SkippedMessageWithSymbol(task.Name)
-			return
-		}
+	if !task.CanRunConditionally() {
+		support.SkippedMessageWithSymbol(task.Name)
+		return
 	}
 
 	if !task.CanRunOnCurrentPlatform() {
@@ -172,7 +170,7 @@ func (a *App) runTask(task *workflows.Task, synchronous bool) {
 	runningSilently := task.Silent == true
 
 	if a.jsEngine.IsEvaluatableScriptString(command) {
-		command = a.jsEngine.Evaluate(a.jsEngine.GetEvaluatableScriptString(command)).(string)
+		command = a.jsEngine.Evaluate(command).(string)
 	}
 
 	support.StatusMessage(task.Name+"...", false)

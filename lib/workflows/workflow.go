@@ -7,15 +7,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stackup-app/stackup/lib/scripting"
 	"gopkg.in/yaml.v2"
 )
+
+type AppWrapper struct {
+	jsEngine scripting.JavaScriptEngine
+}
 
 type StackupWorkflow struct {
 	Name          string          `yaml:"name"`
 	Description   string          `yaml:"description"`
 	Version       string          `yaml:"version"`
 	Preconditions []Precondition  `yaml:"preconditions"`
-	Tasks         []Task          `yaml:"tasks"`
+	Tasks         []*Task         `yaml:"tasks"`
 	Startup       []StartupItem   `yaml:"startup"`
 	Shutdown      []ShutdownItem  `yaml:"shutdown"`
 	Servers       []Server        `yaml:"servers"`
@@ -39,6 +44,7 @@ type Task struct {
 	MaxRuns   int      `yaml:"maxRuns,omitempty"`
 	Result    *exec.Cmd
 	RunCount  int
+	JsEngine  *scripting.JavaScriptEngine
 }
 
 type StartupItem struct {
@@ -109,7 +115,7 @@ func LoadWorkflowFile(filename string) StackupWorkflow {
 func (workflow *StackupWorkflow) FindTaskById(id string) *Task {
 	for _, task := range workflow.Tasks {
 		if task.Id == id && len(task.Id) > 0 {
-			return &task
+			return task
 		}
 	}
 
@@ -131,6 +137,20 @@ func (task *Task) CanRunOnCurrentPlatform() bool {
 	}
 
 	return foundPlatform
+}
+
+func (task *Task) CanRunConditionally() bool {
+	if len(strings.TrimSpace(task.If)) == 0 {
+		return true
+	}
+
+	result := task.JsEngine.Evaluate(task.If)
+
+	if result.(bool) {
+		return true
+	}
+
+	return false
 }
 
 func (task *Task) Initialize() {
