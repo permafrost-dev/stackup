@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -58,11 +57,7 @@ func (a *App) init() {
 	a.cfg = config.NewConfiguration()
 	a.workflow = workflows.LoadWorkflowFile(config.FindExistingConfigurationFile(*a.flags.ConfigFile))
 	a.jsEngine = scripting.CreateNewJavascriptEngine()
-	a.cronEngine = cron.New(
-		cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)),
-		//cron.WithParser(cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)),
-		//cron.WithParser(cron.NewParser(cron.Second|cron.Minute|cron.Hour|cron.Dom|cron.Month|cron.Dow)),
-	)
+	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
 }
 
 func (a *App) hookSignals() {
@@ -142,8 +137,6 @@ func (a *App) stopServerProcesses() {
 }
 
 func (a *App) runEventLoop() {
-	support.StatusMessageLine("Event loop executing.", true)
-
 	for {
 		utils.WaitForStartOfNextMinute()
 	}
@@ -180,45 +173,47 @@ func (a *App) runTask(task *workflows.Task, synchronous bool) {
 		}
 	}
 
-	if a.jsEngine.IsEvaluatableScriptString(task.Command) {
-		a.jsEngine.Evaluate(a.jsEngine.GetEvaluatableScriptString(task.Command))
-		support.SuccessMessageWithCheck(task.Name)
-		return
-	}
+	command := task.Command
+	runningSilently := task.Silent == true
 
-	runningSilently := reflect.TypeOf(task.Silent).Kind() == reflect.Bool && task.Silent == true
+	if a.jsEngine.IsEvaluatableScriptString(command) {
+		command = a.jsEngine.Evaluate(a.jsEngine.GetEvaluatableScriptString(command)).(string)
+	}
 
 	support.StatusMessage(task.Name+"...", false)
 
 	if synchronous {
-		cmd := utils.RunCommandInPath(task.Command, task.Path, runningSilently)
-
-		if cmd != nil {
-			if runningSilently {
-				support.PrintCheckMarkLine()
-			} else {
-				support.SuccessMessageWithCheck(task.Name)
-			}
-		}
-
-		if cmd == nil {
-			if runningSilently {
-				support.PrintXMarkLine()
-			} else {
-				support.FailureMessageWithXMark(task.Name)
-			}
-		}
-
+		a.runTaskSyncWithStatusMessages(task, command, runningSilently)
 		return
 	}
 
-	cmd, _ := utils.StartCommand(task.Command, task.Path)
+	cmd, _ := utils.StartCommand(command, task.Path)
 	a.CmdStartCallback(cmd)
 	cmd.Start()
 
 	support.PrintCheckMarkLine()
 
 	a.processMap.Store(task.Name, cmd)
+}
+
+func (a *App) runTaskSyncWithStatusMessages(task *workflows.Task, command string, runningSilently bool) {
+	cmd := utils.RunCommandInPath(command, task.Path, runningSilently)
+
+	if cmd != nil {
+		if runningSilently {
+			support.PrintCheckMarkLine()
+		} else {
+			support.SuccessMessageWithCheck(task.Name)
+		}
+	}
+
+	if cmd == nil {
+		if runningSilently {
+			support.PrintXMarkLine()
+		} else {
+			support.FailureMessageWithXMark(task.Name)
+		}
+	}
 }
 
 func (a *App) runStartupTasks() {
