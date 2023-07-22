@@ -44,13 +44,13 @@ builds:
 # brews:
 #   -
 #     name: stackup
-#     homepage: 'https://github.com/stackup-app/homebrew-stackup'
+#     homepage: 'https://github.com/permafrost-dev/homebrew-stackup'
 #     description: 'a single application to manage your entire dev stack'
 #     download_strategy: GitHubPrivateRepositoryReleaseDownloadStrategy
 #     custom_require: "lib/custom_download_strategy"
 #     license: MIT
 #     repository:
-#       owner: stackup-app
+#       owner: permafrost-dev
 #       name: homebrew-stackup
 #       branch: main
 
