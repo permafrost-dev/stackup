@@ -18,8 +18,6 @@ jobs:
 
     strategy:
       fail-fast: false
-      matrix:
-        GOOS: [linux, windows, darwin]
 
     steps:
       - name: Install Task
@@ -36,22 +34,11 @@ jobs:
 
       - run: git fetch --force --tags
 
-      - shell: bash
-        run: |
-          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-
-      - id: cache
-        uses: actions/cache@v3
-        with:
-          path: dist/${{ matrix.GOOS }}
-          key: ${{ matrix.GOOS }}-${{ env.sha_short }}
-
       - uses: goreleaser/goreleaser-action@v4
         with:
           distribution: goreleaser-pro
           version: latest
           args: release --clean --skip-docker
         env:
-          GOOS: ${{ matrix.GOOS }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
