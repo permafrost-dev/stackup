@@ -145,9 +145,11 @@ scheduler:
       cron: '* * * * *'
 ```
 
-### Example Configuration
+### Example Configurations
 
-See the [example configuration](./templates/stackup.dist.yaml) for an example that brings up a Laravel-based backend and a Next.js frontend stack.
+See the [example configuration](./templates/stackup.dist.yaml) for a more complex example that brings up a Laravel-based backend and a Next.js frontend stack.
+
+Working on a standalone Laravel application? Check out the [example laravel configuration](./templates/stackup.laravel.yaml).
 
 ## Available Functions
 
@@ -159,6 +161,7 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `binaryExists()`| name: string   | returns true if the specified binary exists in `$PATH`, otherwise false       |
 | `env()`      | name: string      | returns the string value of environment variable `name                        |
 | `exists()`   | filename: string  | returns true if `filename` exists, false otherwise                          |
+| `getCwd()`   | --                | returns the directory stackup was run from                                  |
 | `hasFlag()`  | name: string      | returns true if the flag `name` was specified when running the application  |
 
 ## Setup
