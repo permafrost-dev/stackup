@@ -159,4 +159,8 @@ func (task *Task) Initialize() {
 	if task.MaxRuns <= 0 {
 		task.MaxRuns = 999999999
 	}
+
+	if len(task.Path) == 0 {
+		task.Path = "{{ getCwd() }}"
+	}
 }
