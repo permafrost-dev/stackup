@@ -30,9 +30,15 @@ or, specify a configuration filename:
 stackup --config stackup.dev.yaml
 ```
 
+To generate a new configuration file to get started, run `init`: 
+
+```bash
+stackup init
+```
+
 ## Configuration
 
-The application is configured using a YAML file named `stackup.yaml` containing five sections: `preconditions`, `tasks`, `startup`, `shutdown`, and `scheduler`.
+The application is configured using a YAML file named `stackup.yaml` and contains five sections: `preconditions`, `tasks`, `startup`, `shutdown`, and `scheduler`.
 
 ### Configuration: Preconditions
 
@@ -90,7 +96,7 @@ tasks:
   - name: run migrations (no seeding)
     id: run-migrations-no-seed
     if: '!hasFlag("seed")'
-    run: php artisan migrate
+    command: php artisan migrate
     path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
 
   - name: frontend httpd (linux, macos)
