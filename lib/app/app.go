@@ -204,6 +204,47 @@ func (a *Application) runPreconditions() {
 	}
 }
 
+func (a *Application) createNewConfigFile() {
+	if _, err := os.Stat("stackup.yaml"); err == nil {
+		fmt.Println("stackup.yaml already exists.")
+		return
+	}
+
+	filename := "stackup.yaml"
+	contents := `name: my stack
+    description: application stack
+    version: 1.0.0
+
+    preconditions:
+      - name: dependencies are installed
+        check: binaryExists("php")
+
+    startup:
+      - task: start-containers
+
+    shutdown:
+      - task: stop-containers
+
+    servers:
+
+    scheduler:
+
+    tasks:
+      - name: spin up containers
+        id: start-containers
+        if: exists(getCwd() + "/docker-compose.yml")
+        command: docker-compose up -d
+        silent: true
+
+      - name: stop containers
+        id: stop-containers
+        if: exists(getCwd() + "/docker-compose.yml")
+        command: docker-compose down
+        silent: true
+    `
+	ioutil.WriteFile(filename, []byte(contents), 0644)
+}
+
 func (a *Application) Run() {
 	godotenv.Load()
 	a.init()
@@ -215,6 +256,11 @@ func (a *Application) Run() {
 
 	if *a.flags.DisplayVersion {
 		fmt.Println("StackUp version " + version.APP_VERSION)
+		os.Exit(0)
+	}
+
+	if os.Args[1] == "init" {
+		a.createNewConfigFile()
 		os.Exit(0)
 	}
 
