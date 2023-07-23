@@ -19,8 +19,7 @@ preconditions:
 
 startup:
   - task: start-containers
-  - task: run-migrations-fresh
-  - task: run-migrations-no-seed
+  - task: run-migrations
 
 shutdown:
   - task: stop-containers
@@ -52,6 +51,11 @@ tasks:
     id: run-migrations-no-seed
     if: '!hasFlag("seed")'
     command: php artisan migrate
+    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+
+  - name: run migrations
+    id: run-migrations
+    command: '{{ selectTaskWhen(hasFlag("seed"), "run-migrations-fresh", "run-migrations-no-seed").Command }}'
     path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
 
   - name: stop containers
