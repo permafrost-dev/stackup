@@ -20,12 +20,19 @@ func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("script", createScriptFunction)
 	vm.Set("selectTaskWhen", createSelectTaskWhen)
 	vm.Set("task", createTaskFunction)
+	vm.Set("workflow", createWorkflowFunction)
 }
 
 func getResult(call otto.FunctionCall, v any) otto.Value {
 	result, _ := call.Otto.ToValue(v)
 
 	return result
+}
+
+func createWorkflowFunction(call otto.FunctionCall) otto.Value {
+	result := App.Workflow
+
+	return getResult(call, result)
 }
 
 func createPlatformFunction(call otto.FunctionCall) otto.Value {
@@ -36,7 +43,7 @@ func createPlatformFunction(call otto.FunctionCall) otto.Value {
 
 func createTaskFunction(call otto.FunctionCall) otto.Value {
 	taskName := call.Argument(1).String()
-	task := App.workflow.FindTaskById(taskName)
+	task := App.Workflow.FindTaskById(taskName)
 
 	return getResult(call, task)
 }
@@ -63,9 +70,9 @@ func createSelectTaskWhen(call otto.FunctionCall) otto.Value {
 	var task *Task
 
 	if conditional {
-		task = App.workflow.FindTaskById(trueTaskName)
+		task = App.Workflow.FindTaskById(trueTaskName)
 	} else {
-		task = App.workflow.FindTaskById(falseTaskName)
+		task = App.Workflow.FindTaskById(falseTaskName)
 	}
 
 	return getResult(call, task)
