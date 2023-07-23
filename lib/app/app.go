@@ -29,7 +29,7 @@ type AppFlags struct {
 }
 
 type Application struct {
-	workflow            StackupWorkflow
+	Workflow            *StackupWorkflow
 	JsEngine            *JavaScriptEngine
 	cronEngine          *cron.Cron
 	scheduledTaskMap    sync.Map
@@ -67,12 +67,13 @@ func (a *Application) init() {
 	a.scheduledTaskMap = sync.Map{}
 	a.ProcessMap = sync.Map{}
 
-	a.workflow = a.loadWorkflowFile(*a.flags.ConfigFile)
+	workflow := a.loadWorkflowFile(*a.flags.ConfigFile)
+	a.Workflow = &workflow
 	jsEngine := CreateNewJavascriptEngine()
 	a.JsEngine = &jsEngine
 	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
 
-	for _, task := range a.workflow.Tasks {
+	for _, task := range a.Workflow.Tasks {
 		task.Initialize()
 	}
 }
@@ -112,8 +113,8 @@ func (a *Application) exitApp() {
 }
 
 func (a *Application) createScheduledTasks() {
-	for _, def := range a.workflow.Scheduler {
-		task := a.workflow.FindTaskById(def.Task)
+	for _, def := range a.Workflow.Scheduler {
+		task := a.Workflow.FindTaskById(def.Task)
 
 		if task == nil {
 			support.FailureMessageWithXMark("Task " + def.Task + " not found.")
@@ -124,7 +125,7 @@ func (a *Application) createScheduledTasks() {
 		taskId := def.Task
 
 		a.cronEngine.AddFunc(cron, func() {
-			task := a.workflow.FindTaskById(taskId)
+			task := a.Workflow.FindTaskById(taskId)
 			task.Run(true)
 		})
 
@@ -151,8 +152,8 @@ func (a *Application) runEventLoop() {
 }
 
 func (a *Application) runStartupTasks() {
-	for _, def := range a.workflow.Startup {
-		task := a.workflow.FindTaskById(def.Task)
+	for _, def := range a.Workflow.Startup {
+		task := a.Workflow.FindTaskById(def.Task)
 
 		if task == nil {
 			support.SkippedMessageWithSymbol("Task " + def.Task + " not found.")
@@ -164,8 +165,8 @@ func (a *Application) runStartupTasks() {
 }
 
 func (a *Application) runShutdownTasks() {
-	for _, def := range a.workflow.Shutdown {
-		task := a.workflow.FindTaskById(def.Task)
+	for _, def := range a.Workflow.Shutdown {
+		task := a.Workflow.FindTaskById(def.Task)
 
 		if task == nil {
 			support.SkippedMessageWithSymbol("Task " + def.Task + " not found.")
@@ -177,8 +178,8 @@ func (a *Application) runShutdownTasks() {
 }
 
 func (a *Application) runServerTasks() {
-	for _, def := range a.workflow.Servers {
-		task := a.workflow.FindTaskById(def.Task)
+	for _, def := range a.Workflow.Servers {
+		task := a.Workflow.FindTaskById(def.Task)
 
 		if task == nil {
 			support.SkippedMessageWithSymbol("Task " + def.Task + " not found.")
@@ -190,7 +191,7 @@ func (a *Application) runServerTasks() {
 }
 
 func (a *Application) runPreconditions() {
-	for _, c := range a.workflow.Preconditions {
+	for _, c := range a.Workflow.Preconditions {
 		if c.Check != "" {
 			result := a.JsEngine.Evaluate(c.Check)
 
