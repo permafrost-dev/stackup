@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/robertkrimen/otto"
+	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
@@ -14,6 +15,7 @@ func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("exists", createJavascriptFunctionExists)
 	vm.Set("getCwd", createGetCurrentWorkingDirectory)
 	vm.Set("hasFlag", createJavascriptFunctionHasFlag)
+	vm.Set("script", createScriptFunction)
 	vm.Set("selectTaskWhen", createSelectTaskWhen)
 }
 
@@ -21,6 +23,21 @@ func getResult(call otto.FunctionCall, v any) otto.Value {
 	result, _ := call.Otto.ToValue(v)
 
 	return result
+}
+
+func createScriptFunction(call otto.FunctionCall) otto.Value {
+	filename := call.Argument(0).String()
+
+	content, err := os.ReadFile(filename)
+
+    if err != nil {
+        support.WarningMessage("Could not read script file: " + filename)
+        return getResult(call, false)
+    }
+
+	result := App.JsEngine.Evaluate(string(content))
+
+	return getResult(call, result)
 }
 
 func createSelectTaskWhen(call otto.FunctionCall) otto.Value {
