@@ -1,8 +1,6 @@
 package app
 
-import (
-	"time"
-)
+import "strings"
 
 type StackupWorkflow struct {
 	Name          string          `yaml:"name"`
@@ -38,41 +36,9 @@ type ScheduledTask struct {
 	Cron string `yaml:"cron"`
 }
 
-type WorkflowState struct {
-	CurrentStage    string
-	CurrentId       string
-	CurrentStep     string
-	IsComplete      bool
-	ServerProcesses []ServerProcess
-	TaskStatuses    []TaskStatus
-}
-
-type TaskStatus struct {
-	Name       string
-	Status     string
-	StartedAt  time.Time
-	FinishedAt time.Time
-	RuntimeMs  int64
-	Pid        int32
-}
-
-type ServerProcess struct {
-	Name      string   `yaml:"name"`
-	Id        string   `yaml:"id,omitempty"`
-	Command   string   `yaml:"command,omitempty"`
-	Cwd       string   `yaml:"cwd"`
-	Platforms []string `yaml:"platforms,omitempty"`
-
-	StartedAt time.Time
-	StoppedAt time.Time
-	RuntimeMs int64
-	Pid       int32
-	Status    string
-}
-
 func (workflow *StackupWorkflow) FindTaskById(id string) *Task {
 	for _, task := range workflow.Tasks {
-		if task.Id == id && len(task.Id) > 0 {
+		if strings.EqualFold(task.Id, id) && len(task.Id) > 0 {
 			return task
 		}
 	}

@@ -160,68 +160,6 @@ func (a *Application) runEventLoop() {
 	}
 }
 
-// func (a *Application) runTask(task *Task, synchronous bool) {
-// 	if task.RunCount >= task.MaxRuns && task.MaxRuns > 0 {
-// 		support.SkippedMessageWithSymbol(task.Name)
-// 		return
-// 	}
-
-// 	task.RunCount++
-
-// 	if a.JsEngine.IsEvaluatableScriptString(task.Path) {
-// 		tempCwd := a.JsEngine.Evaluate(task.Path)
-// 		task.Path = tempCwd.(string)
-// 	}
-
-// 	if !task.CanRunConditionally() {
-// 		support.SkippedMessageWithSymbol(task.Name)
-// 		return
-// 	}
-
-// 	if !task.CanRunOnCurrentPlatform() {
-// 		support.WarningMessage("Skipping " + task.Name + ", it is not supported on this operating system.")
-// 		return
-// 	}
-
-// 	command := task.Command
-// 	runningSilently := task.Silent == true
-
-// 	if a.JsEngine.IsEvaluatableScriptString(command) {
-// 		command = a.JsEngine.Evaluate(command).(string)
-// 	}
-
-// 	support.StatusMessage(task.Name+"...", false)
-
-// 	if synchronous {
-// 		a.runTaskSyncWithStatusMessages(task, command, runningSilently)
-// 		return
-// 	}
-
-// 	cmd, _ := utils.StartCommand(command, task.Path)
-// 	a.CmdStartCallback(cmd)
-// 	cmd.Start()
-
-// 	support.PrintCheckMarkLine()
-
-// 	a.ProcessMap.Store(task.Name, cmd)
-// }
-
-// func (a *Application) runTaskSyncWithStatusMessages(task *Task, command string, runningSilently bool) {
-// 	cmd := utils.RunCommandInPath(command, task.Path, runningSilently)
-
-// 	if cmd != nil && runningSilently {
-// 		support.PrintCheckMarkLine()
-// 	} else if cmd != nil {
-// 		support.SuccessMessageWithCheck(task.Name)
-// 	}
-
-// 	if cmd == nil && runningSilently {
-// 		support.PrintXMarkLine()
-// 	} else if cmd == nil {
-// 		support.FailureMessageWithXMark(task.Name)
-// 	}
-// }
-
 func (a *Application) runStartupTasks() {
 	for _, def := range a.workflow.Startup {
 		task := a.workflow.FindTaskById(def.Task)
