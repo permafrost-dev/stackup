@@ -168,6 +168,7 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `exists()`   | filename: string  | returns true if `filename` exists, false otherwise                          |
 | `getCwd()`   | --                | returns the directory stackup was run from                                  |
 | `hasFlag()`  | name: string      | returns true if the flag `name` was specified when running the application  |
+| `platform()` | --                | returns the operating system, one of `windows`, `linux` or `darwin` (macOS) |
 | `script()`   | filename: string  | returns the output of the javascript located in `filename`                  |
 | `selectTaskWhen()` | conditonal: boolean, trueTaskId: string falseTaskId: string | returns a Task object based on the value of `conditional` |
 | `task()`     | taskId: string    | returns a `Task` object with the id `taskId`                                |

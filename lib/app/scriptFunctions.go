@@ -2,6 +2,7 @@ package app
 
 import (
 	"os"
+	"runtime"
 
 	"github.com/robertkrimen/otto"
 	"github.com/stackup-app/stackup/lib/support"
@@ -15,6 +16,7 @@ func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("exists", createJavascriptFunctionExists)
 	vm.Set("getCwd", createGetCurrentWorkingDirectory)
 	vm.Set("hasFlag", createJavascriptFunctionHasFlag)
+	vm.Set("platform", createPlatformFunction)
 	vm.Set("script", createScriptFunction)
 	vm.Set("selectTaskWhen", createSelectTaskWhen)
 	vm.Set("task", createTaskFunction)
@@ -24,6 +26,12 @@ func getResult(call otto.FunctionCall, v any) otto.Value {
 	result, _ := call.Otto.ToValue(v)
 
 	return result
+}
+
+func createPlatformFunction(call otto.FunctionCall) otto.Value {
+	result := runtime.GOOS
+
+	return getResult(call, result)
 }
 
 func createTaskFunction(call otto.FunctionCall) otto.Value {
