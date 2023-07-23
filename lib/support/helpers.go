@@ -14,6 +14,10 @@ func SkippedMessageWithSymbol(msg string) {
 	fmt.Println(MessageIndentation + aurora.White(msg).String() + aurora.BrightYellow(" [skipped] ⚬").String())
 }
 
+func SkippedMessageWitReason(msg string, reason string) {
+	fmt.Println(MessageIndentation + aurora.White(reason).String() + aurora.BrightYellow(" [skipped] ⚬").String())
+}
+
 func SuccessMessageWithCheck(msg string) {
 	fmt.Println(MessageIndentation + aurora.White(msg).String() + aurora.BrightGreen(" ✓").String())
 }

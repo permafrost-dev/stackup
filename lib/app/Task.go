@@ -105,7 +105,7 @@ func (task *Task) Run(synchronous bool) {
 	}
 
 	if !task.CanRunOnCurrentPlatform() {
-		support.WarningMessage("Skipping " + task.Name + ", it is not supported on this operating system.")
+		support.SkippedMessageWithSymbol("Task '" + task.Name + "' is not supported on this operating system.")
 		return
 	}
 

@@ -1,3 +1,3 @@
 package version
 
-const APP_VERSION = "0.0.0-5eb76ede"
+const APP_VERSION = "1.1.1-dev.2"

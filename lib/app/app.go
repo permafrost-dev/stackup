@@ -13,7 +13,6 @@ import (
 	"github.com/eiannone/keyboard"
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
-	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/utils"
 	"github.com/stackup-app/stackup/lib/version"
@@ -31,7 +30,7 @@ type AppFlags struct {
 
 type Application struct {
 	workflow            StackupWorkflow
-	JsEngine            *scripting.JavaScriptEngine
+	JsEngine            *JavaScriptEngine
 	cronEngine          *cron.Cron
 	scheduledTaskMap    sync.Map
 	ProcessMap          sync.Map
@@ -69,7 +68,7 @@ func (a *Application) init() {
 	a.ProcessMap = sync.Map{}
 
 	a.workflow = a.loadWorkflowFile(*a.flags.ConfigFile)
-	jsEngine := scripting.CreateNewJavascriptEngine()
+	jsEngine := CreateNewJavascriptEngine()
 	a.JsEngine = &jsEngine
 	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
 
@@ -95,10 +94,6 @@ func (a *Application) hookKeyboard() {
 
 			if err != nil {
 				return
-			}
-
-			if char == 'r' {
-				fmt.Println("r pressed")
 			}
 
 			if key == keyboard.KeyCtrlC || char == 'q' {
@@ -140,16 +135,11 @@ func (a *Application) createScheduledTasks() {
 }
 
 func (a *Application) stopServerProcesses() {
-	var stopServer = func(key any, value any) {
-		support.StatusMessage("Stopping "+key.(string)+"...", false)
-
-		a.KillCommandCallback(value.(*exec.Cmd))
-
-		support.PrintCheckMarkLine()
-	}
-
 	a.ProcessMap.Range(func(key any, value any) bool {
-		stopServer(key, value)
+		support.StatusMessage("Stopping "+key.(string)+"...", false)
+		a.KillCommandCallback(value.(*exec.Cmd))
+		support.PrintCheckMarkLine()
+
 		return true
 	})
 }
@@ -165,7 +155,7 @@ func (a *Application) runStartupTasks() {
 		task := a.workflow.FindTaskById(def.Task)
 
 		if task == nil {
-			support.FailureMessageWithXMark("Task " + def.Task + " not found.")
+			support.SkippedMessageWithSymbol("Task " + def.Task + " not found.")
 			continue
 		}
 
@@ -178,7 +168,7 @@ func (a *Application) runShutdownTasks() {
 		task := a.workflow.FindTaskById(def.Task)
 
 		if task == nil {
-			support.FailureMessageWithXMark("Task " + def.Task + " not found.")
+			support.SkippedMessageWithSymbol("Task " + def.Task + " not found.")
 			continue
 		}
 
@@ -191,7 +181,7 @@ func (a *Application) runServerTasks() {
 		task := a.workflow.FindTaskById(def.Task)
 
 		if task == nil {
-			support.FailureMessageWithXMark("Task " + def.Task + " not found.")
+			support.SkippedMessageWithSymbol("Task " + def.Task + " not found.")
 			continue
 		}
 

@@ -1,4 +1,4 @@
-package scripting
+package app
 
 import (
 	"os"
@@ -14,6 +14,7 @@ func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("exists", createJavascriptFunctionExists)
 	vm.Set("getCwd", createGetCurrentWorkingDirectory)
 	vm.Set("hasFlag", createJavascriptFunctionHasFlag)
+	vm.Set("selectTaskWhen", createSelectTaskWhen)
 }
 
 func getResult(call otto.FunctionCall, v any) otto.Value {
@@ -22,17 +23,20 @@ func getResult(call otto.FunctionCall, v any) otto.Value {
 	return result
 }
 
-// func createSelectTaskCommandWhen(call otto.FunctionCall) otto.Value {
-//     result := false
-//     taskName := call.Argument(0).String()
-//     task := call.Argument(1).Object()
+func createSelectTaskWhen(call otto.FunctionCall) otto.Value {
+	conditional, _ := call.Argument(0).ToBoolean()
+	trueTaskName := call.Argument(1).String()
+	falseTaskName := call.Argument(2).String()
+	var task *Task
 
-//     if taskName == task.Get("name").String() {
-//         result = true
-//     }
+	if conditional {
+		task = App.workflow.FindTaskById(trueTaskName)
+	} else {
+		task = App.workflow.FindTaskById(falseTaskName)
+	}
 
-//     return getResult(call, result)
-// }
+	return getResult(call, task)
+}
 
 func createGetCurrentWorkingDirectory(call otto.FunctionCall) otto.Value {
 	result, _ := os.Getwd()
