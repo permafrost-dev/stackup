@@ -17,6 +17,7 @@ func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("hasFlag", createJavascriptFunctionHasFlag)
 	vm.Set("script", createScriptFunction)
 	vm.Set("selectTaskWhen", createSelectTaskWhen)
+	vm.Set("task", createTaskFunction)
 }
 
 func getResult(call otto.FunctionCall, v any) otto.Value {
@@ -25,15 +26,22 @@ func getResult(call otto.FunctionCall, v any) otto.Value {
 	return result
 }
 
+func createTaskFunction(call otto.FunctionCall) otto.Value {
+	taskName := call.Argument(1).String()
+	task := App.workflow.FindTaskById(taskName)
+
+	return getResult(call, task)
+}
+
 func createScriptFunction(call otto.FunctionCall) otto.Value {
 	filename := call.Argument(0).String()
 
 	content, err := os.ReadFile(filename)
 
-    if err != nil {
-        support.WarningMessage("Could not read script file: " + filename)
-        return getResult(call, false)
-    }
+	if err != nil {
+		support.WarningMessage("Could not read script file: " + filename)
+		return getResult(call, false)
+	}
 
 	result := App.JsEngine.Evaluate(string(content))
 

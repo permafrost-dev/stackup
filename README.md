@@ -170,6 +170,7 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `hasFlag()`  | name: string      | returns true if the flag `name` was specified when running the application  |
 | `script()`   | filename: string  | returns the output of the javascript located in `filename`                  |
 | `selectTaskWhen()` | conditonal: boolean, trueTaskId: string falseTaskId: string | returns a Task object based on the value of `conditional` |
+| `task()`     | taskId: string    | returns a `Task` object with the id `taskId`                                |
 
 ## Setup
 
