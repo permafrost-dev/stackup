@@ -48,10 +48,7 @@ tasks:
 
   update-version-file:
     cmds:
-      #- printf "package main\n\nconst APP_VERSION = \"{{.VERSION}}\"" > {{.APP_VERSION_FILE}}
       - go run tools/generate-version-file.go
-    status:
-      - test -f {{.APP_VERSION_FILE}}
 
   lint-dotenv:
     desc: Lints all dotenv files
