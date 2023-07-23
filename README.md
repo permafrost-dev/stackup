@@ -6,7 +6,7 @@
 
 ---
 
-a single application to spin up your entire dev stack.
+A single application to spin up your entire dev stack.
 
 ## About
 
@@ -138,7 +138,6 @@ tasks:
   - name: run artisan scheduler
     id: artisan-scheduler
     command: php artisan schedule:run
-    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
 
 scheduler:
     - task: artisan-scheduler
