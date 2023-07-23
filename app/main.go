@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	a := app.App{
+	app.App = &app.Application{
 		CmdStartCallback: func(cmd *exec.Cmd) {
 			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		},
@@ -16,5 +16,6 @@ func main() {
 			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		},
 	}
-	a.Run()
+
+	app.App.Run()
 }

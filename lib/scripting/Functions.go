@@ -22,6 +22,18 @@ func getResult(call otto.FunctionCall, v any) otto.Value {
 	return result
 }
 
+// func createSelectTaskCommandWhen(call otto.FunctionCall) otto.Value {
+//     result := false
+//     taskName := call.Argument(0).String()
+//     task := call.Argument(1).Object()
+
+//     if taskName == task.Get("name").String() {
+//         result = true
+//     }
+
+//     return getResult(call, result)
+// }
+
 func createGetCurrentWorkingDirectory(call otto.FunctionCall) otto.Value {
 	result, _ := os.Getwd()
 

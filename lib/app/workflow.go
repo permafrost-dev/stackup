@@ -1,19 +1,8 @@
-package workflows
+package app
 
 import (
-	"io/ioutil"
-	"os/exec"
-	"runtime"
-	"strings"
 	"time"
-
-	"github.com/stackup-app/stackup/lib/scripting"
-	"gopkg.in/yaml.v2"
 )
-
-type AppWrapper struct {
-	jsEngine scripting.JavaScriptEngine
-}
 
 type StackupWorkflow struct {
 	Name          string          `yaml:"name"`
@@ -30,21 +19,6 @@ type StackupWorkflow struct {
 type Precondition struct {
 	Name  string `yaml:"name"`
 	Check string `yaml:"check"`
-}
-
-type Task struct {
-	Name      string   `yaml:"name"`
-	Command   string   `yaml:"command"`
-	If        string   `yaml:"if,omitempty"`
-	Id        string   `yaml:"id,omitempty"`
-	Silent    bool     `yaml:"silent"`
-	Path      string   `yaml:"path"`
-	Type      string   `yaml:"type"`
-	Platforms []string `yaml:"platforms,omitempty"`
-	MaxRuns   int      `yaml:"maxRuns,omitempty"`
-	Result    *exec.Cmd
-	RunCount  int
-	JsEngine  *scripting.JavaScriptEngine
 }
 
 type StartupItem struct {
@@ -96,22 +70,6 @@ type ServerProcess struct {
 	Status    string
 }
 
-func LoadWorkflowFile(filename string) StackupWorkflow {
-	var result StackupWorkflow
-
-	contents, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return StackupWorkflow{}
-	}
-
-	err = yaml.Unmarshal(contents, &result)
-	if err != nil {
-		return StackupWorkflow{}
-	}
-
-	return result
-}
-
 func (workflow *StackupWorkflow) FindTaskById(id string) *Task {
 	for _, task := range workflow.Tasks {
 		if task.Id == id && len(task.Id) > 0 {
@@ -120,47 +78,4 @@ func (workflow *StackupWorkflow) FindTaskById(id string) *Task {
 	}
 
 	return nil
-}
-
-func (task *Task) CanRunOnCurrentPlatform() bool {
-	if task.Platforms == nil || len(task.Platforms) == 0 {
-		return true
-	}
-
-	foundPlatform := false
-
-	for _, name := range task.Platforms {
-		if strings.EqualFold(runtime.GOOS, name) {
-			foundPlatform = true
-			break
-		}
-	}
-
-	return foundPlatform
-}
-
-func (task *Task) CanRunConditionally() bool {
-	if len(strings.TrimSpace(task.If)) == 0 {
-		return true
-	}
-
-	result := task.JsEngine.Evaluate(task.If)
-
-	if result.(bool) {
-		return true
-	}
-
-	return false
-}
-
-func (task *Task) Initialize() {
-	task.RunCount = 0
-
-	if task.MaxRuns <= 0 {
-		task.MaxRuns = 999999999
-	}
-
-	if len(task.Path) == 0 {
-		task.Path = "{{ getCwd() }}"
-	}
 }
