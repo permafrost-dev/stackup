@@ -64,12 +64,12 @@ Items in `tasks` follow this structure:
 | id        | A unique identifier for the task (e.g. `start-containers`)                                                 | yes       |
 | if        | A condition that must be true for the task to run (e.g. `hasFlag('seed')`)                                 | no        |
 | command   | The command to run for the task (e.g. `podman-compose up -d`)                                              | yes       |
-| path      | The path to the directory where the command should be run                                                  | yes       |
+| path      | The path to the directory where the command should be run `(default: current directory)`                     | no        |
 | silent    | Whether to suppress output from the command `(default: false)`                                               | no        |
 | platforms | A list of platforms where the task should be run `(default: all platforms)`                                  | no        |
-| maxRuns   | An integer that specifies the maximum number of times the task can run (value of 0 means always run)         | no        |
+| maxRuns   | The maximum number of times the task can run (0 means always run) `(default: 0)`                             | no        |
 
-Note that the `path` value can be wrapped in double braces to indicate that it should be interpreted as a javascript expression.
+Note that the `command` and `path` values can be wrapped in double braces to be interpreted as a javascript expression.
 
 Here is an example of the `tasks` section:
 
@@ -163,6 +163,7 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `exists()`   | filename: string  | returns true if `filename` exists, false otherwise                          |
 | `getCwd()`   | --                | returns the directory stackup was run from                                  |
 | `hasFlag()`  | name: string      | returns true if the flag `name` was specified when running the application  |
+| `selectTaskWhen()` | conditonal: boolean, trueTaskId: string falseTaskId: string | returns a Task object based on the value of `conditional` |
 
 ## Setup
 
