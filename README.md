@@ -175,6 +175,56 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `task()`     | taskId: string    | returns a `Task` object with the id `taskId`                                |
 | `workflow()` | --                | returns a `Workflow` object                                                 |
 
+## Dynamic Tasks
+
+You can create dynamic tasks using either the `selectTaskWhen()` or `task()` function:
+
+```yaml
+tasks:
+  - name: frontend httpd (linux, macos)
+    id: frontend-httpd-linux
+    command: node ./node_modules/.bin/next dev
+    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    platforms: ['linux', 'darwin']
+
+  - name: frontend httpd (windows)
+    id: frontend-httpd-windows
+    command: npm run dev
+    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    platforms: ['windows']
+
+  - name: '{{ selectTaskWhen(platform() == "windows", "frontend-httpd-windows", "frontend-httpd-linux").Name }}'
+    id: frontend-httpd
+    command: '{{ selectTaskWhen(platform() == "windows", "frontend-httpd-windows", "frontend-httpd-linux").Command }}'
+    path: '{{ selectTaskWhen(platform() == "windows", "frontend-httpd-windows", "frontend-httpd-linux").Path }}'
+```
+
+This example specifies different tasks for each operating system, then defines a `frontend-httpd` task that dynamically selects the correct one:
+
+```yaml
+tasks:
+  - name: frontend httpd (linux)
+    id: frontend-httpd-linux
+    command: node ./node_modules/.bin/next dev
+    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+
+  - name: frontend httpd (macOS)
+    id: frontend-httpd-darwin
+    command: node ./node_modules/.bin/next dev
+    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+
+  - name: frontend httpd (windows)
+    id: frontend-httpd-windows
+    command: npm run dev
+    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    
+  - name: '{{ task("frontend-httpd-" + platform()).Name }}'
+    id: frontend-httpd
+    command: '{{ task("frontend-httpd-" + platform()).Command }}'
+    path: '{{ task("frontend-httpd-" + platform()).Path }}'
+```
+
+
 ## Setup
 
 ```bash
