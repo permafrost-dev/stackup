@@ -12,6 +12,11 @@ type StackupWorkflow struct {
 	Shutdown      []ShutdownItem  `yaml:"shutdown"`
 	Servers       []Server        `yaml:"servers"`
 	Scheduler     []ScheduledTask `yaml:"scheduler"`
+	State         *StackupWorkflowState
+}
+
+type StackupWorkflowState struct {
+	CurrentTask *Task
 }
 
 type Precondition struct {

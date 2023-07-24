@@ -52,6 +52,8 @@ func (a *Application) loadWorkflowFile(filename string) StackupWorkflow {
 		return StackupWorkflow{}
 	}
 
+	result.State.CurrentTask = nil
+
 	return result
 }
 

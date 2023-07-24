@@ -87,6 +87,8 @@ func (task *Task) runWithStatusMessagesSync(runningSilently bool) {
 }
 
 func (task *Task) Run(synchronous bool) {
+	App.Workflow.State.CurrentTask = task
+
 	if task.RunCount >= task.MaxRuns && task.MaxRuns > 0 {
 		support.SkippedMessageWithSymbol(task.Name)
 		return
