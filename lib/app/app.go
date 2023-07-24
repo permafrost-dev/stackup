@@ -34,6 +34,7 @@ type Application struct {
 	cronEngine          *cron.Cron
 	scheduledTaskMap    *sync.Map
 	ProcessMap          *sync.Map
+	Vars                *sync.Map
 	flags               AppFlags
 	CmdStartCallback    CommandCallback
 	KillCommandCallback CommandCallback
@@ -70,6 +71,7 @@ func (a *Application) init() {
 
 	a.scheduledTaskMap = &sync.Map{}
 	a.ProcessMap = &sync.Map{}
+	a.Vars = &sync.Map{}
 
 	workflow := a.loadWorkflowFile(*a.flags.ConfigFile)
 	a.Workflow = &workflow
