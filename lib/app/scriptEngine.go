@@ -29,11 +29,13 @@ func (e *JavaScriptEngine) Init() {
 }
 
 func (e *JavaScriptEngine) Evaluate(script string) any {
-	if e.IsEvaluatableScriptString(script) {
-		script = e.GetEvaluatableScriptString(script)
+	tempScript := strings.TrimSpace(script)
+
+	if e.IsEvaluatableScriptString(tempScript) {
+		tempScript = e.GetEvaluatableScriptString(tempScript)
 	}
 
-	result, _ := e.Vm.Run(script)
+	result, _ := e.Vm.Run(tempScript)
 
 	if result.IsBoolean() {
 		v, _ := result.ToBoolean()
@@ -42,6 +44,11 @@ func (e *JavaScriptEngine) Evaluate(script string) any {
 
 	if result.IsString() {
 		v, _ := result.ToString()
+
+		if e.IsEvaluatableScriptString(v) {
+			return e.Evaluate(v)
+		}
+
 		return v
 	}
 

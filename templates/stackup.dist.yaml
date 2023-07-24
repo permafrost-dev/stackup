@@ -25,10 +25,9 @@ shutdown:
   - task: stop-containers
 
 servers:
-  - task: frontend-httpd-linux
-  - task: frontend-httpd-windows
-  - task: horizon-queue
+  - task: frontend-httpd
   - task: backend-httpd
+  - task: horizon-queue
 
 scheduler:
     - task: artisan-scheduler
@@ -80,6 +79,11 @@ tasks:
     command: npm run dev
     path: '{{ env("FRONTEND_PROJECT_PATH") }}'
     platforms: ['windows']
+
+  - name: '{{ selectTaskWhen(platform() == "windows", "frontend-httpd-windows", "frontend-httpd-linux").Name }}'
+    id: frontend-httpd
+    command: '{{ selectTaskWhen(platform() == "windows", "frontend-httpd-windows", "frontend-httpd-linux").Command }}'
+    path: '{{ selectTaskWhen(platform() == "windows", "frontend-httpd-windows", "frontend-httpd-linux").Path }}'
 
   - name: horizon queue
     id: horizon-queue

@@ -32,8 +32,8 @@ type Application struct {
 	Workflow            *StackupWorkflow
 	JsEngine            *JavaScriptEngine
 	cronEngine          *cron.Cron
-	scheduledTaskMap    sync.Map
-	ProcessMap          sync.Map
+	scheduledTaskMap    *sync.Map
+	ProcessMap          *sync.Map
 	flags               AppFlags
 	CmdStartCallback    CommandCallback
 	KillCommandCallback CommandCallback
@@ -52,7 +52,9 @@ func (a *Application) loadWorkflowFile(filename string) StackupWorkflow {
 		return StackupWorkflow{}
 	}
 
-	result.State.CurrentTask = nil
+	result.State = &StackupWorkflowState{
+		CurrentTask: nil,
+	}
 
 	return result
 }
@@ -66,8 +68,8 @@ func (a *Application) init() {
 
 	flag.Parse()
 
-	a.scheduledTaskMap = sync.Map{}
-	a.ProcessMap = sync.Map{}
+	a.scheduledTaskMap = &sync.Map{}
+	a.ProcessMap = &sync.Map{}
 
 	workflow := a.loadWorkflowFile(*a.flags.ConfigFile)
 	a.Workflow = &workflow

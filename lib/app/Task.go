@@ -15,7 +15,6 @@ type Task struct {
 	Id        string   `yaml:"id,omitempty"`
 	Silent    bool     `yaml:"silent"`
 	Path      string   `yaml:"path"`
-	Type      string   `yaml:"type"`
 	Platforms []string `yaml:"platforms,omitempty"`
 	MaxRuns   int      `yaml:"maxRuns,omitempty"`
 	RunCount  int
@@ -61,6 +60,10 @@ func (task *Task) Initialize() {
 
 	if len(task.Path) == 0 {
 		task.Path = "{{ getCwd() }}"
+	}
+
+	if App.JsEngine.IsEvaluatableScriptString(task.Name) {
+		task.Name = App.JsEngine.Evaluate(task.Name).(string)
 	}
 }
 
