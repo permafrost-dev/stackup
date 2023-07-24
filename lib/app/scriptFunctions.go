@@ -15,6 +15,7 @@ func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("exec", createJavascriptFunctionExec)
 	vm.Set("exists", createJavascriptFunctionExists)
 	vm.Set("getCwd", createGetCurrentWorkingDirectory)
+	vm.Set("hasEnv", createHasEnvFunction)
 	vm.Set("hasFlag", createJavascriptFunctionHasFlag)
 	vm.Set("platform", createPlatformFunction)
 	vm.Set("script", createScriptFunction)
@@ -27,6 +28,12 @@ func getResult(call otto.FunctionCall, v any) otto.Value {
 	result, _ := call.Otto.ToValue(v)
 
 	return result
+}
+
+func createHasEnvFunction(call otto.FunctionCall) otto.Value {
+	_, result := os.LookupEnv(call.Argument(0).String())
+
+	return getResult(call, result)
 }
 
 func createWorkflowFunction(call otto.FunctionCall) otto.Value {

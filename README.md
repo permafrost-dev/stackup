@@ -167,6 +167,7 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `env()`      | name: string      | returns the string value of environment variable `name                        |
 | `exists()`   | filename: string  | returns true if `filename` exists, false otherwise                          |
 | `getCwd()`   | --                | returns the directory stackup was run from                                  |
+| `hasEnv()`   | name: string      | returns true if the specified environment variable exists, otherwise false  |
 | `hasFlag()`  | name: string      | returns true if the flag `name` was specified when running the application  |
 | `platform()` | --                | returns the operating system, one of `windows`, `linux` or `darwin` (macOS) |
 | `script()`   | filename: string  | returns the output of the javascript located in `filename`                  |
