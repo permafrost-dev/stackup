@@ -91,3 +91,15 @@ func (e *JavaScriptEngine) IsEvaluatableScriptString(s string) bool {
 
 	return strings.HasPrefix(temp, "{{") && strings.HasSuffix(temp, "}}")
 }
+
+func (e *JavaScriptEngine) MakeStringEvaluatable(script string) string {
+	if e.IsEvaluatableScriptString(script) {
+		return script
+	}
+
+	if len(script) == 0 {
+		return ""
+	}
+
+	return "{{ " + script + " }}"
+}

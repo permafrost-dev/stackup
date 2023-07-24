@@ -59,8 +59,10 @@ func (task *Task) Initialize() {
 	}
 
 	if len(task.Path) == 0 {
-		task.Path = "{{ getCwd() }}"
+		task.Path = App.JsEngine.MakeStringEvaluatable("getCwd()")
 	}
+
+	task.If = App.JsEngine.MakeStringEvaluatable(task.If)
 
 	if App.JsEngine.IsEvaluatableScriptString(task.Name) {
 		task.Name = App.JsEngine.Evaluate(task.Name).(string)
