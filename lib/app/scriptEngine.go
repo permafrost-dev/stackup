@@ -1,9 +1,11 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/robertkrimen/otto"
+	"github.com/stackup-app/stackup/lib/support"
 )
 
 type EvaluateFunction func(script string) any
@@ -28,6 +30,45 @@ func (e *JavaScriptEngine) Init() {
 	CreateJavascriptFunctions(e.Vm)
 }
 
+func (e *JavaScriptEngine) ToValue(value otto.Value) any {
+
+	if value.IsBoolean() {
+		v, _ := value.ToBoolean()
+		return v
+	}
+
+	if value.IsString() {
+		v, _ := value.ToString()
+		return v
+	}
+
+	if value.IsNumber() {
+		v, _ := value.ToInteger()
+		return v
+	}
+
+	if value.IsObject() {
+		v, _ := value.Object().Value().Export()
+		return v
+	}
+
+	if value.IsNull() {
+		return nil
+	}
+
+	if value.IsUndefined() {
+		return nil
+	}
+
+	if value.IsNaN() {
+		return nil
+	}
+
+	r, _ := value.ToString()
+
+	return r
+}
+
 func (e *JavaScriptEngine) Evaluate(script string) any {
 	tempScript := strings.TrimSpace(script)
 
@@ -35,7 +76,12 @@ func (e *JavaScriptEngine) Evaluate(script string) any {
 		tempScript = e.GetEvaluatableScriptString(tempScript)
 	}
 
-	result, _ := e.Vm.Run(tempScript)
+	result, err := e.Vm.Run(tempScript)
+
+	if err != nil {
+		support.WarningMessage(fmt.Sprintf("script error: %v\n", err))
+		return nil
+	}
 
 	if result.IsBoolean() {
 		v, _ := result.ToBoolean()

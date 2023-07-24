@@ -227,6 +227,23 @@ tasks:
     path: '{{ task("frontend-httpd-" + platform()).Path }}'
 ```
 
+## Initialization Script
+
+You may add an `init` section to the configuration file to run javascript before the `preconditions` section executes:
+
+```yaml
+name: my stack
+version: 1.0.0
+
+init: |
+  if (binaryExists("podman-compose")) {
+    setVar("containerEngineBinary", "podman-compose");
+  } else {
+    setVar("containerEngineBinary", "docker-compose");
+  }
+
+  statusMessage("selected " + getVar("containerEngineBinary") + " as the container engine\n");
+```
 
 ## Setup
 
