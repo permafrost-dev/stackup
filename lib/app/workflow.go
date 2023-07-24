@@ -53,7 +53,7 @@ func (workflow *StackupWorkflow) FindTaskById(id string) *Task {
 }
 
 func (workflow *StackupWorkflow) Initialize() {
-	for _, task := range a.Workflow.Tasks {
+	for _, task := range workflow.Tasks {
 		task.Initialize()
 	}
 
