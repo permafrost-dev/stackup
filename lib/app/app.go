@@ -79,9 +79,7 @@ func (a *Application) init() {
 	a.JsEngine = &jsEngine
 	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
 
-	for _, task := range a.Workflow.Tasks {
-		task.Initialize()
-	}
+	workflow.Initialize()
 }
 
 func (a *Application) hookSignals() {

@@ -6,6 +6,7 @@ type StackupWorkflow struct {
 	Name          string          `yaml:"name"`
 	Description   string          `yaml:"description"`
 	Version       string          `yaml:"version"`
+	Init          string          `yaml:"init"`
 	Preconditions []Precondition  `yaml:"preconditions"`
 	Tasks         []*Task         `yaml:"tasks"`
 	Startup       []StartupItem   `yaml:"startup"`
@@ -49,4 +50,14 @@ func (workflow *StackupWorkflow) FindTaskById(id string) *Task {
 	}
 
 	return nil
+}
+
+func (workflow *StackupWorkflow) Initialize() {
+	for _, task := range a.Workflow.Tasks {
+		task.Initialize()
+	}
+
+	if len(workflow.Init) > 0 {
+		App.JsEngine.Evaluate(workflow.Init)
+	}
 }

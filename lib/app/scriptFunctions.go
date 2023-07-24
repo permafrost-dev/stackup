@@ -22,6 +22,7 @@ func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("script", createScriptFunction)
 	vm.Set("selectTaskWhen", createSelectTaskWhen)
 	vm.Set("setVar", createSetVarFunction)
+	vm.Set("statusMessage", createStatusMessageFunction)
 	vm.Set("task", createTaskFunction)
 	vm.Set("var", createVarFunction)
 	vm.Set("workflow", createWorkflowFunction)
@@ -33,6 +34,12 @@ func getResult(call otto.FunctionCall, v any) otto.Value {
 	return result
 }
 
+func createStatusMessageFunction(call otto.FunctionCall) otto.Value {
+	support.StatusMessage(call.Argument(0).String(), false)
+
+	return getResult(call, true)
+}
+
 func createHasVarFunction(call otto.FunctionCall) otto.Value {
 	_, result := App.Vars.Load(call.Argument(0).String())
 
@@ -42,11 +49,11 @@ func createHasVarFunction(call otto.FunctionCall) otto.Value {
 func createVarFunction(call otto.FunctionCall) otto.Value {
 	result, _ := App.Vars.Load(call.Argument(0).String())
 
-	return getResult(call, result)
+	return result.(otto.Value)
 }
 
 func createSetVarFunction(call otto.FunctionCall) otto.Value {
-	App.Vars.Store(call.Argument(0).String(), call.Argument(1).String())
+	App.Vars.Store(call.Argument(0).String(), call.Argument(1))
 
 	return getResult(call, true)
 }
