@@ -2,6 +2,14 @@ name: my stack
 description: laravel application stack
 version: 1.0.0
 
+init: |
+  if (binaryExists("podman-compose")) {
+    setVar("containerEngineBinary", "podman-compose");
+  } else {
+    setVar("containerEngineBinary", "docker-compose");
+  }
+  statusMessage("selected " + getVar("containerEngineBinary") + " as the container engine\n");
+
 preconditions:
     - name: dependencies are installed
       check: binaryExists("php") && binaryExists("node")
@@ -36,7 +44,7 @@ scheduler:
 tasks:
   - name: spin up containers
     id: start-containers
-    command: podman-compose up -d
+    command: '{{ getVar("containerEngineBinary") + " up -d" }}'
     path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
     silent: true
 
@@ -59,7 +67,7 @@ tasks:
 
   - name: stop containers
     id: stop-containers
-    command: podman-compose down
+    command: '{{ getVar("containerEngineBinary") + " down" }}'
     path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
     silent: true
 
