@@ -72,7 +72,7 @@ Items in `tasks` follow this structure:
 
 | field     | description                                                                                                | required? |
 |-----------|------------------------------------------------------------------------------------------------------------|-----------|
-| name      | The name of the task (e.g. `spin up containers`)                                                           | yes       |
+| name      | The name of the task (e.g. `spin up containers`)                                                           | no        |
 | id        | A unique identifier for the task (e.g. `start-containers`)                                                 | yes       |
 | if        | A condition that must be true for the task to run (e.g. `hasFlag('seed')`)                                 | no        |
 | command   | The command to run for the task (e.g. `podman-compose up -d`)                                              | yes       |
@@ -112,6 +112,17 @@ tasks:
     platforms: ['linux', 'darwin']
 ```
 
+However the only required fields are `id` and `command`:
+
+```yaml
+tasks:
+  - id: start-containers
+    command: docker-compose up -d
+
+  - id: stop-containers
+    command: docker-compose down
+```
+
 ### Configuration: Startup & Shutdown
 
 The `startup` and `shutdown` sections of the configuration define the tasks that should be run synchronously during either startup or shutdown.  The values listed must match a defined task `id`.
@@ -147,12 +158,11 @@ Here is an example of the `scheduler` section and its associated `tasks` section
 
 ```yaml
 tasks:
-  - name: run artisan scheduler
-    id: artisan-scheduler
+  - id: run-artisan-scheduler
     command: php artisan schedule:run
 
 scheduler:
-    - task: artisan-scheduler
+    - task: run-artisan-scheduler
       cron: '* * * * *'
 ```
 
