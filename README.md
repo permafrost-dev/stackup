@@ -10,15 +10,15 @@ A single application to spin up your entire dev stack.
 
 ## About
 
-`StackUp` is a tool for developers that automates the process of spinning up complicated development environments.  It allows you to defines a series of steps that execute in order on startup and shutdown, as well as a list of server processes that should be started.  Additionally, `StackUp` runs an event loop while the server processes are running, allowing you to run tasks on a cron schedule.
+`StackUp` is a scriptable tool for developers that automates the process of spinning up complicated development environments.  It allows you to defines a series of steps that execute in order on startup and shutdown, as well as a list of server processes that should be started.  Additionally, `StackUp` runs an event loop while the server processes are running, allowing you to run tasks on a cron schedule.
 
 One of the key features of this application is its ability to automate routine tasks. With a simple configuration, you can define a sequence of tasks that your project requires, such as starting containers, running database migrations, or seeding data. This automation not only saves you time but also ensures consistency across your development environment.
 
-It also includes a robust precondition system. Before doing anything, checks can be performed to ensure everything is set up correctly. This feature helps prevent common issues that occur when the environment is not properly configured.
+It also includes a robust, scriptable precondition system. Before doing anything, checks can be performed to ensure everything is set up correctly. This feature helps prevent common issues that occur when the environment is not properly configured.
 
 ## Running StackUp
 
-To run `StackUp`, simply run the binary in a directory containing a `stackup.yaml` configuration file:
+To run `StackUp`, simply run the binary in a directory containing a `stackup.yaml` or `stackup.dist.yaml` configuration file:
 
 ```bash
 stackup
@@ -34,6 +34,12 @@ To generate a new configuration file to get started, run `init`:
 
 ```bash
 stackup init
+```
+
+`StackUp` checks if it is running the latest version on startup.  To disable this behavior, use the `--no-update-check` flag:
+
+```bash
+stackup --no-update-check
 ```
 
 ## Configuration
