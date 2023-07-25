@@ -167,15 +167,15 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `env()`      | name: string      | returns the string value of environment variable `name                        |
 | `exists()`   | filename: string  | returns true if `filename` exists, false otherwise                          |
 | `getCwd()`   | --                | returns the directory stackup was run from                                  |
+| `getVar()`   | name: string      | returns the value of the application variable `name`                        |
 | `hasEnv()`   | name: string      | returns true if the specified environment variable exists, otherwise false  |
 | `hasFlag()`  | name: string      | returns true if the flag `name` was specified when running the application  |
-| `hasVar()`   | name: string      | returns true if the variable `name` exists, otherwise false                 |
+| `hasVar()`   | name: string      | returns true if the application variable `name` exists, otherwise false     |
 | `platform()` | --                | returns the operating system, one of `windows`, `linux` or `darwin` (macOS) |
 | `script()`   | filename: string  | returns the output of the javascript located in `filename`                  |
 | `selectTaskWhen()` | conditonal: boolean, trueTaskId: string falseTaskId: string | returns a Task object based on the value of `conditional` |
-| `setVar()`   | name: string, value: string | sets the variable `name` to the value `value` |
+| `setVar()`   | name: string, value: string | sets an application variable `name` to the value `value` |
 | `task()`     | taskId: string    | returns a `Task` object with the id `taskId`                                |
-| `var()`      | name: string      | returns the value of the variable `name`                                    |
 | `workflow()` | --                | returns a `Workflow` object                                                 |
 
 ## Dynamic Tasks
