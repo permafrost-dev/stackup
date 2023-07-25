@@ -14,11 +14,11 @@ type JavaScriptEngine struct {
 	Vm *otto.Otto
 }
 
-func CreateNewJavascriptEngine() JavaScriptEngine {
+func CreateNewJavascriptEngine() *JavaScriptEngine {
 	result := JavaScriptEngine{}
 	result.Init()
 
-	return result
+	return &result
 }
 
 func (e *JavaScriptEngine) Init() {

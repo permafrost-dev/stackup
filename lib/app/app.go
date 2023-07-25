@@ -43,28 +43,28 @@ type Application struct {
 	ConfigFilename      string
 }
 
-func (a *Application) loadWorkflowFile(filename string) StackupWorkflow {
+func (a *Application) loadWorkflowFile(filename string) *StackupWorkflow {
 	var result StackupWorkflow
 
 	contents, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return StackupWorkflow{}
+		return &StackupWorkflow{}
 	}
 
 	err = yaml.Unmarshal(contents, &result)
 	if err != nil {
-		return StackupWorkflow{}
+		return &StackupWorkflow{}
 	}
 
 	result.State = &StackupWorkflowState{
 		CurrentTask: nil,
 	}
 
-	return result
+	return &result
 }
 
 func (a *Application) init() {
-	a.ConfigFilename = support.FindExistingFile([]string{"stackup.dist.yaml", "stackup.dist"}, "stackup.yaml")
+	a.ConfigFilename = support.FindExistingFile([]string{"stackup.dist.yaml", "stackup.yaml"}, "stackup.yaml")
 
 	a.flags = AppFlags{
 		DisplayHelp:    flag.Bool("help", false, "Display help"),
@@ -83,10 +83,8 @@ func (a *Application) init() {
 	a.ProcessMap = &sync.Map{}
 	a.Vars = &sync.Map{}
 
-	workflow := a.loadWorkflowFile(a.ConfigFilename)
-	a.Workflow = &workflow
-	jsEngine := CreateNewJavascriptEngine()
-	a.JsEngine = &jsEngine
+	a.Workflow = a.loadWorkflowFile(a.ConfigFilename)
+	a.JsEngine = CreateNewJavascriptEngine()
 	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
 }
 
