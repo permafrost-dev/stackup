@@ -2,6 +2,7 @@ package support
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/logrusorgru/aurora"
 )
@@ -56,4 +57,14 @@ func PrintCheckMarkLine() {
 
 func PrintXMarkLine() {
 	fmt.Print(aurora.BrightRed(" ✗\n").String())
+}
+
+func FindExistingFile(filenames []string, defaultFilename string) string {
+	for _, filename := range filenames {
+		if _, err := os.Stat(filename); err == nil {
+			return filename
+		}
+	}
+
+	return defaultFilename
 }

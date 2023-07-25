@@ -14,6 +14,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
 	"github.com/stackup-app/stackup/lib/support"
+	"github.com/stackup-app/stackup/lib/updater"
 	"github.com/stackup-app/stackup/lib/utils"
 	"github.com/stackup-app/stackup/lib/version"
 	"gopkg.in/yaml.v2"
@@ -25,6 +26,7 @@ type CommandCallback func(cmd *exec.Cmd)
 type AppFlags struct {
 	DisplayHelp    *bool
 	DisplayVersion *bool
+	NoUpdateCheck  *bool
 	ConfigFile     *string
 }
 
@@ -38,6 +40,7 @@ type Application struct {
 	flags               AppFlags
 	CmdStartCallback    CommandCallback
 	KillCommandCallback CommandCallback
+	ConfigFilename      string
 }
 
 func (a *Application) loadWorkflowFile(filename string) StackupWorkflow {
@@ -61,25 +64,30 @@ func (a *Application) loadWorkflowFile(filename string) StackupWorkflow {
 }
 
 func (a *Application) init() {
+	a.ConfigFilename = support.FindExistingFile([]string{"stackup.dist.yaml", "stackup.dist"}, "stackup.yaml")
+
 	a.flags = AppFlags{
 		DisplayHelp:    flag.Bool("help", false, "Display help"),
 		DisplayVersion: flag.Bool("version", false, "Display version"),
-		ConfigFile:     flag.String("config", "stackup.yaml", "Load a specific config file"),
+		NoUpdateCheck:  flag.Bool("no-update-check", false, "Disable update check"),
+		ConfigFile:     flag.String("config", "", "Load a specific config file"),
 	}
 
 	flag.Parse()
+
+	if a.flags.ConfigFile != nil && *a.flags.ConfigFile != "" {
+		a.ConfigFilename = *a.flags.ConfigFile
+	}
 
 	a.scheduledTaskMap = &sync.Map{}
 	a.ProcessMap = &sync.Map{}
 	a.Vars = &sync.Map{}
 
-	workflow := a.loadWorkflowFile(*a.flags.ConfigFile)
+	workflow := a.loadWorkflowFile(a.ConfigFilename)
 	a.Workflow = &workflow
 	jsEngine := CreateNewJavascriptEngine()
 	a.JsEngine = &jsEngine
 	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
-
-	workflow.Initialize()
 }
 
 func (a *Application) hookSignals() {
@@ -250,6 +258,14 @@ func (a *Application) createNewConfigFile() {
 	ioutil.WriteFile(filename, []byte(contents), 0644)
 }
 
+func (a *Application) checkForApplicationUpdates() {
+	updateAvailable := updater.IsLatestApplicationReleaseNewerThanCurrent(version.APP_VERSION, "permafrost-dev/stackup")
+
+	if updateAvailable {
+		support.WarningMessage("A new version of StackUp is available. Please update to the latest version.")
+	}
+}
+
 func (a *Application) Run() {
 	godotenv.Load()
 	a.init()
@@ -264,10 +280,16 @@ func (a *Application) Run() {
 		os.Exit(0)
 	}
 
+	if !*a.flags.NoUpdateCheck {
+		a.checkForApplicationUpdates()
+	}
+
 	if os.Args[1] == "init" {
 		a.createNewConfigFile()
 		os.Exit(0)
 	}
+
+	a.Workflow.Initialize()
 
 	a.hookSignals()
 	a.hookKeyboard()
