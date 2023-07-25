@@ -81,21 +81,29 @@ func (task *Task) runWithStatusMessagesSync(runningSilently bool) {
 	if cmd != nil && runningSilently {
 		support.PrintCheckMarkLine()
 	} else if cmd != nil {
-		support.SuccessMessageWithCheck(task.Name)
+		support.SuccessMessageWithCheck(task.GetDisplayName())
 	}
 
 	if cmd == nil && runningSilently {
 		support.PrintXMarkLine()
 	} else if cmd == nil {
-		support.FailureMessageWithXMark(task.Name)
+		support.FailureMessageWithXMark(task.GetDisplayName())
 	}
+}
+
+func (task *Task) GetDisplayName() string {
+	if len(task.Name) > 0 {
+		return task.Name
+	}
+
+	return task.Id
 }
 
 func (task *Task) Run(synchronous bool) {
 	App.Workflow.State.CurrentTask = task
 
 	if task.RunCount >= task.MaxRuns && task.MaxRuns > 0 {
-		support.SkippedMessageWithSymbol(task.Name)
+		support.SkippedMessageWithSymbol(task.GetDisplayName())
 		return
 	}
 
@@ -107,19 +115,19 @@ func (task *Task) Run(synchronous bool) {
 	}
 
 	if !task.CanRunConditionally() {
-		support.SkippedMessageWithSymbol(task.Name)
+		support.SkippedMessageWithSymbol(task.GetDisplayName())
 		return
 	}
 
 	if !task.CanRunOnCurrentPlatform() {
-		support.SkippedMessageWithSymbol("Task '" + task.Name + "' is not supported on this operating system.")
+		support.SkippedMessageWithSymbol("Task '" + task.GetDisplayName() + "' is not supported on this operating system.")
 		return
 	}
 
 	command := task.Command
 	runningSilently := task.Silent == true
 
-	support.StatusMessage(task.Name+"...", false)
+	support.StatusMessage(task.GetDisplayName()+"...", false)
 
 	if synchronous {
 		task.runWithStatusMessagesSync(runningSilently)
@@ -136,5 +144,5 @@ func (task *Task) Run(synchronous bool) {
 
 	support.PrintCheckMarkLine()
 
-	App.ProcessMap.Store(task.Name, cmd)
+	App.ProcessMap.Store(task.Id, cmd)
 }
