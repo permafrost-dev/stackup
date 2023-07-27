@@ -190,7 +190,7 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `platform()` | --                | returns the operating system, one of `windows`, `linux` or `darwin` (macOS) |
 | `script()`   | filename: string  | returns the output of the javascript located in `filename`                  |
 | `selectTaskWhen()` | conditonal: boolean, trueTaskId: string falseTaskId: string | returns a Task object based on the value of `conditional` |
-| `/()`   | name: string, value: string | sets an application variable `name` to the value `value` |
+| `setVar()`   | name: string, value: string | sets an application variable `name` to the value `value` |
 | `task()`     | taskId: string    | returns a `Task` object with the id `taskId`                                |
 | `workflow()` | --                | returns a `Workflow` object                                                 |
 
