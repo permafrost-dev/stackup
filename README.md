@@ -209,6 +209,9 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `fs.ReadJSON()` | `filename: string` | returns the contents of `filename` as a JSON object                         |
 | `fs.WriteFile()`| `filename: string, contents: string` | writes `contents` to `filename` |
 | `fs.WriteJSON()` | `filename: string, obj: Object` | writes `obj` to `filename` as a JSON object |
+| `vars.Get()` | `name: string` | returns the value of the application variable `name` |
+| `vars.Has()` | `name: string` | returns true if the application variable `name` exists, otherwise false |
+| `vars.Set()` | `name: string, value: any` | sets an application variable `name` to the value `value` |
 
 ## Dynamic Tasks
 
