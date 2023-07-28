@@ -192,6 +192,7 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `platform()` | --                | returns the operating system, one of `windows`, `linux` or `darwin` (macOS) |
 | `script()`   | `filename: string`  | returns the output of the javascript located in `filename`                  |
 | `selectTaskWhen()` | `conditional: boolean, trueTaskId: string falseTaskId: string` | returns a `Task` object based on the value of `conditional` |
+| `semver()` | `version: string` | returns a `SemVer` object based on the value of `version` |
 | `setVar()`   | `name: string, value: string` | sets an application variable `name` to the value `value` |
 | `statusMessage()` | `message: string` | prints a status message to stdout, without a trailing new line |
 | `task()`     | `taskId: string`    | returns a `Task` object with the id `taskId`                                |
@@ -200,7 +201,8 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `app.StatusLine()` | `message: string` | prints a status message to stdout, with a trailing new line |
 | `app.StatusMessage()` | `message: string` | prints a status message to stdout, without a trailing new line |
 | `app.SuccessMessage()` | `message: string` | prints a success message with a checkmark to stdout with a trailing new line |
-| `app.WarningMessage()` | `message: string` | prints a warning message to stdout with a trailing new line |
+| `app.WarningMessage()` | `message: string` | prints a warning message to stdout with a trailing new line 
+| `app.Version()` | -- | returns the current version of `StackUp` |
 | `fs.Exists()`| `filename: string`  | returns true if `filename` exists, false otherwise                          |
 | `fs.GetFiles()` | `path: string`   | returns a list of files in `path`                                           |
 | `fs.IsDirectory()` | `pathname: string` | returns true if `pathname` is a directory, false otherwise                  |
@@ -212,6 +214,24 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `vars.Get()` | `name: string` | returns the value of the application variable `name` |
 | `vars.Has()` | `name: string` | returns true if the application variable `name` exists, otherwise false |
 | `vars.Set()` | `name: string, value: any` | sets an application variable `name` to the value `value` |
+
+
+### Script Classes
+
+#### `SemVer`
+
+The `SemVer` class is used to parse and compare semantic version strings.  It has the following methods and attributes:
+
+| Name | Arguments | Description |
+|--------|-----------|-------------|
+| `.Compare()` | `version: string` | returns 1 if `version` is greater than the current version, -1 if `version` is less than the current version, and 0 if they are equal |
+| `.GreaterThan()` | `version: string` | returns true if `version` is greater than the current version, otherwise false |
+| `.LessThan()` | `version: string` | returns true if `version` is less than the current version, otherwise false |
+| `.Equals()` | `version: string` | returns true if `version` is equal to the current version, otherwise false |
+| `.Major` | -- | value of the major version number |
+| `.Minor` | -- | value of the minor version number |
+| `.Patch` | -- | value of the patch version number |
+| `.String` | -- | the original version string |
 
 ## Dynamic Tasks
 
