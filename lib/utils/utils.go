@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -43,6 +44,15 @@ func StringToInt(s string, defaultResult int) int {
 	}
 
 	return i
+}
+
+func ChangeWorkingDirectory(path string) error {
+	err := os.Chdir(path)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func RunCommandInPath(input string, dir string, silent bool) *exec.Cmd {
@@ -149,4 +159,19 @@ func IsDir(filename string) bool {
 	}
 
 	return info.IsDir()
+}
+
+func MatchPattern(s string, pattern string) []string {
+	regex := regexp.MustCompile(pattern)
+	if !regex.MatchString(s) {
+		return []string{}
+	}
+
+	matches := regex.FindAllString(s, -1)
+	return matches
+}
+
+func MatchesPattern(s string, pattern string) bool {
+	regex := regexp.MustCompile(pattern)
+	return regex.MatchString(s)
 }

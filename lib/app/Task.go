@@ -109,6 +109,11 @@ func (task *Task) Run(synchronous bool) {
 
 	task.RunCount++
 
+	// allow the path property to be an environment variable reference without wrapping it in `{{ }}`
+	if utils.MatchesPattern(task.Path, "^\\$[\\w_]+$") {
+		task.Path = App.JsEngine.MakeStringEvaluatable(task.Path)
+	}
+
 	if App.JsEngine.IsEvaluatableScriptString(task.Path) {
 		tempCwd := App.JsEngine.Evaluate(task.Path)
 		task.Path = tempCwd.(string)

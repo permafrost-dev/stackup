@@ -16,6 +16,9 @@ type Semver struct {
 	String     string
 }
 
+// The function `ParseSemverString` takes a version string and returns a `Semver` struct with the
+// parsed version components. The version string is expected to be in the format `major.minor.patch`,
+// however this function will extract the version number from a string that contains other text as well.
 func ParseSemverString(version string) *Semver {
 	tempVersion, err := CoerceSemverString(ExtractVersion(version))
 	if err != nil {
@@ -84,6 +87,7 @@ func CoerceSemverString(version string) (string, error) {
 	return "", fmt.Errorf("invalid semver string: %s", version)
 }
 
+// The function ExtractVersion extracts a version number from a given string using regular expressions.
 func ExtractVersion(output string) string {
 	versionRegex := regexp.MustCompile(`(\d+(\.\d+)?(\.\d+)?(\-.+$)?)`)
 
@@ -95,6 +99,11 @@ func ExtractVersion(output string) string {
 	return strings.TrimSpace(match[0])
 }
 
+// The `Compare` method is a comparison method for the `Semver` struct. It compares the current
+// `Semver` object with a given `version` string and returns an integer value indicating the result of
+// the comparison. It returns -1 if the current `Semver` object is less than the `version` string, 0
+// if the current `Semver` object is equal to the `version` string, and 1 if the current `Semver`
+// is greater than the `version` string.
 func (s *Semver) Compare(version string) int {
 	semver1 := s
 	semver2 := ParseSemverString(version)
@@ -132,6 +141,8 @@ func (s *Semver) Compare(version string) int {
 	return 0
 }
 
+// The `GreaterThan` method is a comparison method for the `Semver` struct. It checks if the current
+// `Semver` object is greater than the `otherVersion` string.
 func (s *Semver) GreaterThan(otherVersion string) bool {
 	other := ParseSemverString(otherVersion)
 
@@ -162,6 +173,20 @@ func (s *Semver) GreaterThan(otherVersion string) bool {
 	return false
 }
 
+// The `Gte` method is a comparison method for the `Semver` struct. It checks if the current `Semver`
+// object is greater than or equal to the `otherVersion` string.
+func (s *Semver) Gte(otherVersion string) bool {
+	return s.GreaterThan(otherVersion) || s.Equals(otherVersion)
+}
+
+// The `Lte` method is a comparison method for the `Semver` struct. It checks if the current `Semver`
+// object is less than or equal to the `otherVersion` string.
+func (s *Semver) Lte(otherVersion string) bool {
+	return s.LessThan(otherVersion) || s.Equals(otherVersion)
+}
+
+// The `LessThan` method is a comparison method for the `Semver` struct. It checks if the current
+// `Semver` object is less than the `otherVersion` string.
 func (s *Semver) LessThan(otherVersion string) bool {
 	other := ParseSemverString(otherVersion)
 
@@ -192,7 +217,11 @@ func (s *Semver) LessThan(otherVersion string) bool {
 	return false
 }
 
-func (s *Semver) Equals(other Semver) bool {
+// The `Equals` method is a comparison method for the `Semver` struct. It checks if the current
+// `Semver` object is equal to the `otherVersion` string.
+func (s *Semver) Equals(otherVersion string) bool {
+	other := ParseSemverString(otherVersion)
+
 	return s.Major == other.Major &&
 		s.Minor == other.Minor &&
 		s.Patch == other.Patch &&
