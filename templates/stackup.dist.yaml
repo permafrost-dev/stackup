@@ -11,28 +11,34 @@ init: |
   } else {
     setVar("containerEngineBinary", "docker-compose");
   }
-  statusMessage("selected " + getVar("containerEngineBinary") + " as the container engine\n");
+
+  app.SuccessMessage("selected " + getVar("containerEngineBinary") + " as the container engine");
 
 preconditions:
     - name: dependencies are installed
       check: binaryExists("php") && binaryExists("node")
 
     - name: PHP is at least version 8
-      check: vars.Get("php-version").GreaterThan("8.0.0")
+      check: vars.Get("php-version").GreaterThan("8.0")
 
-    - name: Node is at least version 14
-      check: vars.Get("node-version").GreaterThan("14.0.0")
+    - name: node is at least version 14
+      check: vars.Get("node-version").GreaterThan("14.0")
+
+    - name: environment variables exist and are not empty
+      check: |
+        hasEnv("FRONTEND_PROJECT_PATH") && hasEnv("LOCAL_BACKEND_PROJECT_PATH") &&
+        env("FRONTEND_PROJECT_PATH") != "" && env("LOCAL_BACKEND_PROJECT_PATH") != ""
 
     - name: frontend project exists
-      check: exists(env("FRONTEND_PROJECT_PATH"))
+      check: fs.Exists($FRONTEND_PROJECT_PATH)
 
-    - name: backend project has docker-compose file
-      check: exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/docker-compose.yml")
+    - name: backend project has a docker-compose file
+      check: fs.Exists($LOCAL_BACKEND_PROJECT_PATH + "/docker-compose.yml")
 
     - name: backend project is a laravel project
       check: |
-        exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/artisan") &&
-        exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/composer.json")
+        fs.Exists($LOCAL_BACKEND_PROJECT_PATH + "/artisan") &&
+        fs.Exists($LOCAL_BACKEND_PROJECT_PATH + "/composer.json")
 
 startup:
   - task: start-containers
@@ -51,50 +57,46 @@ scheduler:
       cron: '* * * * *'
 
 tasks:
-  - name: spin up containers
-    id: start-containers
+  - id: start-containers
     command: '{{ getVar("containerEngineBinary") + " up -d" }}'
-    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
     silent: true
 
   - name: run migrations (rebuild db)
     id: run-migrations-fresh
     if: hasFlag("seed")
     command: php artisan migrate:fresh --seed
-    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
 
   - name: run migrations (no seeding)
     id: run-migrations-no-seed
     if: '!hasFlag("seed")'
     command: php artisan migrate
-    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
 
-  - name: run migrations
-    id: run-migrations
+  - id: run-migrations
     command: '{{ selectTaskWhen(hasFlag("seed"), "run-migrations-fresh", "run-migrations-no-seed").Command }}'
-    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
 
-  - name: stop containers
-    id: stop-containers
+  - id: stop-containers
     command: '{{ getVar("containerEngineBinary") + " down" }}'
-    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
     silent: true
 
-  - name: run artisan scheduler
-    id: artisan-scheduler
+  - id: run-artisan-scheduler
     command: php artisan schedule:run
-    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
 
   - name: frontend httpd (linux, macos)
     id: frontend-httpd-linux
     command: node ./node_modules/.bin/next dev
-    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    path: '{{ $FRONTEND_PROJECT_PATH }}'
     platforms: ['linux', 'darwin']
 
   - name: frontend httpd (windows)
     id: frontend-httpd-windows
     command: npm run dev
-    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    path: '{{ $FRONTEND_PROJECT_PATH }}'
     platforms: ['windows']
 
   - name: '{{ selectTaskWhen(platform() == "windows", "frontend-httpd-windows", "frontend-httpd-linux").Name }}'
@@ -104,12 +106,12 @@ tasks:
 
   - name: horizon queue
     id: horizon-queue
-    if: composerJson(env("LOCAL_BACKEND_PROJECT_PATH") + "/composer.json").HasDependency("laravel/horizon");
+    if: composerJson($LOCAL_BACKEND_PROJECT_PATH).HasDependency("laravel/horizon");
     command: php artisan horizon
-    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
     platforms: ['linux', 'darwin']
 
   - name: backend httpd
     id: backend-httpd
     command: php artisan serve
-    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
