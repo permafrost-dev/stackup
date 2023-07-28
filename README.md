@@ -265,7 +265,9 @@ The `SemVer` class is returned by the `semver()` function And is used to parse a
 |--------|-----------|-------------|
 | `.Compare()` | `version: string` | returns 1 if `version` is greater than the current version, -1 if `version` is less than the current version, and 0 if they are equal |
 | `.GreaterThan()` | `version: string` | returns true if `version` is greater than the current version, otherwise false |
+| `.Gte()` | `version: string` | returns true if `version` is greater than or equal to the current version, otherwise false |
 | `.LessThan()` | `version: string` | returns true if `version` is less than the current version, otherwise false |
+| `.Lte()` | `version: string` | returns true if `version` is less than or equal to the current version, otherwise false |
 | `.Equals()` | `version: string` | returns true if `version` is equal to the current version, otherwise false |
 | `.Major` | -- | value of the major version number |
 | `.Minor` | -- | value of the minor version number |
