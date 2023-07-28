@@ -279,14 +279,14 @@ Environment variables can be accessed using the `env()` function or referenced d
 ```yaml
 preconditions:
     - name: backend project has a docker-compose file
-      check: exists($LOCAL_BACKEND_PROJECT_PATH + "/docker-compose.yml")
+      check: exists($BACKEND_PROJECT_PATH + "/docker-compose.yml")
 
 tasks:
   - name: horizon queue
     id: horizon-queue
-    if: composerJson($LOCAL_BACKEND_PROJECT_PATH + "/composer.json").HasDependency("laravel/horizon");
+    if: composerJson($BACKEND_PROJECT_PATH + "/composer.json").HasDependency("laravel/horizon");
     command: php artisan horizon
-    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    path: '{{ env("BACKEND_PROJECT_PATH") }}'
     platforms: ['linux', 'darwin']
 ```
 
