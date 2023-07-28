@@ -55,13 +55,13 @@ Here is an example of the `preconditions` section:
 ```yaml
 preconditions:
     - name: frontend project exists
-      check: exists(env("FRONTEND_PROJECT_PATH"))
+      check: fs.Exists($FRONTEND_PROJECT_PATH)
 
     - name: backend project has docker-compose file
-      check: exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/docker-compose.yml")
+      check: fs.Exists($LOCAL_BACKEND_PROJECT_PATH + "/docker-compose.yml")
 
     - name: backend project is laravel project
-      check: exists(env("LOCAL_BACKEND_PROJECT_PATH") + "/artisan")
+      check: fs.Exists($LOCAL_BACKEND_PROJECT_PATH + "/artisan")
 ```
 
 ### Configuration: Tasks
@@ -72,14 +72,14 @@ Items in `tasks` follow this structure:
 
 | field     | description                                                                                                | required? |
 |-----------|------------------------------------------------------------------------------------------------------------|-----------|
-| name      | The name of the task (e.g. `spin up containers`)                                                           | no        |
-| id        | A unique identifier for the task (e.g. `start-containers`)                                                 | yes       |
-| if        | A condition that must be true for the task to run (e.g. `hasFlag('seed')`)                                 | no        |
-| command   | The command to run for the task (e.g. `podman-compose up -d`)                                              | yes       |
-| path      | The path to the directory where the command should be run `(default: current directory)`                     | no        |
-| silent    | Whether to suppress output from the command `(default: false)`                                               | no        |
-| platforms | A list of platforms where the task should be run `(default: all platforms)`                                  | no        |
-| maxRuns   | The maximum number of times the task can run (0 means always run) `(default: 0)`                             | no        |
+| `name`      | The name of the task (e.g. `spin up containers`)                                                           | no        |
+| `id`        | A unique identifier for the task (e.g. `start-containers`)                                                 | yes       |
+| `if`        | A condition that must be true for the task to run (e.g. `hasFlag('seed')`)                                 | no        |
+| `command`   | The command to run for the task (e.g. `podman-compose up -d`)                                              | yes       |
+| `path`      | The path to the directory where the command should be run `(default: current directory)`                     | no        |
+| `silent`    | Whether to suppress output from the command `(default: false)`                                               | no        |
+| `platforms` | A list of platforms where the task should be run `(default: all platforms)`                                  | no        |
+| `maxRuns`   | The maximum number of times the task can run (0 means always run) `(default: 0)`                             | no        |
 
 Note that the `command` and `path` values can be wrapped in double braces to be interpreted as a javascript expression.
 
@@ -90,14 +90,14 @@ tasks:
   - name: spin up containers
     id: start-containers
     command: podman-compose up -d
-    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
     silent: true
 
   - name: run migrations (rebuild db)
     id: run-migrations-fresh
     if: hasFlag("seed")
     command: php artisan migrate:fresh --seed
-    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
 
   - name: run migrations (no seeding)
     id: run-migrations-no-seed
@@ -224,7 +224,7 @@ Many of the fields in a `Task` can be defined using javascript. To specify an ex
 
 #### `ComposerJson`
 
-The `ComposerJson` class is returned by the `composerJson()` function and was designed for working with `composer.json` files.  It has the following methods and attributes:
+The `ComposerJson` class is returned by the `dev.composerJson()` function and was designed for working with `composer.json` files.  It has the following methods and attributes:
 
 | Name | Arguments | Description |
 |--------|-----------|-------------|
@@ -235,7 +235,7 @@ The `ComposerJson` class is returned by the `composerJson()` function and was de
 
 #### `PackageJson`
 
-The `PackageJson` class is returned by the `packageJson()` function and was designed for working with `package.json` files.  It has the following methods and attributes:
+The `PackageJson` class is returned by the `dev.packageJson()` function and was designed for working with `package.json` files.  It has the following methods and attributes:
 
 | Name | Arguments | Description |
 |--------|-----------|-------------|
@@ -249,7 +249,7 @@ The `PackageJson` class is returned by the `packageJson()` function and was desi
 
 #### `RequirementsTxt`
 
-The `RequirementsTxt` class is returned by the `requirementsTxt()` function and was designed for working with `requirements.txt` files.  It has the following methods and attributes:
+The `RequirementsTxt` class is returned by the `dev.requirementsTxt()` function and was designed for working with `requirements.txt` files.  It has the following methods and attributes:
 
 | Name | Arguments | Description |
 |--------|-----------|-------------|
@@ -289,6 +289,7 @@ tasks:
     path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
     platforms: ['linux', 'darwin']
 ```
+
 ## Dynamic Tasks
 
 You can create dynamic tasks using either the `selectTaskWhen()` or `task()` function:
