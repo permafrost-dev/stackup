@@ -353,7 +353,8 @@ init: |
   } else {
     vars.Set("containerEngineBinary", "docker-compose");
   }
-  app.SuccessMessage("selected " + vars.Get("containerEngineBinary") + " as the container engine");
+
+  app.SuccessMessage("container engine selected: * " + vars.Get("containerEngineBinary"));
 ```
 
 ## Setup
