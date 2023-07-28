@@ -14,11 +14,13 @@ func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("env", createJavascriptFunctionEnv)
 	vm.Set("exec", createJavascriptFunctionExec)
 	vm.Set("exists", createJavascriptFunctionExists)
+	vm.Set("fileContains", createFileContainsFunction)
 	vm.Set("getCwd", createGetCurrentWorkingDirectory)
 	vm.Set("getVar", createGetVarFunction)
 	vm.Set("hasEnv", createHasEnvFunction)
 	vm.Set("hasFlag", createJavascriptFunctionHasFlag)
 	vm.Set("hasVar", createHasVarFunction)
+	vm.Set("outputOf", createOutputOfFunction)
 	vm.Set("platform", createPlatformFunction)
 	vm.Set("script", createScriptFunction)
 	vm.Set("selectTaskWhen", createSelectTaskWhen)
@@ -32,6 +34,18 @@ func getResult(call otto.FunctionCall, v any) otto.Value {
 	result, _ := call.Otto.ToValue(v)
 
 	return result
+}
+
+func createOutputOfFunction(call otto.FunctionCall) otto.Value {
+	result := support.GetCommandOutput(call.Argument(0).String())
+
+	return getResult(call, result)
+}
+
+func createFileContainsFunction(call otto.FunctionCall) otto.Value {
+	result := support.SearchFileForString(call.Argument(0).String(), call.Argument(1).String())
+
+	return getResult(call, result)
 }
 
 func createStatusMessageFunction(call otto.FunctionCall) otto.Value {

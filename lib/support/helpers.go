@@ -2,7 +2,10 @@ package support
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/logrusorgru/aurora"
 )
@@ -67,4 +70,30 @@ func FindExistingFile(filenames []string, defaultFilename string) string {
 	}
 
 	return defaultFilename
+}
+
+func SearchFileForString(filename string, searchString string) bool {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return false
+	}
+
+	if strings.Contains(string(content), searchString) {
+		return true
+	}
+
+	return false
+}
+
+func GetCommandOutput(command string) string {
+	parts := strings.Split(command, " ")
+
+	cmd := exec.Command(parts[0], parts[1:]...)
+
+	outputBytes, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(string(outputBytes))
 }
