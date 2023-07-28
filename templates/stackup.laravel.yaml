@@ -3,6 +3,7 @@ description: laravel application stack
 version: 1.0.0
 
 init: |
+  vars.Set("php-version", semver(outputOf("php --version")));
   vars.Set("laravel-version", semver(outputOf("php artisan --version")));
 
 preconditions:
@@ -16,7 +17,7 @@ preconditions:
       check: vars.Get("laravel-version").GreaterThan("9.0")
 
     - name: project is a laravel application
-      check: exists(getCwd() + "/artisan") && exists(getCwd() + "/composer.json")
+      check: fs.Exists(getCwd() + "/artisan") && fs.Exists(getCwd() + "/composer.json")
 
 startup:
   - task: start-containers
@@ -35,10 +36,14 @@ scheduler:
       cron: '* * * * *'
 
 tasks:
-  - name: spin up containers
-    id: start-containers
-    if: exists(getCwd() + "/docker-compose.yml")
-    command: podman-compose up -d
+  - id: start-containers
+    if: fs.Exists("docker-compose.yml") && binaryExists("docker-compose")
+    command: docker-compose up -d
+    silent: true
+
+  - id: stop-containers
+    if: fs.Exists("docker-compose.yml") && binaryExists("docker-compose")
+    command: docker-compose down
     silent: true
 
   - name: run migrations (rebuild db)
@@ -48,25 +53,16 @@ tasks:
 
   - name: run migrations (no seeding)
     id: run-migrations-no-seed
-    if: '!hasFlag("seed")'
+    if: hasFlag("seed") == false
     command: php artisan migrate
 
-  - name: stop containers
-    id: stop-containers
-    if: exists(getCwd() + "/docker-compose.yml")
-    command: podman-compose down
-    silent: true
-
-  - name: run artisan scheduler
-    id: artisan-scheduler
+  - id: run-artisan-scheduler
     command: php artisan schedule:run
 
-  - name: horizon queue
-    id: horizon-queue
-    if: composerJson(getCwd() + "/composer.json").HasDependency("laravel/horizon")
+  - id: horizon-queue
+    if: composerJson(getCwd()).HasDependency("laravel/horizon")
     command: php artisan horizon
     platforms: ['linux', 'darwin']
 
-  - name: httpd
-    id: httpd
+  - id: httpd
     command: php artisan serve
