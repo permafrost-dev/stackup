@@ -28,6 +28,7 @@ func (e *JavaScriptEngine) Init() {
 
 	e.Vm = otto.New()
 	CreateJavascriptFunctions(e.Vm)
+	CreateScriptFsObject(e.Vm)
 }
 
 func (e *JavaScriptEngine) ToValue(value otto.Value) any {
