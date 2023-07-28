@@ -12,6 +12,7 @@ import (
 
 func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("binaryExists", createBinaryExists)
+	vm.Set("composer", createComposerFunction)
 	vm.Set("env", createJavascriptFunctionEnv)
 	vm.Set("exec", createJavascriptFunctionExec)
 	vm.Set("exists", createJavascriptFunctionExists)
@@ -36,6 +37,12 @@ func getResult(call otto.FunctionCall, v any) otto.Value {
 	result, _ := call.Otto.ToValue(v)
 
 	return result
+}
+
+func createComposerFunction(call otto.FunctionCall) otto.Value {
+	result, _ := LoadComposerJson(call.Argument(0).String())
+
+	return getResult(call, result)
 }
 
 func createSemverFunction(call otto.FunctionCall) otto.Value {
