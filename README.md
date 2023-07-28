@@ -306,12 +306,11 @@ version: 1.0.0
 
 init: |
   if (binaryExists("podman-compose")) {
-    setVar("containerEngineBinary", "podman-compose");
+    vars.Set("containerEngineBinary", "podman-compose");
   } else {
-    setVar("containerEngineBinary", "docker-compose");
+    vars.Set("containerEngineBinary", "docker-compose");
   }
-
-  statusMessage("selected " + getVar("containerEngineBinary") + " as the container engine\n");
+  app.SuccessMessage("selected " + vars.Get("containerEngineBinary") + " as the container engine");
 ```
 
 ## Setup
