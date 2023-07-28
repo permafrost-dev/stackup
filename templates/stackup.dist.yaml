@@ -5,6 +5,7 @@ version: 1.0.0
 init: |
   vars.Set("php-version", semver(outputOf("php --version")));
   vars.Set("node-version", semver(outputOf("node --version")));
+  vars.Set("task-id:frontend-http", "frontend-httpd-"+(platform() == "windows" ? "windows" : "linux"))
 
   if (binaryExists("podman-compose")) {
     setVar("containerEngineBinary", "podman-compose");
@@ -19,18 +20,18 @@ preconditions:
       check: binaryExists("php") && binaryExists("node")
 
     - name: PHP is at least version 8
-      check: vars.Get("php-version").GreaterThan("8.0")
+      check: vars.Get("php-version").Gte("8.0")
 
-    - name: node is at least version 14
-      check: vars.Get("node-version").GreaterThan("14.0")
+    - name: NodeJS is at least version 14
+      check: vars.Get("node-version").Gte("14.0")
 
     - name: environment variables exist and are not empty
       check: |
         hasEnv("FRONTEND_PROJECT_PATH") && hasEnv("LOCAL_BACKEND_PROJECT_PATH") &&
         env("FRONTEND_PROJECT_PATH") != "" && env("LOCAL_BACKEND_PROJECT_PATH") != ""
 
-    - name: frontend project exists
-      check: fs.Exists($FRONTEND_PROJECT_PATH)
+    - name: frontend project directory exists
+      check: fs.Exists($FRONTEND_PROJECT_PATH) && fs.IsDirectory($FRONTEND_PROJECT_PATH)
 
     - name: backend project has a docker-compose file
       check: fs.Exists($LOCAL_BACKEND_PROJECT_PATH + "/docker-compose.yml")
@@ -48,7 +49,7 @@ shutdown:
   - task: stop-containers
 
 servers:
-  - task: frontend-httpd
+  - task: '{{ task(vars.Get("task-id:frontend-http")).Id }}'
   - task: backend-httpd
   - task: horizon-queue
 
@@ -58,7 +59,7 @@ scheduler:
 
 tasks:
   - id: start-containers
-    command: '{{ getVar("containerEngineBinary") + " up -d" }}'
+    command: '{{ vars.Get("containerEngineBinary") + " up -d" }}'
     path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
     silent: true
 
@@ -79,7 +80,7 @@ tasks:
     path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
 
   - id: stop-containers
-    command: '{{ getVar("containerEngineBinary") + " down" }}'
+    command: '{{ vars.Get("containerEngineBinary") + " down" }}'
     path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
     silent: true
 
@@ -87,7 +88,7 @@ tasks:
     command: php artisan schedule:run
     path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
 
-  - name: frontend httpd (linux, macos)
+  - name: frontend httpd (linux, macOS)
     id: frontend-httpd-linux
     command: node ./node_modules/.bin/next dev
     path: '{{ $FRONTEND_PROJECT_PATH }}'
@@ -99,19 +100,12 @@ tasks:
     path: '{{ $FRONTEND_PROJECT_PATH }}'
     platforms: ['windows']
 
-  - name: '{{ selectTaskWhen(platform() == "windows", "frontend-httpd-windows", "frontend-httpd-linux").Name }}'
-    id: frontend-httpd
-    command: '{{ selectTaskWhen(platform() == "windows", "frontend-httpd-windows", "frontend-httpd-linux").Command }}'
-    path: '{{ selectTaskWhen(platform() == "windows", "frontend-httpd-windows", "frontend-httpd-linux").Path }}'
-
-  - name: horizon queue
-    id: horizon-queue
+  - id: horizon-queue
     if: dev.ComposerJson($LOCAL_BACKEND_PROJECT_PATH).HasDependency("laravel/horizon");
     command: php artisan horizon
     path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
     platforms: ['linux', 'darwin']
 
-  - name: backend httpd
-    id: backend-httpd
+  - id: backend-httpd
     command: php artisan serve
     path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'

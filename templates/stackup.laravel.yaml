@@ -60,7 +60,7 @@ tasks:
     command: php artisan schedule:run
 
   - id: horizon-queue
-    if: composerJson(getCwd()).HasDependency("laravel/horizon")
+    if: dev.ComposerJson(getCwd()).HasDependency("laravel/horizon")
     command: php artisan horizon
     platforms: ['linux', 'darwin']
 
