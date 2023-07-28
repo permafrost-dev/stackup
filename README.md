@@ -172,10 +172,12 @@ See the [example configuration](./templates/stackup.dist.yaml) for a more comple
 
 Working on a standalone Laravel application? Check out the [example laravel configuration](./templates/stackup.laravel.yaml).
 
-## Available Functions
+## Scripting
 
-Many of the configuration fields can be defined using a javascript expression syntax.
-To specify an expression to be evaluated, wrap the content in double braces: `{{ env("HOME") }}`.
+Many of the fields in a `Task` can be defined using javascript. To specify an expression to be evaluated, wrap the content in double braces: `{{ env("HOME") }}`.
+
+### Available Functions
+
 
 | Function   | Arguments         | Description                                                                 |
 |----------- |------------------ |---------------------------------------------------------------------------- |
@@ -270,6 +272,23 @@ The `SemVer` class is returned by the `semver()` function And is used to parse a
 | `.Patch` | -- | value of the patch version number |
 | `.String` | -- | the original version string |
 
+### Environment Variables
+
+Environment variables can be accessed using the `env()` function or referenced directly as variables by prefixing the variable name with `$` (e.g. `$HOME`).
+
+```yaml
+preconditions:
+    - name: backend project has a docker-compose file
+      check: exists($LOCAL_BACKEND_PROJECT_PATH + "/docker-compose.yml")
+
+tasks:
+  - name: horizon queue
+    id: horizon-queue
+    if: composerJson($LOCAL_BACKEND_PROJECT_PATH + "/composer.json").HasDependency("laravel/horizon");
+    command: php artisan horizon
+    path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
+    platforms: ['linux', 'darwin']
+```
 ## Dynamic Tasks
 
 You can create dynamic tasks using either the `selectTaskWhen()` or `task()` function:

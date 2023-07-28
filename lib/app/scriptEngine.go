@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/robertkrimen/otto"
@@ -33,6 +34,14 @@ func (e *JavaScriptEngine) Init() {
 	CreateScriptAppObject(e.Vm)
 	CreateScriptVarsObject(e.Vm)
 	CreateScriptDevObject(e.Vm)
+	e.CreateEnvironmentVariables()
+}
+
+func (e *JavaScriptEngine) CreateEnvironmentVariables() {
+	for _, env := range os.Environ() {
+		parts := strings.Split(env, "=")
+		e.Vm.Set("$"+parts[0], parts[1])
+	}
 }
 
 func (e *JavaScriptEngine) ToValue(value otto.Value) any {
