@@ -21,20 +21,20 @@ func CreateScriptComposerFunction(vm *otto.Otto) {
 	vm.Set("composer", LoadComposerJson)
 }
 
-func LoadComposerJson(filename string) (Composer, error) {
+func LoadComposerJson(filename string) (*Composer, error) {
 	composer := Composer{}
 
 	contents, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return composer, err
+		return &composer, err
 	}
 
 	err = json.Unmarshal(contents, &composer)
 	if err != nil {
-		return composer, err
+		return &composer, err
 	}
 
-	return composer, nil
+	return &composer, nil
 }
 
 func (composer *Composer) HasDependency(name string) bool {
@@ -68,6 +68,28 @@ func (composer *Composer) GetDevDependencies() []string {
 	}
 
 	return dependencies
+}
+
+func (composer *Composer) GetDependency(name string) string {
+	if composer.hasProperty("require") {
+		require := composer.Require
+		if version, ok := require[name]; ok {
+			return version
+		}
+	}
+
+	return ""
+}
+
+func (composer *Composer) GetDevDependency(name string) string {
+	if composer.hasProperty("require-dev") {
+		require := composer.RequireDev
+		if version, ok := require[name]; ok {
+			return version
+		}
+	}
+
+	return ""
 }
 
 func (composer *Composer) hasProperty(name string) bool {

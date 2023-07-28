@@ -180,6 +180,7 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | Function   | Arguments         | Description                                                                 |
 |----------- |------------------ |---------------------------------------------------------------------------- |
 | `binaryExists()`| `name: string`   | returns true if the specified binary exists in `$PATH`, otherwise false       |
+| `composerJson()`| `filename: string` | returns a `Composer` object |
 | `env()`      | `name: string`      | returns the string value of environment variable `name                        |
 | `exists()`   | `filename: string`  | returns true if `filename` exists, false otherwise                          |
 | `fileContains()`| `filename: string, search: string` | returns true if `filename` contains `search`, false otherwise |
@@ -218,9 +219,22 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 
 ### Script Classes
 
+
+#### `Composer`
+
+The `Composer` class is returned by the `composerJson()` function and was designed for working with `composer.json` files.  It has the following methods and attributes:
+
+| Name | Arguments | Description |
+|--------|-----------|-------------|
+| `.GetDependencies()` | -- | returns an array of dependencies |
+| `.HasDependency()` | `name: string` | returns true if the composer.json file has dependency named `name`, otherwise false |
+| `.GetDependency()` | `name: string` | returns the dependency named `name`, if it exists |
+| `.GetDevDependency()` | `name: string` | returns the dev dependency named `name`, if it exists |
+
+
 #### `SemVer`
 
-The `SemVer` class is used to parse and compare semantic version strings.  It has the following methods and attributes:
+The `SemVer` class is returned by the `semver()` function And is used to parse and compare semantic version strings.  It has the following methods and attributes:
 
 | Name | Arguments | Description |
 |--------|-----------|-------------|

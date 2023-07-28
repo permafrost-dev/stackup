@@ -12,7 +12,7 @@ import (
 
 func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("binaryExists", createBinaryExists)
-	vm.Set("composer", createComposerFunction)
+	vm.Set("composerJson", createComposerJsonFunction)
 	vm.Set("env", createJavascriptFunctionEnv)
 	vm.Set("exec", createJavascriptFunctionExec)
 	vm.Set("exists", createJavascriptFunctionExists)
@@ -39,7 +39,7 @@ func getResult(call otto.FunctionCall, v any) otto.Value {
 	return result
 }
 
-func createComposerFunction(call otto.FunctionCall) otto.Value {
+func createComposerJsonFunction(call otto.FunctionCall) otto.Value {
 	result, _ := LoadComposerJson(call.Argument(0).String())
 
 	return getResult(call, result)

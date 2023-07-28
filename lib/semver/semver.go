@@ -22,8 +22,10 @@ func ParseSemverString(version string) Semver {
 		return Semver{}
 	}
 
+	fmt.Println("tempVersion: ", tempVersion)
+
 	// Match the major, minor, and patch version numbers
-	re := regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(?:-(.+))?(?:\+(.+))?$`)
+	re := regexp.MustCompile(`^.?(\d+)\.(\d+)\.(\d+)(?:-(.+))?(?:\+(.+))?$`)
 	matches := re.FindStringSubmatch(tempVersion)
 
 	if len(matches) < 4 {
@@ -51,12 +53,12 @@ func ParseSemverString(version string) Semver {
 		Patch:      patch,
 		PreRelease: prerelease,
 		Build:      build,
-		String:     version,
+		String:     tempVersion,
 	}
 }
 
 func CoerceSemverString(version string) (string, error) {
-	semverRegex := regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(?:-(.+))?(?:\+(.+))?$`)
+	semverRegex := regexp.MustCompile(`^.?(\d+)\.(\d+)\.(\d+)(?:-(.+))?(?:\+(.+))?$`)
 
 	if semverRegex.MatchString(version) {
 		return version, nil
