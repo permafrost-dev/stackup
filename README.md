@@ -339,7 +339,7 @@ tasks:
     path: '{{ task("frontend-httpd-" + platform()).Path }}'
 ```
 
-## Initialization Script
+### Initialization Script
 
 You may add an `init` section to the configuration file to run javascript before the `preconditions` section executes:
 
