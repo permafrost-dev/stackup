@@ -2,9 +2,18 @@ name: my stack
 description: laravel application stack
 version: 1.0.0
 
+init: |
+  vars.Set("laravel-version", semver(outputOf("php artisan --version")));
+
 preconditions:
     - name: dependencies are installed
       check: binaryExists("php")
+
+    - name: PHP is at least version 7.2
+      check: vars.Get("php-version").GreaterThan("7.2")
+
+    - name: running Laravel v9+
+      check: vars.Get("laravel-version").GreaterThan("9.0")
 
     - name: project is a laravel application
       check: exists(getCwd() + "/artisan") && exists(getCwd() + "/composer.json")
@@ -54,6 +63,7 @@ tasks:
 
   - name: horizon queue
     id: horizon-queue
+    if: composerJson(getCwd() + "/composer.json").HasDependency("laravel/horizon")
     command: php artisan horizon
     platforms: ['linux', 'darwin']
 

@@ -16,20 +16,17 @@ type Semver struct {
 	String     string
 }
 
-func ParseSemverString(version string) Semver {
-	tempVersion, err := CoerceSemverString(version)
+func ParseSemverString(version string) *Semver {
+	tempVersion, err := CoerceSemverString(ExtractVersion(version))
 	if err != nil {
-		return Semver{}
+		return &Semver{}
 	}
 
-	fmt.Println("tempVersion: ", tempVersion)
-
-	// Match the major, minor, and patch version numbers
-	re := regexp.MustCompile(`^.?(\d+)\.(\d+)\.(\d+)(?:-(.+))?(?:\+(.+))?$`)
+	re := regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)(?:-(.+))?(?:\+(.+))?$`)
 	matches := re.FindStringSubmatch(tempVersion)
 
 	if len(matches) < 4 {
-		return Semver{}
+		return &Semver{}
 	}
 
 	major, _ := strconv.Atoi(matches[1])
@@ -47,7 +44,7 @@ func ParseSemverString(version string) Semver {
 		build = matches[5]
 	}
 
-	return Semver{
+	return &Semver{
 		Major:      major,
 		Minor:      minor,
 		Patch:      patch,
@@ -58,7 +55,7 @@ func ParseSemverString(version string) Semver {
 }
 
 func CoerceSemverString(version string) (string, error) {
-	semverRegex := regexp.MustCompile(`^.?(\d+)\.(\d+)\.(\d+)(?:-(.+))?(?:\+(.+))?$`)
+	semverRegex := regexp.MustCompile(`^(?:[\^v~>]?)?(\d+)\.(\d+)\.(\d+)(?:-(.+))?(?:\+(.+))?$`)
 
 	if semverRegex.MatchString(version) {
 		return version, nil
@@ -85,6 +82,17 @@ func CoerceSemverString(version string) (string, error) {
 
 	// If the input string cannot be coerced into a semver string, return an error
 	return "", fmt.Errorf("invalid semver string: %s", version)
+}
+
+func ExtractVersion(output string) string {
+	versionRegex := regexp.MustCompile(`(\d+(\.\d+)?(\.\d+)?(\-.+$)?)`)
+
+	match := versionRegex.FindStringSubmatch(output)
+	if len(match) == 0 {
+		return "0.0.0"
+	}
+
+	return strings.TrimSpace(match[0])
 }
 
 func (s *Semver) Compare(version string) int {
@@ -124,7 +132,9 @@ func (s *Semver) Compare(version string) int {
 	return 0
 }
 
-func (s *Semver) GreaterThan(other Semver) bool {
+func (s *Semver) GreaterThan(otherVersion string) bool {
+	other := ParseSemverString(otherVersion)
+
 	if s.Major > other.Major {
 		return true
 	} else if s.Major < other.Major {
@@ -152,7 +162,9 @@ func (s *Semver) GreaterThan(other Semver) bool {
 	return false
 }
 
-func (s *Semver) LessThan(other Semver) bool {
+func (s *Semver) LessThan(otherVersion string) bool {
+	other := ParseSemverString(otherVersion)
+
 	if s.Major < other.Major {
 		return true
 	} else if s.Major > other.Major {

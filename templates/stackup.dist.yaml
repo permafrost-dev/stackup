@@ -3,6 +3,9 @@ description: laravel application stack
 version: 1.0.0
 
 init: |
+  vars.Set("php-version", semver(outputOf("php --version")));
+  vars.Set("node-version", semver(outputOf("node --version")));
+
   if (binaryExists("podman-compose")) {
     setVar("containerEngineBinary", "podman-compose");
   } else {
@@ -13,6 +16,12 @@ init: |
 preconditions:
     - name: dependencies are installed
       check: binaryExists("php") && binaryExists("node")
+
+    - name: PHP is at least version 8
+      check: vars.Get("php-version").GreaterThan("8.0.0")
+
+    - name: Node is at least version 14
+      check: vars.Get("node-version").GreaterThan("14.0.0")
 
     - name: frontend project exists
       check: exists(env("FRONTEND_PROJECT_PATH"))
