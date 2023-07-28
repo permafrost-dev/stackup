@@ -106,7 +106,7 @@ tasks:
 
   - name: horizon queue
     id: horizon-queue
-    if: composerJson($LOCAL_BACKEND_PROJECT_PATH).HasDependency("laravel/horizon");
+    if: dev.ComposerJson($LOCAL_BACKEND_PROJECT_PATH).HasDependency("laravel/horizon");
     command: php artisan horizon
     path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
     platforms: ['linux', 'darwin']
