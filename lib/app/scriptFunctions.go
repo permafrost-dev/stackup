@@ -5,6 +5,7 @@ import (
 	"runtime"
 
 	"github.com/robertkrimen/otto"
+	"github.com/stackup-app/stackup/lib/semver"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/utils"
 )
@@ -24,6 +25,7 @@ func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("platform", createPlatformFunction)
 	vm.Set("script", createScriptFunction)
 	vm.Set("selectTaskWhen", createSelectTaskWhen)
+	vm.Set("semver", createSemverFunction)
 	vm.Set("setVar", createSetVarFunction)
 	vm.Set("statusMessage", createStatusMessageFunction)
 	vm.Set("task", createTaskFunction)
@@ -34,6 +36,12 @@ func getResult(call otto.FunctionCall, v any) otto.Value {
 	result, _ := call.Otto.ToValue(v)
 
 	return result
+}
+
+func createSemverFunction(call otto.FunctionCall) otto.Value {
+	result := semver.ParseSemverString(call.Argument(0).String())
+
+	return getResult(call, result)
 }
 
 func createOutputOfFunction(call otto.FunctionCall) otto.Value {

@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/robertkrimen/otto"
 	"github.com/stackup-app/stackup/lib/support"
+	"github.com/stackup-app/stackup/lib/version"
 )
 
 type ScriptApp struct {
@@ -31,4 +32,8 @@ func (app *ScriptApp) FailureMessage(message string) {
 
 func (app *ScriptApp) WarningMessage(message string) {
 	support.WarningMessage(message)
+}
+
+func (app *ScriptApp) Version() string {
+	return version.APP_VERSION
 }
