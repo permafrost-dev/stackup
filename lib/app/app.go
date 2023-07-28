@@ -124,22 +124,22 @@ func (a *Application) exitApp() {
 
 func (a *Application) createScheduledTasks() {
 	for _, def := range a.Workflow.Scheduler {
-		task := a.Workflow.FindTaskById(def.Task)
+		task := a.Workflow.FindTaskById(def.TaskId())
 
 		if task == nil {
-			support.FailureMessageWithXMark("Task " + def.Task + " not found.")
+			support.FailureMessageWithXMark("Task " + def.TaskId() + " not found.")
 			continue
 		}
 
 		cron := def.Cron
-		taskId := def.Task
+		taskId := def.TaskId()
 
 		a.cronEngine.AddFunc(cron, func() {
 			task := a.Workflow.FindTaskById(taskId)
 			task.Run(true)
 		})
 
-		a.scheduledTaskMap.Store(def.Task, &def)
+		a.scheduledTaskMap.Store(def.TaskId(), &def)
 	}
 
 	a.cronEngine.Start()
@@ -163,10 +163,10 @@ func (a *Application) runEventLoop() {
 
 func (a *Application) runStartupTasks() {
 	for _, def := range a.Workflow.Startup {
-		task := a.Workflow.FindTaskById(def.Task)
+		task := a.Workflow.FindTaskById(def.TaskId())
 
 		if task == nil {
-			support.SkippedMessageWithSymbol("Task " + def.Task + " not found.")
+			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
 			continue
 		}
 
@@ -176,10 +176,10 @@ func (a *Application) runStartupTasks() {
 
 func (a *Application) runShutdownTasks() {
 	for _, def := range a.Workflow.Shutdown {
-		task := a.Workflow.FindTaskById(def.Task)
+		task := a.Workflow.FindTaskById(def.TaskId())
 
 		if task == nil {
-			support.SkippedMessageWithSymbol("Task " + def.Task + " not found.")
+			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
 			continue
 		}
 
@@ -189,10 +189,10 @@ func (a *Application) runShutdownTasks() {
 
 func (a *Application) runServerTasks() {
 	for _, def := range a.Workflow.Servers {
-		task := a.Workflow.FindTaskById(def.Task)
+		task := a.Workflow.FindTaskById(def.TaskId())
 
 		if task == nil {
-			support.SkippedMessageWithSymbol("Task " + def.Task + " not found.")
+			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
 			continue
 		}
 

@@ -1,6 +1,8 @@
 package app
 
-import "strings"
+import (
+	"strings"
+)
 
 type StackupWorkflow struct {
 	Name          string          `yaml:"name"`
@@ -9,9 +11,9 @@ type StackupWorkflow struct {
 	Init          string          `yaml:"init"`
 	Preconditions []Precondition  `yaml:"preconditions"`
 	Tasks         []*Task         `yaml:"tasks"`
-	Startup       []StartupItem   `yaml:"startup"`
-	Shutdown      []ShutdownItem  `yaml:"shutdown"`
-	Servers       []Server        `yaml:"servers"`
+	Startup       []TaskReference `yaml:"startup"`
+	Shutdown      []TaskReference `yaml:"shutdown"`
+	Servers       []TaskReference `yaml:"servers"`
 	Scheduler     []ScheduledTask `yaml:"scheduler"`
 	State         *StackupWorkflowState
 }
@@ -25,15 +27,7 @@ type Precondition struct {
 	Check string `yaml:"check"`
 }
 
-type StartupItem struct {
-	Task string `yaml:"task"`
-}
-
-type ShutdownItem struct {
-	Task string `yaml:"task"`
-}
-
-type Server struct {
+type TaskReference struct {
 	Task string `yaml:"task"`
 }
 
@@ -60,4 +54,20 @@ func (workflow *StackupWorkflow) Initialize() {
 	if len(workflow.Init) > 0 {
 		App.JsEngine.Evaluate(workflow.Init)
 	}
+}
+
+func (tr *TaskReference) TaskId() string {
+	if App.JsEngine.IsEvaluatableScriptString(tr.Task) {
+		return App.JsEngine.Evaluate(tr.Task).(string)
+	}
+
+	return tr.Task
+}
+
+func (st *ScheduledTask) TaskId() string {
+	if App.JsEngine.IsEvaluatableScriptString(st.Task) {
+		return App.JsEngine.Evaluate(st.Task).(string)
+	}
+
+	return st.Task
 }
