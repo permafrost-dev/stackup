@@ -137,3 +137,16 @@ func GetUrlJson(url string) (interface{}, error) {
 
 	return data, nil
 }
+
+func IsFile(filename string) bool {
+	return !IsDir(filename)
+}
+
+func IsDir(filename string) bool {
+	info, err := os.Stat(filename)
+	if err != nil {
+		return false
+	}
+
+	return info.IsDir()
+}

@@ -3,6 +3,8 @@ package app
 import (
 	"encoding/json"
 	"io/ioutil"
+
+	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type Composer struct {
@@ -17,6 +19,10 @@ type Composer struct {
 
 func LoadComposerJson(filename string) (*Composer, error) {
 	composer := Composer{}
+
+	if utils.IsDir(filename) {
+		filename = filename + "/composer.json"
+	}
 
 	contents, err := ioutil.ReadFile(filename)
 	if err != nil {

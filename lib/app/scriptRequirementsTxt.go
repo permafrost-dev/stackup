@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"os"
 	"strings"
+
+	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type RequirementsTxt struct {
@@ -13,6 +15,10 @@ type RequirementsTxt struct {
 func LoadRequirementsTxt(filename string) (*RequirementsTxt, error) {
 	reqs := &RequirementsTxt{
 		Requirements: make(map[string]string),
+	}
+
+	if utils.IsDir(filename) {
+		filename = filename + "/requirements.txt"
 	}
 
 	// Open the file

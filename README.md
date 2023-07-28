@@ -204,9 +204,9 @@ Many of the fields in a `Task` can be defined using javascript. To specify an ex
 | `app.SuccessMessage()` | `message: string` | prints a success message with a checkmark to stdout with a trailing new line |
 | `app.WarningMessage()` | `message: string` | prints a warning message to stdout with a trailing new line 
 | `app.Version()` | -- | returns the current version of `StackUp` |
-| `dev.composerJson()`| `filename: string` | returns the contents of a composer.json file (`filename`) as a `ComposerJson` object |
-| `dev.packageJson()` | `filename: string` | returns the contents of a package.json file (`filename`) as a `PackageJson` object |
-| `dev.requirementsTxt()` | `filename: string` | returns a requirements.txt file (`filename`) as a `RequirementsTxt` object |
+| `dev.ComposerJson()`| `filename: string` | returns the contents of a composer.json file (`filename`) as a `ComposerJson` object |
+| `dev.PackageJson()` | `filename: string` | returns the contents of a package.json file (`filename`) as a `PackageJson` object |
+| `dev.RequirementsTxt()` | `filename: string` | returns a requirements.txt file (`filename`) as a `RequirementsTxt` object |
 | `fs.Exists()`| `filename: string`  | returns true if `filename` exists, false otherwise                          |
 | `fs.GetFiles()` | `path: string`   | returns a list of files in `path`                                           |
 | `fs.IsDirectory()` | `pathname: string` | returns true if `pathname` is a directory, false otherwise                  |
@@ -224,7 +224,7 @@ Many of the fields in a `Task` can be defined using javascript. To specify an ex
 
 #### `ComposerJson`
 
-The `ComposerJson` class is returned by the `dev.composerJson()` function and was designed for working with `composer.json` files.  It has the following methods and attributes:
+The `ComposerJson` class is returned by the `dev.ComposerJson()` function and was designed for working with `composer.json` files.  It has the following methods and attributes:
 
 | Name | Arguments | Description |
 |--------|-----------|-------------|
@@ -235,7 +235,7 @@ The `ComposerJson` class is returned by the `dev.composerJson()` function and wa
 
 #### `PackageJson`
 
-The `PackageJson` class is returned by the `dev.packageJson()` function and was designed for working with `package.json` files.  It has the following methods and attributes:
+The `PackageJson` class is returned by the `dev.PackageJson()` function and was designed for working with `package.json` files.  It has the following methods and attributes:
 
 | Name | Arguments | Description |
 |--------|-----------|-------------|
@@ -249,7 +249,7 @@ The `PackageJson` class is returned by the `dev.packageJson()` function and was 
 
 #### `RequirementsTxt`
 
-The `RequirementsTxt` class is returned by the `dev.requirementsTxt()` function and was designed for working with `requirements.txt` files.  It has the following methods and attributes:
+The `RequirementsTxt` class is returned by the `dev.RequirementsTxt()` function and was designed for working with `requirements.txt` files.  It has the following methods and attributes:
 
 | Name | Arguments | Description |
 |--------|-----------|-------------|
@@ -279,14 +279,14 @@ Environment variables can be accessed using the `env()` function or referenced d
 ```yaml
 preconditions:
     - name: backend project has a docker-compose file
-      check: exists($BACKEND_PROJECT_PATH + "/docker-compose.yml")
+      check: fs.Exists($BACKEND_PROJECT_PATH + "/docker-compose.yml")
 
 tasks:
   - name: horizon queue
     id: horizon-queue
-    if: composerJson($BACKEND_PROJECT_PATH + "/composer.json").HasDependency("laravel/horizon");
+    if: dev.composerJson($BACKEND_PROJECT_PATH).HasDependency("laravel/horizon");
     command: php artisan horizon
-    path: '{{ env("BACKEND_PROJECT_PATH") }}'
+    path: '{{ $BACKEND_PROJECT_PATH }}'
     platforms: ['linux', 'darwin']
 ```
 

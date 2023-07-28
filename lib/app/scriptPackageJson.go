@@ -3,6 +3,8 @@ package app
 import (
 	"encoding/json"
 	"io/ioutil"
+
+	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type PackageJSON struct {
@@ -18,6 +20,10 @@ type PackageJSON struct {
 
 func LoadPackageJson(filename string) (*PackageJSON, error) {
 	pkg := &PackageJSON{}
+
+	if utils.IsDir(filename) {
+		filename = filename + "/package.json"
+	}
 
 	contents, err := ioutil.ReadFile(filename)
 	if err != nil {
