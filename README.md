@@ -179,21 +179,21 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 
 | Function   | Arguments         | Description                                                                 |
 |----------- |------------------ |---------------------------------------------------------------------------- |
-| `binaryExists()`| name: string   | returns true if the specified binary exists in `$PATH`, otherwise false       |
-| `env()`      | name: string      | returns the string value of environment variable `name                        |
-| `exists()`   | filename: string  | returns true if `filename` exists, false otherwise                          |
-| `fileContains()`| filename: string, search: string | returns true if `filename` contains `search`, false otherwise |
+| `binaryExists()`| `name: string`   | returns true if the specified binary exists in `$PATH`, otherwise false       |
+| `env()`      | `name: string`      | returns the string value of environment variable `name                        |
+| `exists()`   | `filename: string`  | returns true if `filename` exists, false otherwise                          |
+| `fileContains()`| `filename: string, search: string` | returns true if `filename` contains `search`, false otherwise |
 | `getCwd()`   | --                | returns the directory stackup was run from                                  |
-| `getVar()`   | name: string      | returns the value of the application variable `name`                        |
-| `hasEnv()`   | name: string      | returns true if the specified environment variable exists, otherwise false  |
-| `hasFlag()`  | name: string      | returns true if the flag `name` was specified when running the application  |
-| `hasVar()`   | name: string      | returns true if the application variable `name` exists, otherwise false     |
-| `outputOf()`   | command: string   | returns the output of the command `command`                                 |
+| `getVar()`   | `name: string`      | returns the value of the application variable `name`                        |
+| `hasEnv()`   | `name: string`      | returns true if the specified environment variable exists, otherwise false  |
+| `hasFlag()`  | `name: string`      | returns true if the flag `name` was specified when running the application  |
+| `hasVar()`   | `name: string`      | returns true if the application variable `name` exists, otherwise false     |
+| `outputOf()`   | `command: string`   | returns the output of the command `command`                                 |
 | `platform()` | --                | returns the operating system, one of `windows`, `linux` or `darwin` (macOS) |
-| `script()`   | filename: string  | returns the output of the javascript located in `filename`                  |
-| `selectTaskWhen()` | conditional: boolean, trueTaskId: string falseTaskId: string | returns a Task object based on the value of `conditional` |
-| `setVar()`   | name: string, value: string | sets an application variable `name` to the value `value` |
-| `task()`     | taskId: string    | returns a `Task` object with the id `taskId`                                |
+| `script()`   | `filename: string`  | returns the output of the javascript located in `filename`                  |
+| `selectTaskWhen()` | `conditional: boolean, trueTaskId: string falseTaskId: string` | returns a `Task` object based on the value of `conditional` |
+| `setVar()`   | `name: string, value: string` | sets an application variable `name` to the value `value` |
+| `task()`     | `taskId: string`    | returns a `Task` object with the id `taskId`                                |
 | `workflow()` | --                | returns a `Workflow` object                                                 |
 
 ## Dynamic Tasks
