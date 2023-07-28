@@ -297,21 +297,21 @@ You can create dynamic tasks using either the `selectTaskWhen()` or `task()` fun
 ```yaml
 tasks:
   - name: frontend httpd (linux, macos)
-    id: frontend-httpd-linux
+    id: httpd-linux
     command: node ./node_modules/.bin/next dev
-    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    path: '{{ $FRONTEND_PROJECT_PATH }}'
     platforms: ['linux', 'darwin']
 
   - name: frontend httpd (windows)
-    id: frontend-httpd-windows
+    id: httpd-win
     command: npm run dev
-    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    path: '{{ $FRONTEND_PROJECT_PATH }}'
     platforms: ['windows']
 
-  - name: '{{ selectTaskWhen(platform() == "windows", "frontend-httpd-windows", "frontend-httpd-linux").Name }}'
+  - name: '{{ selectTaskWhen(platform() == "windows", "httpd-win", "httpd-linux").Name }}'
     id: frontend-httpd
-    command: '{{ selectTaskWhen(platform() == "windows", "frontend-httpd-windows", "frontend-httpd-linux").Command }}'
-    path: '{{ selectTaskWhen(platform() == "windows", "frontend-httpd-windows", "frontend-httpd-linux").Path }}'
+    command: '{{ selectTaskWhen(platform() == "windows", "httpd-win", "httpd-linux").Command }}'
+    path: '{{ selectTaskWhen(platform() == "windows", "httpd-win", "httpd-linux").Path }}'
 ```
 
 This example defines tasks with different commands for each operating system, then defines a `frontend-httpd` task that dynamically selects the correct one:
@@ -321,17 +321,17 @@ tasks:
   - name: frontend httpd (linux)
     id: frontend-httpd-linux
     command: node ./node_modules/.bin/next dev
-    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    path: '{{ $FRONTEND_PROJECT_PATH }}'
 
   - name: frontend httpd (macOS)
     id: frontend-httpd-darwin
     command: node ./node_modules/.bin/next dev
-    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    path: '{{ $FRONTEND_PROJECT_PATH }}'
 
   - name: frontend httpd (windows)
     id: frontend-httpd-windows
     command: npm run dev
-    path: '{{ env("FRONTEND_PROJECT_PATH") }}'
+    path: '{{ $FRONTEND_PROJECT_PATH }}'
     
   - name: '{{ task("frontend-httpd-" + platform()).Name }}'
     id: frontend-httpd
