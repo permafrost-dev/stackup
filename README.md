@@ -196,13 +196,16 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `statusMessage()` | `message: string` | prints a status message to stdout, without a trailing new line |
 | `task()`     | `taskId: string`    | returns a `Task` object with the id `taskId`                                |
 | `workflow()` | --                | returns a `Workflow` object                                                 |
-| `fs.Exists`| `filename: string`  | returns true if `filename` exists, false otherwise                          |
-| `fs.GetFiles` | `path: string`   | returns a list of files in `path`                                           |
-| `fs.IsDirectory` | `pathname: string` | returns true if `pathname` is a directory, false otherwise                  |
-| `fs.IsFile` | `filename: string`  | returns true if `filename` is a file, false otherwise                       |
-| `fs.ReadFile`| `filename: string`  | returns the contents of `filename` as a string                              |
-| `fs.ReadJSON` | `filename: string` | returns the contents of `filename` as a JSON object                         |
-| `fs.WriteFile`| `filename: string, contents: string` | writes `contents` to `filename` |
+| `app.StatusMessage()` | `message: string` | prints a status message to stdout, without a trailing new line |
+| `app.WarningMessage()` | `message: string` | prints a warning message to stdout with a trailing new line |
+| `fs.Exists()`| `filename: string`  | returns true if `filename` exists, false otherwise                          |
+| `fs.GetFiles()` | `path: string`   | returns a list of files in `path`                                           |
+| `fs.IsDirectory()` | `pathname: string` | returns true if `pathname` is a directory, false otherwise                  |
+| `fs.IsFile()` | `filename: string`  | returns true if `filename` is a file, false otherwise                       |
+| `fs.ReadFile()`| `filename: string`  | returns the contents of `filename` as a string                              |
+| `fs.ReadJSON()` | `filename: string` | returns the contents of `filename` as a JSON object                         |
+| `fs.WriteFile()`| `filename: string, contents: string` | writes `contents` to `filename` |
+| `fs.WriteJSON()` | `filename: string, obj: Object` | writes `obj` to `filename` as a JSON object |
 
 ## Dynamic Tasks
 
