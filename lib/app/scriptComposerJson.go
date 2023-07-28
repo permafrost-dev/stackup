@@ -3,8 +3,6 @@ package app
 import (
 	"encoding/json"
 	"io/ioutil"
-
-	"github.com/robertkrimen/otto"
 )
 
 type Composer struct {
@@ -15,10 +13,6 @@ type Composer struct {
 	License     string            `json:"license"`
 	Require     map[string]string `json:"require"`
 	RequireDev  map[string]string `json:"require-dev"`
-}
-
-func CreateScriptComposerFunction(vm *otto.Otto) {
-	vm.Set("composer", LoadComposerJson)
 }
 
 func LoadComposerJson(filename string) (*Composer, error) {

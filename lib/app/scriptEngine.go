@@ -32,6 +32,7 @@ func (e *JavaScriptEngine) Init() {
 	CreateScriptFsObject(e.Vm)
 	CreateScriptAppObject(e.Vm)
 	CreateScriptVarsObject(e.Vm)
+	CreateScriptDevObject(e.Vm)
 }
 
 func (e *JavaScriptEngine) ToValue(value otto.Value) any {

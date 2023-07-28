@@ -1,8 +1,11 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -100,4 +103,37 @@ func FindFirstExistingFile(filenames []string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("not found")
+}
+
+func GetUrlContents(url string) (string, error) {
+	// Send an HTTP GET request to the URL
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	// Read the response body into a byte slice
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	// Convert the byte slice to a string and return it
+	return string(body), nil
+}
+
+func GetUrlJson(url string) (interface{}, error) {
+	body, err := GetUrlContents(url)
+	if err != nil {
+		return nil, err
+	}
+
+	var data interface{}
+	err = json.Unmarshal([]byte(body), &data)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }

@@ -16,6 +16,8 @@ func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("env", createJavascriptFunctionEnv)
 	vm.Set("exec", createJavascriptFunctionExec)
 	vm.Set("exists", createJavascriptFunctionExists)
+	vm.Set("fetch", createFetchFunction)
+	vm.Set("fetchJson", createFetchJsonFunction)
 	vm.Set("fileContains", createFileContainsFunction)
 	vm.Set("getCwd", createGetCurrentWorkingDirectory)
 	vm.Set("getVar", createGetVarFunction)
@@ -23,7 +25,9 @@ func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("hasFlag", createJavascriptFunctionHasFlag)
 	vm.Set("hasVar", createHasVarFunction)
 	vm.Set("outputOf", createOutputOfFunction)
+	vm.Set("packageJson", createPackageJsonFunction)
 	vm.Set("platform", createPlatformFunction)
+	vm.Set("requirementsTxt", createRequirementsTxtFunction)
 	vm.Set("script", createScriptFunction)
 	vm.Set("selectTaskWhen", createSelectTaskWhen)
 	vm.Set("semver", createSemverFunction)
@@ -37,6 +41,30 @@ func getResult(call otto.FunctionCall, v any) otto.Value {
 	result, _ := call.Otto.ToValue(v)
 
 	return result
+}
+
+func createFetchFunction(call otto.FunctionCall) otto.Value {
+	result, _ := utils.GetUrlContents(call.Argument(0).String())
+
+	return getResult(call, result)
+}
+
+func createFetchJsonFunction(call otto.FunctionCall) otto.Value {
+	result, _ := utils.GetUrlJson(call.Argument(0).String())
+
+	return getResult(call, result)
+}
+
+func createRequirementsTxtFunction(call otto.FunctionCall) otto.Value {
+	result, _ := LoadRequirementsTxt(call.Argument(0).String())
+
+	return getResult(call, result)
+}
+
+func createPackageJsonFunction(call otto.FunctionCall) otto.Value {
+	result, _ := LoadPackageJson(call.Argument(0).String())
+
+	return getResult(call, result)
 }
 
 func createComposerJsonFunction(call otto.FunctionCall) otto.Value {

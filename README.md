@@ -180,9 +180,10 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | Function   | Arguments         | Description                                                                 |
 |----------- |------------------ |---------------------------------------------------------------------------- |
 | `binaryExists()`| `name: string`   | returns true if the specified binary exists in `$PATH`, otherwise false       |
-| `composerJson()`| `filename: string` | returns a `Composer` object |
 | `env()`      | `name: string`      | returns the string value of environment variable `name                        |
 | `exists()`   | `filename: string`  | returns true if `filename` exists, false otherwise                          |
+| `fetch()`    | `url: string`       | returns the contents of the url `url` as a string                           |
+| `fetchJson()`| `url: string`       | returns the contents of the url `url` as a JSON object                      |
 | `fileContains()`| `filename: string, search: string` | returns true if `filename` contains `search`, false otherwise |
 | `getCwd()`   | --                | returns the directory stackup was run from                                  |
 | `getVar()`   | `name: string`      | returns the value of the application variable `name`                        |
@@ -204,6 +205,9 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `app.SuccessMessage()` | `message: string` | prints a success message with a checkmark to stdout with a trailing new line |
 | `app.WarningMessage()` | `message: string` | prints a warning message to stdout with a trailing new line 
 | `app.Version()` | -- | returns the current version of `StackUp` |
+| `dev.composerJson()`| `filename: string` | returns the contents of a composer.json file (`filename`) as a `ComposerJson` object |
+| `dev.packageJson()` | `filename: string` | returns the contents of a package.json file (`filename`) as a `PackageJson` object |
+| `dev.requirementsTxt()` | `filename: string` | returns a requirements.txt file (`filename`) as a `RequirementsTxt` object |
 | `fs.Exists()`| `filename: string`  | returns true if `filename` exists, false otherwise                          |
 | `fs.GetFiles()` | `path: string`   | returns a list of files in `path`                                           |
 | `fs.IsDirectory()` | `pathname: string` | returns true if `pathname` is a directory, false otherwise                  |
@@ -219,10 +223,9 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 
 ### Script Classes
 
+#### `ComposerJson`
 
-#### `Composer`
-
-The `Composer` class is returned by the `composerJson()` function and was designed for working with `composer.json` files.  It has the following methods and attributes:
+The `ComposerJson` class is returned by the `composerJson()` function and was designed for working with `composer.json` files.  It has the following methods and attributes:
 
 | Name | Arguments | Description |
 |--------|-----------|-------------|
@@ -231,6 +234,29 @@ The `Composer` class is returned by the `composerJson()` function and was design
 | `.GetDependency()` | `name: string` | returns the dependency named `name`, if it exists |
 | `.GetDevDependency()` | `name: string` | returns the dev dependency named `name`, if it exists |
 
+#### `PackageJson`
+
+The `PackageJson` class is returned by the `packageJson()` function and was designed for working with `package.json` files.  It has the following methods and attributes:
+
+| Name | Arguments | Description |
+|--------|-----------|-------------|
+| `.GetDependencies()` | -- | returns an array of dependencies |
+| `.GetDependency()` | `name: string` | returns the dependency named `name`, if it exists |
+| `.GetDevDependency()` | `name: string` | returns the dev dependency named `name`, if it exists |
+| `.GetScript()` | `name: string` | returns the script named `name`, if it exists |
+| `.HasDependency()` | `name: string` | returns true if the package.json file has dependency named `name`, otherwise false |
+| `.HasDevDependency()` | `name: string` | returns true if the package.json file has dev dependency named `name`, otherwise false |
+| `.HasScript()` | `name: string` | returns true if the package.json file has a script named `name`, otherwise false |
+
+#### `RequirementsTxt`
+
+The `RequirementsTxt` class is returned by the `requirementsTxt()` function and was designed for working with `requirements.txt` files.  It has the following methods and attributes:
+
+| Name | Arguments | Description |
+|--------|-----------|-------------|
+| `.GetDependencies()` | -- | returns an array of dependencies |
+| `.HasDependency()` | `name: string` | returns true if the requirements.txt file has dependency named `name`, otherwise false |
+| `.GetDependency()` | `name: string` | returns the dependency named `name`, if it exists |
 
 #### `SemVer`
 
