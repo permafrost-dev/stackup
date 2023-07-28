@@ -95,6 +95,7 @@ tasks:
 
   - name: horizon queue
     id: horizon-queue
+    if: composerJson(env("LOCAL_BACKEND_PROJECT_PATH") + "/composer.json").HasDependency("laravel/horizon");
     command: php artisan horizon
     path: '{{ env("LOCAL_BACKEND_PROJECT_PATH") }}'
     platforms: ['linux', 'darwin']
