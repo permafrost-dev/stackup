@@ -57,6 +57,25 @@ func (fs *ScriptFs) ReadJSON(filename string) (interface{}, error) {
 	return data, nil
 }
 
+func (fs *ScriptFs) WriteJSON(filename string, data interface{}) error {
+	_, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return err
+	}
+
+	content, err := json.MarshalIndent(data, "", "    ")
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(filename, content, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (fs *ScriptFs) Exists(filename string) bool {
 	_, err := os.Stat(filename)
 	if os.IsNotExist(err) {
