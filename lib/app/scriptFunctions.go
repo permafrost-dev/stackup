@@ -134,7 +134,7 @@ func createPlatformFunction(call otto.FunctionCall) otto.Value {
 }
 
 func createTaskFunction(call otto.FunctionCall) otto.Value {
-	taskName := call.Argument(1).String()
+	taskName := call.Argument(0).String()
 	task := App.Workflow.FindTaskById(taskName)
 
 	return getResult(call, task)
