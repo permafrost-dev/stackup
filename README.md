@@ -196,7 +196,10 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `statusMessage()` | `message: string` | prints a status message to stdout, without a trailing new line |
 | `task()`     | `taskId: string`    | returns a `Task` object with the id `taskId`                                |
 | `workflow()` | --                | returns a `Workflow` object                                                 |
+| `app.FailureMessage()` | `message: string` | prints a failure message with an X to stdout with a trailing new line |
+| `app.StatusLine()` | `message: string` | prints a status message to stdout, with a trailing new line |
 | `app.StatusMessage()` | `message: string` | prints a status message to stdout, without a trailing new line |
+| `app.SuccessMessage()` | `message: string` | prints a success message with a checkmark to stdout with a trailing new line |
 | `app.WarningMessage()` | `message: string` | prints a warning message to stdout with a trailing new line |
 | `fs.Exists()`| `filename: string`  | returns true if `filename` exists, false otherwise                          |
 | `fs.GetFiles()` | `path: string`   | returns a list of files in `path`                                           |
