@@ -1,8 +1,10 @@
 package semver
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 type Semver struct {
@@ -15,9 +17,14 @@ type Semver struct {
 }
 
 func ParseSemverString(version string) Semver {
+	tempVersion, err := CoerceSemverString(version)
+	if err != nil {
+		return Semver{}
+	}
+
 	// Match the major, minor, and patch version numbers
 	re := regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(?:-(.+))?(?:\+(.+))?$`)
-	matches := re.FindStringSubmatch(version)
+	matches := re.FindStringSubmatch(tempVersion)
 
 	if len(matches) < 4 {
 		return Semver{}
@@ -46,6 +53,36 @@ func ParseSemverString(version string) Semver {
 		Build:      build,
 		String:     version,
 	}
+}
+
+func CoerceSemverString(version string) (string, error) {
+	semverRegex := regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(?:-(.+))?(?:\+(.+))?$`)
+
+	if semverRegex.MatchString(version) {
+		return version, nil
+	}
+
+	semverRegex = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)(?:-(.+))?(?:\+(.+))`)
+	if semverRegex.MatchString(version) {
+		matches := semverRegex.FindAllString(version, -1)
+		versionParts := matches[1:4]
+		otherParts := matches[4:]
+		return strings.Join([]string{strings.Join(versionParts, "."), strings.Join(otherParts, ".")}, "-"), nil
+	}
+
+	// If the input string does not match the semver regex, try to coerce it
+	coercedRegex := regexp.MustCompile(`(\d+)\.(\d+)`)
+	if coercedRegex.MatchString(version) {
+		return fmt.Sprintf("%s.0", version), nil
+	}
+
+	coercedRegex = regexp.MustCompile(`(\d+)`)
+	if coercedRegex.MatchString(version) {
+		return fmt.Sprintf("%s.0.0", version), nil
+	}
+
+	// If the input string cannot be coerced into a semver string, return an error
+	return "", fmt.Errorf("invalid semver string: %s", version)
 }
 
 func (s *Semver) Compare(version string) int {
