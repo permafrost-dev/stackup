@@ -193,7 +193,7 @@ To specify an expression to be evaluated, wrap the content in double braces: `{{
 | `script()`   | `filename: string`  | returns the output of the javascript located in `filename`                  |
 | `selectTaskWhen()` | `conditional: boolean, trueTaskId: string falseTaskId: string` | returns a `Task` object based on the value of `conditional` |
 | `setVar()`   | `name: string, value: string` | sets an application variable `name` to the value `value` |
-| `statusMessage()` | `message: string` | prints a status message to the console |
+| `statusMessage()` | `message: string` | prints a status message to stdout, without a trailing new line |
 | `task()`     | `taskId: string`    | returns a `Task` object with the id `taskId`                                |
 | `workflow()` | --                | returns a `Workflow` object                                                 |
 
