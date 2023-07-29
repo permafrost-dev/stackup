@@ -44,7 +44,44 @@ stackup --no-update-check
 
 ## Configuration
 
-The application is configured using a YAML file named `stackup.yaml` and contains five sections: `preconditions`, `tasks`, `startup`, `shutdown`, and `scheduler`.
+The application is configured using a YAML file named `stackup.yaml` and contains five required sections: `preconditions`, `tasks`, `startup`, `shutdown`, and `scheduler`.
+There are also optional `settings` and `init` sections that can be used to configure and initialize the application.
+
+### Configuration: Settings
+
+The `settings` section of the configuration file is used to configure the application.  The following settings are available:
+
+| field     | description                        | required? |
+|-----------|------------------------------------|-----------|
+| `defaults.tasks.path` | default path for tasks | no |
+| `defaults.tasks.silent` | default silent setting for tasks | no |
+| `defaults.tasks.platforms` | default platforms for tasks | no |
+
+Example `settings` section:
+
+```yaml
+name: my stack
+version: 1.0.0
+
+settings:
+  defaults:
+    tasks:
+      silent: true
+      path: $LOCAL_BACKEND_PROJECT_PATH
+      platforms: ['windows']
+
+tasks:
+  - id: task-1
+    command: printf "hello world\n"
+    # path: defaults to $LOCAL_BACKEND_PROJECT_PATH
+    # silent: defaults to true
+    # platforms: defaults to ['windows']
+
+  - id: task-2
+    command: printf "goodbye world\n"
+    path: $FRONTEND_PROJECT_PATH # overrides the default
+    platforms: ['linux', 'darwin'] # overrides the default
+```
 
 ### Configuration: Preconditions
 
@@ -76,7 +113,7 @@ Items in `tasks` follow this structure:
 | `id`        | A unique identifier for the task (e.g. `start-containers`)                                                 | yes       |
 | `if`        | A condition that must be true for the task to run (e.g. `hasFlag('seed')`)                                 | no        |
 | `command`   | The command to run for the task (e.g. `podman-compose up -d`)                                              | yes       |
-| `path`      | The path to the directory where the command should be run `(default: current directory)`                     | no        |
+| `path`      | The path to the directory where the command should be run `(default: current directory)`. this may be a reference to an environment variable without wrapping it in braces, e.g. `$BACKEND_PROJECT_PATH` | no        |
 | `silent`    | Whether to suppress output from the command `(default: false)`                                               | no        |
 | `platforms` | A list of platforms where the task should be run `(default: all platforms)`                                  | no        |
 | `maxRuns`   | The maximum number of times the task can run (0 means always run) `(default: 0)`                             | no        |
@@ -90,14 +127,14 @@ tasks:
   - name: spin up containers
     id: start-containers
     command: podman-compose up -d
-    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
+    path: $LOCAL_BACKEND_PROJECT_PATH
     silent: true
 
   - name: run migrations (rebuild db)
     id: run-migrations-fresh
     if: hasFlag("seed")
     command: php artisan migrate:fresh --seed
-    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
+    path: $LOCAL_BACKEND_PROJECT_PATH
 
   - name: run migrations (no seeding)
     id: run-migrations-no-seed
