@@ -18,6 +18,7 @@ func (vars *ScriptVars) Get(name string) any {
 
 func (vars *ScriptVars) Set(name string, value any) {
 	App.Vars.Store(name, value)
+	App.JsEngine.Vm.Set("$"+name, value)
 }
 
 func (vars *ScriptVars) Has(name string) bool {

@@ -3,6 +3,8 @@ package app
 import (
 	"os"
 	"runtime"
+	"strings"
+	"time"
 
 	"github.com/robertkrimen/otto"
 	"github.com/stackup-app/stackup/lib/semver"
@@ -32,6 +34,7 @@ func CreateJavascriptFunctions(vm *otto.Otto) {
 	vm.Set("selectTaskWhen", createSelectTaskWhen)
 	vm.Set("semver", createSemverFunction)
 	vm.Set("setVar", createSetVarFunction)
+	vm.Set("setTimeout", createSetTimeoutFunction)
 	vm.Set("statusMessage", createStatusMessageFunction)
 	vm.Set("task", createTaskFunction)
 	vm.Set("workflow", createWorkflowFunction)
@@ -41,6 +44,28 @@ func getResult(call otto.FunctionCall, v any) otto.Value {
 	result, _ := call.Otto.ToValue(v)
 
 	return result
+}
+
+func createSetTimeoutFunction(call otto.FunctionCall) otto.Value {
+	// Get the callback function and delay time from the arguments
+	callback := call.Argument(0)
+	delay, _ := call.Argument(1).ToInteger()
+
+	// Create a channel to wait for the delay time
+	done := make(chan bool, 1)
+	go func() {
+		time.Sleep(time.Duration(delay) * time.Millisecond)
+		done <- true
+	}()
+
+	// Call the callback function after the delay time
+	go func() {
+		<-done
+		callback.Call(callback)
+	}()
+
+	value, _ := otto.ToValue(nil)
+	return value
 }
 
 func createFetchFunction(call otto.FunctionCall) otto.Value {
@@ -135,6 +160,12 @@ func createPlatformFunction(call otto.FunctionCall) otto.Value {
 
 func createTaskFunction(call otto.FunctionCall) otto.Value {
 	taskName := call.Argument(0).String()
+
+	if strings.HasPrefix(taskName, "$") && len(taskName) > 1 {
+		temp, _ := App.Vars.Load(taskName[1:])
+		taskName = temp.(string)
+	}
+
 	task := App.Workflow.FindTaskById(taskName)
 
 	return getResult(call, task)

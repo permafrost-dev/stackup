@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -174,4 +175,35 @@ func MatchPattern(s string, pattern string) []string {
 func MatchesPattern(s string, pattern string) bool {
 	regex := regexp.MustCompile(pattern)
 	return regex.MatchString(s)
+}
+
+func StringArrayContains(arr []string, s string) bool {
+	for _, item := range arr {
+		if item == s {
+			return true
+		}
+	}
+
+	return false
+}
+
+func SaveUrlToFile(url string, filename string) error {
+	out, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

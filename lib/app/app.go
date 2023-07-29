@@ -288,6 +288,7 @@ func (a *Application) Run() {
 	}
 
 	a.Workflow.Initialize()
+	a.JsEngine.CreateAppVariables()
 
 	a.hookSignals()
 	a.hookKeyboard()

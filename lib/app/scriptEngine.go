@@ -7,6 +7,7 @@ import (
 
 	"github.com/robertkrimen/otto"
 	"github.com/stackup-app/stackup/lib/support"
+	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type EvaluateFunction func(script string) any
@@ -34,7 +35,15 @@ func (e *JavaScriptEngine) Init() {
 	CreateScriptAppObject(e.Vm)
 	CreateScriptVarsObject(e.Vm)
 	CreateScriptDevObject(e.Vm)
+	CreateScriptNetObject(e.Vm)
 	e.CreateEnvironmentVariables()
+}
+
+func (e *JavaScriptEngine) CreateAppVariables() {
+	App.Vars.Range(func(key, value any) bool {
+		e.Vm.Set("$"+(key.(string)), value)
+		return true
+	})
 }
 
 func (e *JavaScriptEngine) CreateEnvironmentVariables() {
@@ -97,6 +106,20 @@ func (e *JavaScriptEngine) Evaluate(script string) any {
 		return nil
 	}
 
+	if result.IsObject() {
+		v := result.Object()
+		keys := result.Object().Keys()
+
+		if utils.StringArrayContains(keys, "Id") && utils.StringArrayContains(keys, "Name") && utils.StringArrayContains(keys, "Command") {
+			v2, _ := v.Value().Object().Get("Id")
+			return v2.String()
+		}
+
+		// v3, _ := v.Value().Export()
+		// return v3
+
+	}
+
 	if result.IsBoolean() {
 		v, _ := result.ToBoolean()
 		return v
@@ -114,11 +137,6 @@ func (e *JavaScriptEngine) Evaluate(script string) any {
 
 	if result.IsNumber() {
 		v, _ := result.ToInteger()
-		return v
-	}
-
-	if result.IsObject() {
-		v, _ := result.Object().Value().Export()
 		return v
 	}
 
