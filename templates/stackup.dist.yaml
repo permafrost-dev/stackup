@@ -2,18 +2,24 @@ name: my stack
 description: laravel application stack
 version: 1.0.0
 
+settings:
+  defaults:
+    tasks:
+      silent: false
+      path: $LOCAL_BACKEND_PROJECT_PATH
+
 init: |
+  vars.Set("task-id:frontend-http", "frontend-httpd-"+(platform() == "windows" ? "windows" : "linux"))
+  vars.Set("task-id:run-migrations", "run-migrations-" + (hasFlag("seed") ? "fresh" : "no-seed"))
   vars.Set("php-version", semver(outputOf("php --version")));
   vars.Set("node-version", semver(outputOf("node --version")));
-  vars.Set("task-id:frontend-http", "frontend-httpd-"+(platform() == "windows" ? "windows" : "linux"))
+  vars.Set("container-engine", "docker-compose");
 
   if (binaryExists("podman-compose")) {
-    setVar("containerEngineBinary", "podman-compose");
-  } else {
-    setVar("containerEngineBinary", "docker-compose");
+    vars.Set("container-engine", "podman-compose");
   }
 
-  app.SuccessMessage("selected " + getVar("containerEngineBinary") + " as the container engine");
+  app.SuccessMessage("selected " + vars.Get("container-engine") + " as the container engine");
 
 preconditions:
     - name: dependencies are installed
@@ -25,7 +31,7 @@ preconditions:
     - name: NodeJS is at least version 14
       check: vars.Get("node-version").Gte("14.0")
 
-    - name: environment variables exist and are not empty
+    - name: environment variables exist and are non-empty
       check: |
         hasEnv("FRONTEND_PROJECT_PATH") && hasEnv("LOCAL_BACKEND_PROJECT_PATH") &&
         env("FRONTEND_PROJECT_PATH") != "" && env("LOCAL_BACKEND_PROJECT_PATH") != ""
@@ -43,7 +49,7 @@ preconditions:
 
 startup:
   - task: start-containers
-  - task: run-migrations
+  - task: '{{ task(vars.Get("task-id:run-migrations")).Id }}'
 
 shutdown:
   - task: stop-containers
@@ -59,53 +65,42 @@ scheduler:
 
 tasks:
   - id: start-containers
-    command: '{{ vars.Get("containerEngineBinary") + " up -d" }}'
-    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
+    command: '{{ vars.Get("container-engine") + " up -d" }}'
+    silent: true
+
+  - id: stop-containers
+    command: '{{ vars.Get("container-engine") + " down" }}'
     silent: true
 
   - name: run migrations (rebuild db)
     id: run-migrations-fresh
     if: hasFlag("seed")
     command: php artisan migrate:fresh --seed
-    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
 
   - name: run migrations (no seeding)
     id: run-migrations-no-seed
-    if: '!hasFlag("seed")'
+    if: hasFlag("seed") == false
     command: php artisan migrate
-    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
-
-  - id: run-migrations
-    command: '{{ selectTaskWhen(hasFlag("seed"), "run-migrations-fresh", "run-migrations-no-seed").Command }}'
-    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
-
-  - id: stop-containers
-    command: '{{ vars.Get("containerEngineBinary") + " down" }}'
-    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
-    silent: true
 
   - id: run-artisan-scheduler
     command: php artisan schedule:run
-    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
+
+  - id: backend-httpd
+    command: php artisan serve
 
   - name: frontend httpd (linux, macOS)
     id: frontend-httpd-linux
     command: node ./node_modules/.bin/next dev
-    path: '{{ $FRONTEND_PROJECT_PATH }}'
+    path: $FRONTEND_PROJECT_PATH
     platforms: ['linux', 'darwin']
 
   - name: frontend httpd (windows)
     id: frontend-httpd-windows
     command: npm run dev
-    path: '{{ $FRONTEND_PROJECT_PATH }}'
+    path: $FRONTEND_PROJECT_PATH
     platforms: ['windows']
 
   - id: horizon-queue
-    if: dev.ComposerJson($LOCAL_BACKEND_PROJECT_PATH).HasDependency("laravel/horizon");
+    if: dev.ComposerJson($LOCAL_BACKEND_PROJECT_PATH).HasDependency("laravel/horizon")
     command: php artisan horizon
-    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'
     platforms: ['linux', 'darwin']
-
-  - id: backend-httpd
-    command: php artisan serve
-    path: '{{ $LOCAL_BACKEND_PROJECT_PATH }}'

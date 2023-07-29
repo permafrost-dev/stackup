@@ -3,18 +3,18 @@ description: laravel application stack
 version: 1.0.0
 
 init: |
-  vars.Set("php-version", semver(outputOf("php --version")));
-  vars.Set("laravel-version", semver(outputOf("php artisan --version")));
+  vars.Set("php_version", semver(outputOf("php --version")));
+  vars.Set("laravel_version", semver(outputOf("php artisan --version")));
 
 preconditions:
     - name: dependencies are installed
       check: binaryExists("php")
 
-    - name: PHP is at least version 7.2
-      check: vars.Get("php-version").GreaterThan("7.2")
+    - name: PHP is at least version 7.3
+      check: vars.Get("php_version").Gte("7.3")
 
     - name: running Laravel v9+
-      check: vars.Get("laravel-version").GreaterThan("9.0")
+      check: $laravel_version.Gte("9")
 
     - name: project is a laravel application
       check: fs.Exists(getCwd() + "/artisan") && fs.Exists(getCwd() + "/composer.json")
