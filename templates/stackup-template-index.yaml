@@ -1,5 +1,5 @@
 templates:
   - name: container tasks
-    location: https://raw.githubusercontent.com/permafrost-dev/stackup/main/templates/task-templates/containers.yaml
+    location: https://raw.githubusercontent.com/permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
     checksum: 10658c142028f91ca3b4871b0bef9adec8ed279ada0a9ddddf418a307d54073f
     algorithm: sha256
