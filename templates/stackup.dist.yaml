@@ -39,13 +39,8 @@ preconditions:
     - name: frontend project directory exists
       check: fs.Exists($FRONTEND_PROJECT_PATH) && fs.IsDirectory($FRONTEND_PROJECT_PATH)
 
-    - name: backend project has docker-compose file
-      check: fs.Exists($LOCAL_BACKEND_PROJECT_PATH + "/docker-compose.yml")
-
     - name: backend project is a laravel project
-      check: |
-        fs.Exists($LOCAL_BACKEND_PROJECT_PATH + "/artisan") &&
-        fs.Exists($LOCAL_BACKEND_PROJECT_PATH + "/composer.json")
+      check: fs.Exists("artisan") && fs.Exists("composer.json")
 
 startup:
   - task: start-containers
