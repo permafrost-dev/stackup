@@ -31,7 +31,7 @@ type StackupWorkflow struct {
 
 type WorkflowInclude struct {
 	Url            string `yaml:"url"`
-	VerifyChecksum bool   `yaml:"verify"`
+	VerifyChecksum *bool  `yaml:"verify,omitempty"`
 }
 
 type WorkflowSettings struct {
@@ -194,16 +194,24 @@ func (workflow *StackupWorkflow) RemoveTasks(uuidsToRemove []string) {
 func (workflow *StackupWorkflow) ProcessIncludes() {
 	workflow.RemoteTemplateIndex = &RemoteTemplateIndex{Loaded: false}
 
+	// set default value for verify checksum to true
+	for _, wi := range workflow.Includes {
+		if wi.VerifyChecksum == nil {
+			boolValue := true
+			wi.VerifyChecksum = &boolValue
+		}
+	}
+
 	if workflow.Settings.RemoteIndexUrl != "" {
 		remoteIndex, err := LoadRemoteTemplateIndex(workflow.Settings.FullRemoteIndexUrl())
 
-		if err != nil {
+		remoteIndex.Loaded = err == nil
+		if !remoteIndex.Loaded {
 			support.WarningMessage("Unable to load remote template index.")
+		} else {
+			workflow.RemoteTemplateIndex = remoteIndex
+			support.SuccessMessageWithCheck("Downloaded remote template index file.")
 		}
-
-		remoteIndex.Loaded = true
-		workflow.RemoteTemplateIndex = remoteIndex
-		support.SuccessMessageWithCheck("Downloaded remote template index file.")
 	}
 
 	for _, include := range workflow.Includes {
@@ -223,7 +231,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		return false
 	}
 
-	if App.Workflow.RemoteTemplateIndex.Loaded && include.VerifyChecksum {
+	if App.Workflow.RemoteTemplateIndex.Loaded && *include.VerifyChecksum == true {
 		support.StatusMessage("Validating checksum for remote template: "+include.DisplayUrl(), false)
 		remoteMeta := App.Workflow.RemoteTemplateIndex.GetTemplate(include.FullUrl())
 		validated, err := remoteMeta.ValidateChecksum(contents)

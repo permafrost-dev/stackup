@@ -12,7 +12,7 @@ settings:
 
 includes:
   - url: gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
-    verify: true
+    verify: false
 
 init: |
   vars.Set("php_version", semver(outputOf("php --version")));
