@@ -4,14 +4,14 @@ version: 1.0.0
 
 settings:
   exit-on-checksum-mismatch: false
-  remote-index-url: https://raw.githubusercontent.com/permafrost-dev/stackup/main/templates/stackup-template-index.yaml
+  remote-index-url: gh:permafrost-dev/stackup/main/templates/stackup-template-index.yaml
   defaults:
     tasks:
       silent: false
       path: $LOCAL_BACKEND_PROJECT_PATH
 
 includes:
-  - url: https://raw.githubusercontent.com/permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
+  - url: gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
 
 init: |
   vars.Set("php_version", semver(outputOf("php --version")));

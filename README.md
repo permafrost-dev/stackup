@@ -45,7 +45,7 @@ stackup --no-update-check
 ## Configuration
 
 The application is configured using a YAML file named `stackup.yaml` and contains five required sections: `preconditions`, `tasks`, `startup`, `shutdown`, and `scheduler`.
-There are also optional `settings` and `init` sections that can be used to configure and initialize the application.
+There are also optional `settings`, `includes` and `init` sections that can be used to configure and initialize the application.
 
 ### Configuration: Settings
 
@@ -82,6 +82,37 @@ tasks:
     path: $FRONTEND_PROJECT_PATH # overrides the default
     platforms: ['linux', 'darwin'] # overrides the default
 ```
+
+### Configuration: Includes
+
+The `includes` section of the configuration file is used to specify a list of filenames or file urls that should be merged with the configuration.  This is useful for splitting up a large configuration file into smaller, more manageable files or reusing commonly-used tasks, init scripts, or preconditions.
+
+These urls can be prefixed with `gh:` to indicate that the file should be fetched from GitHub.  For example, `gh:permafrost-dev/stackup/main/templates/stackup.dist.yaml` will fetch the `stackup.dist.yaml` file from the `permafrost-dev/stackup` repository on GitHub.
+
+```yaml
+includes:
+  - url: gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
+```
+
+An additional file, if specified in the `settings` section, defines an index file that contains a list of file urls and their checksums; if specified, the checksum of each file will be compared to the checksum in the index file before fetching the file.  This is useful for ensuring that the file has not been modified since it was last fetched.
+
+```yaml
+settings:
+  exit-on-checksum-mismatch: false
+  remote-index-url: gh:permafrost-dev/stackup/main/templates/stackup-template-index.yaml
+```
+
+Here is an example of a remote index file, `stackup-template-index.yaml`:
+
+```yaml
+templates:
+  - name: container tasks
+    location: https://raw.githubusercontent.com/permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
+    checksum: 9e0d9fea90950908c356734df89bfdff4984de4a6143fe32c404cfbc91984fb7
+    algorithm: sha256
+```
+
+Valid algorithms are `sha256` or `sha512`.
 
 ### Configuration: Preconditions
 

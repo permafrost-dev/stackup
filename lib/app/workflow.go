@@ -74,8 +74,24 @@ func GetState() *StackupWorkflowState {
 	return App.Workflow.State
 }
 
+func (ws *WorkflowSettings) FullRemoteIndexUrl() string {
+	if strings.HasPrefix(strings.TrimSpace(ws.RemoteIndexUrl), "gh:") {
+		return "https://raw.githubusercontent.com/" + strings.TrimPrefix(ws.RemoteIndexUrl, "gh:")
+	}
+
+	return ws.RemoteIndexUrl
+}
+
+func (wi *WorkflowInclude) FullUrl() string {
+	if strings.HasPrefix(strings.TrimSpace(wi.Url), "gh:") {
+		return "https://raw.githubusercontent.com/" + strings.TrimPrefix(wi.Url, "gh:")
+	}
+
+	return wi.Url
+}
+
 func (wi *WorkflowInclude) DisplayUrl() string {
-	displayUrl := strings.Replace(wi.Url, "https://", "", -1)
+	displayUrl := strings.Replace(wi.FullUrl(), "https://", "", -1)
 	displayUrl = strings.Replace(displayUrl, "github.com/", "", -1)
 	displayUrl = strings.Replace(displayUrl, "raw.githubusercontent.com/", "", -1)
 
@@ -178,7 +194,7 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 	workflow.RemoteTemplateIndex = &RemoteTemplateIndex{Loaded: false}
 
 	if workflow.Settings.RemoteIndexUrl != "" {
-		remoteIndex, err := LoadRemoteTemplateIndex(workflow.Settings.RemoteIndexUrl)
+		remoteIndex, err := LoadRemoteTemplateIndex(workflow.Settings.FullRemoteIndexUrl())
 
 		if err != nil {
 			support.WarningMessage("Unable to load remote template index.")
@@ -195,11 +211,11 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 }
 
 func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
-	if !strings.HasPrefix(strings.TrimSpace(include.Url), "https") || include.Url == "" {
+	if !strings.HasPrefix(strings.TrimSpace(include.FullUrl()), "https") || include.Url == "" {
 		return false
 	}
 
-	contents, err := utils.GetUrlContents(include.Url)
+	contents, err := utils.GetUrlContents(include.FullUrl())
 
 	if err != nil {
 		fmt.Println(err)
@@ -208,7 +224,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 
 	if App.Workflow.RemoteTemplateIndex.Loaded {
 		support.StatusMessage("Validating checksum for remote template: "+include.DisplayUrl(), false)
-		remoteMeta := App.Workflow.RemoteTemplateIndex.GetTemplate(include.Url)
+		remoteMeta := App.Workflow.RemoteTemplateIndex.GetTemplate(include.FullUrl())
 		validated, err := remoteMeta.ValidateChecksum(contents)
 
 		if err != nil {
