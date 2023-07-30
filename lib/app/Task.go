@@ -1,13 +1,11 @@
 package app
 
 import (
-	"fmt"
 	"runtime"
 	"strings"
 
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/utils"
-	"gopkg.in/yaml.v2"
 )
 
 type IncludedTemplate struct {
@@ -65,80 +63,6 @@ func (task *Task) CanRunConditionally() bool {
 	}
 
 	return false
-}
-
-func (task *Task) ProcessInclude() bool {
-	if !strings.HasPrefix(strings.TrimSpace(task.Include), "https") || task.Include == "" {
-		return false
-	}
-
-	contents, err := utils.GetUrlContents(task.Include)
-
-	if err != nil {
-		fmt.Println(err)
-		return false
-	}
-
-	if App.Workflow.RemoteTemplateIndex.Loaded {
-		support.StatusMessage("Validating checksum for remote template: "+task.Include, false)
-		remoteMeta := App.Workflow.RemoteTemplateIndex.GetTemplate(task.Include)
-		validated, err := remoteMeta.ValidateChecksum(contents)
-
-		if err != nil {
-			support.PrintXMarkLine()
-			fmt.Println(err)
-			return false
-		}
-
-		if !validated {
-			support.PrintXMarkLine()
-			support.WarningMessage("Checksum mismatch for remote template: " + task.Include)
-			task.Include = ""
-			return false
-		}
-
-		support.PrintCheckMarkLine()
-	}
-
-	template := &IncludedTemplate{}
-	err = yaml.Unmarshal([]byte(contents), template)
-
-	if err != nil {
-		fmt.Println(err)
-		return false
-	}
-
-	// if App.Workflow.RemoteTemplateIndex.Loaded {
-	// 	remoteTemplate := App.Workflow.RemoteTemplateIndex.GetTemplate(task.Include)
-
-	// 	if remoteTemplate != nil {
-	// 		if remoteTemplate.Checksum != template.Checksum {
-	// 			support.WarningMessage("Checksum mismatch for remote template: " + task.Include)
-	// 			task.Include = ""
-	// 			return false
-	// 		}
-	// 	}
-	// }
-
-	if len(template.Init) > 0 {
-		App.JsEngine.Evaluate(template.Init)
-	}
-
-	// TODO: validate checksum for each task file
-	for _, t := range template.Tasks {
-		t.Initialize()
-		t.FromRemote = true
-		App.Workflow.Tasks = append(App.Workflow.Tasks, t)
-	}
-
-	displayUrl := task.Include
-	displayUrl = strings.Replace(displayUrl, "https://", "", -1)
-	displayUrl = strings.Replace(displayUrl, "github.com/", "", -1)
-	displayUrl = strings.Replace(displayUrl, "raw.githubusercontent.com/", "", -1)
-
-	support.SuccessMessageWithCheck("Included remote task file: " + displayUrl)
-
-	return true
 }
 
 func (task *Task) Initialize() {

@@ -1,12 +1,14 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 
 	lla "github.com/emirpasic/gods/lists/arraylist"
 	lls "github.com/emirpasic/gods/stacks/linkedliststack"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/utils"
+	"gopkg.in/yaml.v2"
 )
 
 type StackupWorkflow struct {
@@ -18,17 +20,23 @@ type StackupWorkflow struct {
 	Preconditions       []Precondition    `yaml:"preconditions"`
 	Tasks               []*Task           `yaml:"tasks"`
 	TaskList            *lla.List
-	Startup             []TaskReference `yaml:"startup"`
-	Shutdown            []TaskReference `yaml:"shutdown"`
-	Servers             []TaskReference `yaml:"servers"`
-	Scheduler           []ScheduledTask `yaml:"scheduler"`
+	Startup             []TaskReference    `yaml:"startup"`
+	Shutdown            []TaskReference    `yaml:"shutdown"`
+	Servers             []TaskReference    `yaml:"servers"`
+	Scheduler           []ScheduledTask    `yaml:"scheduler"`
+	Includes            []*WorkflowInclude `yaml:"includes"`
 	State               *StackupWorkflowState
 	RemoteTemplateIndex *RemoteTemplateIndex
 }
 
+type WorkflowInclude struct {
+	Url string `yaml:"url"`
+}
+
 type WorkflowSettings struct {
-	Defaults       *WorkflowSettingsDefaults `yaml:"defaults"`
-	RemoteIndexUrl string                    `yaml:"remote-index-url"`
+	Defaults               *WorkflowSettingsDefaults `yaml:"defaults"`
+	RemoteIndexUrl         string                    `yaml:"remote-index-url"`
+	ExitOnChecksumMismatch bool                      `yaml:"exit-on-checksum-mismatch"`
 }
 
 type WorkflowSettingsDefaults struct {
@@ -63,6 +71,14 @@ type ScheduledTask struct {
 
 func GetState() *StackupWorkflowState {
 	return App.Workflow.State
+}
+
+func (wi *WorkflowInclude) DisplayUrl() string {
+	displayUrl := strings.Replace(wi.Url, "https://", "", -1)
+	displayUrl = strings.Replace(displayUrl, "github.com/", "", -1)
+	displayUrl = strings.Replace(displayUrl, "raw.githubusercontent.com/", "", -1)
+
+	return displayUrl
 }
 
 func (workflow *StackupWorkflow) FindTaskById(id string) *Task {
@@ -134,6 +150,10 @@ func (workflow *StackupWorkflow) Initialize() {
 	if len(workflow.Init) > 0 {
 		App.JsEngine.Evaluate(workflow.Init)
 	}
+
+	for _, task := range workflow.Tasks {
+		task.Initialize()
+	}
 }
 
 func (workflow *StackupWorkflow) RemoveTasks(uuidsToRemove []string) {
@@ -168,17 +188,68 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 		support.SuccessMessageWithCheck("Downloaded remote template index file.")
 	}
 
-	uuidsToRemove := []string{}
+	for _, include := range workflow.Includes {
+		workflow.ProcessInclude(include)
+	}
+}
 
-	for _, task := range workflow.Tasks {
-		task.Initialize()
-		task.ProcessInclude()
-		if task.Include != "" {
-			uuidsToRemove = append(uuidsToRemove, task.Uuid)
+func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
+	if !strings.HasPrefix(strings.TrimSpace(include.Url), "https") || include.Url == "" {
+		return false
+	}
+
+	contents, err := utils.GetUrlContents(include.Url)
+
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	if App.Workflow.RemoteTemplateIndex.Loaded {
+		support.StatusMessage("Validating checksum for remote template: "+include.DisplayUrl(), false)
+		remoteMeta := App.Workflow.RemoteTemplateIndex.GetTemplate(include.Url)
+		validated, err := remoteMeta.ValidateChecksum(contents)
+
+		if err != nil {
+			support.PrintXMarkLine()
+			fmt.Println(err)
+			return false
+		}
+
+		if !validated {
+			support.PrintXMarkLine()
+			support.WarningMessage("Checksum mismatch for remote template: " + include.DisplayUrl())
+
+			if App.Workflow.Settings.ExitOnChecksumMismatch {
+				support.FailureMessageWithXMark("Exiting due to checksum mismatch.")
+				App.exitApp()
+				return false
+			}
+		} else {
+			support.PrintCheckMarkLine()
 		}
 	}
 
-	workflow.RemoveTasks(uuidsToRemove)
+	template := &IncludedTemplate{}
+	err = yaml.Unmarshal([]byte(contents), template)
+
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	if len(template.Init) > 0 {
+		workflow.Init += "\n\n" + template.Init
+	}
+
+	for _, t := range template.Tasks {
+		t.FromRemote = true
+		App.Workflow.Tasks = append(App.Workflow.Tasks, t)
+	}
+
+	support.SuccessMessageWithCheck("Loaded remote configuration file: " + include.DisplayUrl())
+
+	return true
 }
 
 func (tr *TaskReference) TaskId() string {
