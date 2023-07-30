@@ -17,7 +17,7 @@ type StackupWorkflow struct {
 	Version             string            `yaml:"version"`
 	Settings            *WorkflowSettings `yaml:"settings"`
 	Init                string            `yaml:"init"`
-	Preconditions       []Precondition    `yaml:"preconditions"`
+	Preconditions       []*Precondition   `yaml:"preconditions"`
 	Tasks               []*Task           `yaml:"tasks"`
 	TaskList            *lla.List
 	Startup             []TaskReference    `yaml:"startup"`
@@ -56,8 +56,9 @@ type StackupWorkflowState struct {
 }
 
 type Precondition struct {
-	Name  string `yaml:"name"`
-	Check string `yaml:"check"`
+	Name       string `yaml:"name"`
+	Check      string `yaml:"check"`
+	FromRemote bool
 }
 
 type TaskReference struct {
@@ -180,7 +181,7 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 		remoteIndex, err := LoadRemoteTemplateIndex(workflow.Settings.RemoteIndexUrl)
 
 		if err != nil {
-			support.WarningMessage("Unable to load remote template index")
+			support.WarningMessage("Unable to load remote template index.")
 		}
 
 		remoteIndex.Loaded = true
@@ -218,7 +219,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 
 		if !validated {
 			support.PrintXMarkLine()
-			support.WarningMessage("Checksum mismatch for remote template: " + include.DisplayUrl())
+			//support.WarningMessage("Checksum mismatch for remote template: " + include.DisplayUrl())
 
 			if App.Workflow.Settings.ExitOnChecksumMismatch {
 				support.FailureMessageWithXMark("Exiting due to checksum mismatch.")
@@ -240,6 +241,11 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 
 	if len(template.Init) > 0 {
 		workflow.Init += "\n\n" + template.Init
+	}
+
+	for _, p := range template.Preconditions {
+		p.FromRemote = true
+		App.Workflow.Preconditions = append(App.Workflow.Preconditions, p)
 	}
 
 	for _, t := range template.Tasks {

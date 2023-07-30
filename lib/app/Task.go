@@ -9,14 +9,15 @@ import (
 )
 
 type IncludedTemplate struct {
-	Name         string  `yaml:"name"`
-	Version      string  `yaml:"version"`
-	Checksum     string  `yaml:"checksum"`
-	LastModified string  `yaml:"last-modified"`
-	Author       string  `yaml:"author"`
-	Description  string  `yaml:"description"`
-	Init         string  `yaml:"init"`
-	Tasks        []*Task `yaml:"tasks"`
+	Name          string          `yaml:"name"`
+	Version       string          `yaml:"version"`
+	Checksum      string          `yaml:"checksum"`
+	LastModified  string          `yaml:"last-modified"`
+	Author        string          `yaml:"author"`
+	Description   string          `yaml:"description"`
+	Init          string          `yaml:"init"`
+	Tasks         []*Task         `yaml:"tasks"`
+	Preconditions []*Precondition `yaml:"preconditions"`
 }
 
 type Task struct {

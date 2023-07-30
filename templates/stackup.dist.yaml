@@ -3,35 +3,35 @@ description: laravel application stack
 version: 1.0.0
 
 settings:
+  exit-on-checksum-mismatch: false
+  remote-index-url: https://raw.githubusercontent.com/permafrost-dev/stackup/main/templates/stackup-template-index.yaml
   defaults:
     tasks:
       silent: false
       path: $LOCAL_BACKEND_PROJECT_PATH
 
+includes:
+  - url: https://raw.githubusercontent.com/permafrost-dev/stackup/main/templates/task-templates/containers.yaml
+
 init: |
-  vars.Set("task-id:frontend-http", "frontend-httpd-"+(platform() == "windows" ? "windows" : "linux"))
-  vars.Set("task-id:run-migrations", "run-migrations-" + (hasFlag("seed") ? "fresh" : "no-seed"))
-  vars.Set("php-version", semver(outputOf("php --version")));
-  vars.Set("node-version", semver(outputOf("node --version")));
-  vars.Set("container-engine", "docker-compose");
-
-  if (binaryExists("podman-compose")) {
-    vars.Set("container-engine", "podman-compose");
-  }
-
-  app.SuccessMessage("selected " + vars.Get("container-engine") + " as the container engine");
+  vars.Set("php_version", semver(outputOf("php --version")));
+  vars.Set("node_version", semver(outputOf("node --version")));
+  vars.Set("laravel-version", semver(outputOf("php artisan --version")));
+  vars.Set("run_migrations_taskId", "run-migrations-" + (hasFlag("seed") ? "fresh" : "no-seed"));
+  vars.Set("frontend_http_cmd", (platform() == "windows" ? "npm run dev" : "node ./node_modules/.bin/next dev"));
+  vars.Set("composer", dev.ComposerJson($LOCAL_BACKEND_PROJECT_PATH));
 
 preconditions:
     - name: dependencies are installed
       check: binaryExists("php") && binaryExists("node")
 
-    - name: PHP is at least version 8
-      check: vars.Get("php-version").Gte("8.0")
+    - name: PHP is version 8+
+      check: $php_version.Gte("8")
 
-    - name: NodeJS is at least version 14
-      check: vars.Get("node-version").Gte("14.0")
+    - name: Node is version 16+
+      check: $node_version.Gte("16")
 
-    - name: environment variables exist and are non-empty
+    - name: environment variables exist and are not empty
       check: |
         hasEnv("FRONTEND_PROJECT_PATH") && hasEnv("LOCAL_BACKEND_PROJECT_PATH") &&
         env("FRONTEND_PROJECT_PATH") != "" && env("LOCAL_BACKEND_PROJECT_PATH") != ""
@@ -39,7 +39,7 @@ preconditions:
     - name: frontend project directory exists
       check: fs.Exists($FRONTEND_PROJECT_PATH) && fs.IsDirectory($FRONTEND_PROJECT_PATH)
 
-    - name: backend project has a docker-compose file
+    - name: backend project has docker-compose file
       check: fs.Exists($LOCAL_BACKEND_PROJECT_PATH + "/docker-compose.yml")
 
     - name: backend project is a laravel project
@@ -49,29 +49,21 @@ preconditions:
 
 startup:
   - task: start-containers
-  - task: '{{ task(vars.Get("task-id:run-migrations")).Id }}'
+  - task: '{{ $run_migrations_taskId }}'
 
 shutdown:
   - task: stop-containers
 
 servers:
-  - task: '{{ task(vars.Get("task-id:frontend-http")).Id }}'
+  - task: frontend-httpd
   - task: backend-httpd
   - task: horizon-queue
 
 scheduler:
-    - task: artisan-scheduler
+    - task: run-artisan-scheduler
       cron: '* * * * *'
 
 tasks:
-  - id: start-containers
-    command: '{{ vars.Get("container-engine") + " up -d" }}'
-    silent: true
-
-  - id: stop-containers
-    command: '{{ vars.Get("container-engine") + " down" }}'
-    silent: true
-
   - name: run migrations (rebuild db)
     id: run-migrations-fresh
     if: hasFlag("seed")
@@ -85,22 +77,14 @@ tasks:
   - id: run-artisan-scheduler
     command: php artisan schedule:run
 
+  - id: frontend-httpd
+    path: $FRONTEND_PROJECT_PATH
+    command: '{{ $frontend_http_cmd }}'
+
   - id: backend-httpd
     command: php artisan serve
 
-  - name: frontend httpd (linux, macOS)
-    id: frontend-httpd-linux
-    command: node ./node_modules/.bin/next dev
-    path: $FRONTEND_PROJECT_PATH
-    platforms: ['linux', 'darwin']
-
-  - name: frontend httpd (windows)
-    id: frontend-httpd-windows
-    command: npm run dev
-    path: $FRONTEND_PROJECT_PATH
-    platforms: ['windows']
-
   - id: horizon-queue
-    if: dev.ComposerJson($LOCAL_BACKEND_PROJECT_PATH).HasDependency("laravel/horizon")
+    if: $composer.HasDependency("laravel/horizon")
     command: php artisan horizon
     platforms: ['linux', 'darwin']
