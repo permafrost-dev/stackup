@@ -30,7 +30,8 @@ type StackupWorkflow struct {
 }
 
 type WorkflowInclude struct {
-	Url string `yaml:"url"`
+	Url            string `yaml:"url"`
+	VerifyChecksum bool   `yaml:"verify"`
 }
 
 type WorkflowSettings struct {
@@ -222,7 +223,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		return false
 	}
 
-	if App.Workflow.RemoteTemplateIndex.Loaded {
+	if App.Workflow.RemoteTemplateIndex.Loaded && include.VerifyChecksum {
 		support.StatusMessage("Validating checksum for remote template: "+include.DisplayUrl(), false)
 		remoteMeta := App.Workflow.RemoteTemplateIndex.GetTemplate(include.FullUrl())
 		validated, err := remoteMeta.ValidateChecksum(contents)

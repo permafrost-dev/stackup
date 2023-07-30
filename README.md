@@ -92,7 +92,12 @@ These urls can be prefixed with `gh:` to indicate that the file should be fetche
 ```yaml
 includes:
   - url: gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
+    verify: false # optional, defaults to true
 ```
+
+If the optional field `verify` is set to `false`, the application will not attempt to verify the checksum of the file before fetching it.  This may be useful for files that are frequently updated, but is not recommended.
+
+```yaml
 
 An additional file, if specified in the `settings` section, defines an index file that contains a list of file urls and their checksums; if specified, the checksum of each file will be compared to the checksum in the index file before fetching the file.  This is useful for ensuring that the file has not been modified since it was last fetched.
 
