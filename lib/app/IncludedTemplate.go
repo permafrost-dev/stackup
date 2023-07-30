@@ -82,8 +82,8 @@ func (t *RemoteTemplate) ValidateChecksum(contents string) (bool, error) {
 	}
 
 	fmt.Printf("hash: %x\n", hash)
+	fmt.Printf("checksum: %s\n", t.Checksum)
 
-	// Compare the hash to the checksum
 	checksumBytes, err := hex.DecodeString(t.Checksum)
 	if err != nil {
 		return false, err
