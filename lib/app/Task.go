@@ -68,7 +68,7 @@ func (task *Task) CanRunConditionally() bool {
 }
 
 func (task *Task) ProcessInclude() bool {
-	if !strings.HasPrefix(strings.TrimSpace(task.Include), "https") {
+	if !strings.HasPrefix(strings.TrimSpace(task.Include), "https") || task.Include == "" {
 		return false
 	}
 
@@ -80,20 +80,24 @@ func (task *Task) ProcessInclude() bool {
 	}
 
 	if App.Workflow.RemoteTemplateIndex.Loaded {
-		fmt.Println("Validating checksum for remote template: " + task.Include)
+		support.StatusMessage("Validating checksum for remote template: "+task.Include, false)
 		remoteMeta := App.Workflow.RemoteTemplateIndex.GetTemplate(task.Include)
 		validated, err := remoteMeta.ValidateChecksum(contents)
 
 		if err != nil {
+			support.PrintXMarkLine()
 			fmt.Println(err)
 			return false
 		}
 
 		if !validated {
+			support.PrintXMarkLine()
 			support.WarningMessage("Checksum mismatch for remote template: " + task.Include)
 			task.Include = ""
 			return false
 		}
+
+		support.PrintCheckMarkLine()
 	}
 
 	template := &IncludedTemplate{}

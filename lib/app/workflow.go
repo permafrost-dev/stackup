@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"strings"
 
 	lla "github.com/emirpasic/gods/lists/arraylist"
@@ -157,8 +156,6 @@ func (workflow *StackupWorkflow) RemoveTasks(uuidsToRemove []string) {
 func (workflow *StackupWorkflow) ProcessIncludes() {
 	workflow.RemoteTemplateIndex = &RemoteTemplateIndex{Loaded: false}
 
-	fmt.Println(workflow.Settings.RemoteIndexUrl)
-
 	if workflow.Settings.RemoteIndexUrl != "" {
 		remoteIndex, err := LoadRemoteTemplateIndex(workflow.Settings.RemoteIndexUrl)
 
@@ -168,7 +165,7 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 
 		remoteIndex.Loaded = true
 		workflow.RemoteTemplateIndex = remoteIndex
-
+		support.SuccessMessageWithCheck("Downloaded remote template index file.")
 	}
 
 	uuidsToRemove := []string{}
