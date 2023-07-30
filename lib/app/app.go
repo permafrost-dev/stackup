@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/eiannone/keyboard"
+	"github.com/emirpasic/gods/stacks/linkedliststack"
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
 	"github.com/stackup-app/stackup/lib/support"
@@ -58,6 +59,8 @@ func (a *Application) loadWorkflowFile(filename string) *StackupWorkflow {
 
 	result.State = &StackupWorkflowState{
 		CurrentTask: nil,
+		Stack:       linkedliststack.New(),
+		History:     linkedliststack.New(),
 	}
 
 	return &result
@@ -119,6 +122,13 @@ func (a *Application) exitApp() {
 	a.stopServerProcesses()
 	support.StatusMessageLine("Running shutdown tasks...", true)
 	a.runShutdownTasks()
+
+	// for _, i := range a.Workflow.State.History.Values() {
+	// 	// task := i.(*Task)
+	// 	// runs := fmt.Sprintf("%v", task.RunCount)
+	// 	//support.StatusMessageLine("[task history] task ran: "+task.GetDisplayName()+" ("+runs+" executions)", true)
+	// }
+
 	os.Exit(1)
 }
 
@@ -147,7 +157,8 @@ func (a *Application) createScheduledTasks() {
 
 func (a *Application) stopServerProcesses() {
 	a.ProcessMap.Range(func(key any, value any) bool {
-		support.StatusMessage("Stopping "+key.(string)+"...", false)
+		t := a.Workflow.FindTaskByUuid(key.(string))
+		support.StatusMessage("Stopping "+t.GetDisplayName()+"...", false)
 		a.KillCommandCallback(value.(*exec.Cmd))
 		support.PrintCheckMarkLine()
 
@@ -162,6 +173,7 @@ func (a *Application) runEventLoop() {
 }
 
 func (a *Application) runStartupTasks() {
+
 	for _, def := range a.Workflow.Startup {
 		task := a.Workflow.FindTaskById(def.TaskId())
 
@@ -170,7 +182,11 @@ func (a *Application) runStartupTasks() {
 			continue
 		}
 
+		App.Workflow.State.CurrentTask = task
+
+		//GetState().Stack.Push(task)
 		task.Run(true)
+		//GetState().Stack.Pop()
 	}
 }
 
@@ -183,6 +199,7 @@ func (a *Application) runShutdownTasks() {
 			continue
 		}
 
+		App.Workflow.State.CurrentTask = task
 		task.Run(true)
 	}
 }
@@ -196,6 +213,7 @@ func (a *Application) runServerTasks() {
 			continue
 		}
 
+		App.Workflow.State.CurrentTask = task
 		task.Run(false)
 	}
 }

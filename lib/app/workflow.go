@@ -1,26 +1,35 @@
 package app
 
 import (
+	"fmt"
 	"strings"
+
+	lla "github.com/emirpasic/gods/lists/arraylist"
+	lls "github.com/emirpasic/gods/stacks/linkedliststack"
+	"github.com/stackup-app/stackup/lib/support"
+	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type StackupWorkflow struct {
-	Name          string            `yaml:"name"`
-	Description   string            `yaml:"description"`
-	Version       string            `yaml:"version"`
-	Settings      *WorkflowSettings `yaml:"settings"`
-	Init          string            `yaml:"init"`
-	Preconditions []Precondition    `yaml:"preconditions"`
-	Tasks         []*Task           `yaml:"tasks"`
-	Startup       []TaskReference   `yaml:"startup"`
-	Shutdown      []TaskReference   `yaml:"shutdown"`
-	Servers       []TaskReference   `yaml:"servers"`
-	Scheduler     []ScheduledTask   `yaml:"scheduler"`
-	State         *StackupWorkflowState
+	Name                string            `yaml:"name"`
+	Description         string            `yaml:"description"`
+	Version             string            `yaml:"version"`
+	Settings            *WorkflowSettings `yaml:"settings"`
+	Init                string            `yaml:"init"`
+	Preconditions       []Precondition    `yaml:"preconditions"`
+	Tasks               []*Task           `yaml:"tasks"`
+	TaskList            *lla.List
+	Startup             []TaskReference `yaml:"startup"`
+	Shutdown            []TaskReference `yaml:"shutdown"`
+	Servers             []TaskReference `yaml:"servers"`
+	Scheduler           []ScheduledTask `yaml:"scheduler"`
+	State               *StackupWorkflowState
+	RemoteTemplateIndex *RemoteTemplateIndex
 }
 
 type WorkflowSettings struct {
-	Defaults *WorkflowSettingsDefaults `yaml:"defaults"`
+	Defaults       *WorkflowSettingsDefaults `yaml:"defaults"`
+	RemoteIndexUrl string                    `yaml:"remote-index-url"`
 }
 
 type WorkflowSettingsDefaults struct {
@@ -35,6 +44,8 @@ type WorkflowSettingsDefaultsTasks struct {
 
 type StackupWorkflowState struct {
 	CurrentTask *Task
+	Stack       *lls.Stack
+	History     *lls.Stack
 }
 
 type Precondition struct {
@@ -51,6 +62,10 @@ type ScheduledTask struct {
 	Cron string `yaml:"cron"`
 }
 
+func GetState() *StackupWorkflowState {
+	return App.Workflow.State
+}
+
 func (workflow *StackupWorkflow) FindTaskById(id string) *Task {
 	for _, task := range workflow.Tasks {
 		if strings.EqualFold(task.Id, id) && len(task.Id) > 0 {
@@ -61,7 +76,32 @@ func (workflow *StackupWorkflow) FindTaskById(id string) *Task {
 	return nil
 }
 
+func (workflow *StackupWorkflow) FindTaskByUuid(uuid string) *Task {
+	for _, task := range workflow.Tasks {
+		if strings.EqualFold(task.Uuid, uuid) && len(uuid) > 0 {
+			return task
+		}
+	}
+
+	return nil
+}
+
+func (workflow *StackupWorkflow) TaskIdToUuid(id string) string {
+	task := workflow.FindTaskById(id)
+
+	if task == nil {
+		return ""
+	}
+
+	return task.Uuid
+}
+
 func (workflow *StackupWorkflow) Initialize() {
+	// generate uuids for each task as the initial step, as other code below relies on a uuid existing
+	for _, task := range workflow.Tasks {
+		task.Uuid = utils.GenerateTaskUuid()
+	}
+
 	// no default settings were provided, so create sensible defaults
 	if workflow.Settings == nil {
 		workflow.Settings = &WorkflowSettings{
@@ -90,13 +130,58 @@ func (workflow *StackupWorkflow) Initialize() {
 		}
 	}
 
-	for _, task := range workflow.Tasks {
-		task.Initialize()
-	}
+	workflow.ProcessIncludes()
 
 	if len(workflow.Init) > 0 {
 		App.JsEngine.Evaluate(workflow.Init)
 	}
+}
+
+func (workflow *StackupWorkflow) RemoveTasks(uuidsToRemove []string) {
+	// Create a map of UUIDs to remove for faster lookup
+	uuidMap := make(map[string]bool)
+	for _, uuid := range uuidsToRemove {
+		uuidMap[uuid] = true
+	}
+
+	// Remove tasks with UUIDs in the uuidMap
+	var newTasks []*Task
+	for _, task := range workflow.Tasks {
+		if !uuidMap[task.Uuid] {
+			newTasks = append(newTasks, task)
+		}
+	}
+	workflow.Tasks = newTasks
+}
+
+func (workflow *StackupWorkflow) ProcessIncludes() {
+	workflow.RemoteTemplateIndex = &RemoteTemplateIndex{Loaded: false}
+
+	fmt.Println(workflow.Settings.RemoteIndexUrl)
+
+	if workflow.Settings.RemoteIndexUrl != "" {
+		remoteIndex, err := LoadRemoteTemplateIndex(workflow.Settings.RemoteIndexUrl)
+
+		if err != nil {
+			support.WarningMessage("Unable to load remote template index")
+		}
+
+		remoteIndex.Loaded = true
+		workflow.RemoteTemplateIndex = remoteIndex
+
+	}
+
+	uuidsToRemove := []string{}
+
+	for _, task := range workflow.Tasks {
+		task.Initialize()
+		task.ProcessInclude()
+		if task.Include != "" {
+			uuidsToRemove = append(uuidsToRemove, task.Uuid)
+		}
+	}
+
+	workflow.RemoveTasks(uuidsToRemove)
 }
 
 func (tr *TaskReference) TaskId() string {

@@ -1,6 +1,8 @@
 package app
 
-import "github.com/robertkrimen/otto"
+import (
+	"github.com/robertkrimen/otto"
+)
 
 type ScriptVars struct {
 }
@@ -17,7 +19,7 @@ func (vars *ScriptVars) Get(name string) any {
 }
 
 func (vars *ScriptVars) Set(name string, value any) {
-	App.Vars.Store(name, value)
+	App.Vars.Store("$"+name, value)
 	App.JsEngine.Vm.Set("$"+name, value)
 }
 
