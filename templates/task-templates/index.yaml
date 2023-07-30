@@ -1,4 +1,4 @@
 templates:
   - filename: containers.yaml
-    downloadUrl: https://github.com/permafrost-dev/stackup-tasks/raw/main/templates/tasks/containers.yaml
+    downloadUrl: https://raw.githubusercontent.com/permafrost-dev/stackup/main/templates/task-templates/containers.yaml
     checksum: a241880be68724615ddc6bd31925f47383c21d724bee3ea76d57698f
