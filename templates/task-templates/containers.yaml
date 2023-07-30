@@ -1,0 +1,16 @@
+template:
+  name: container tasks
+  version: 1.0.0
+  checksum: sha256
+  last-modified: 2023-Jul-30 04:00
+  author: Patrick Organ <patrick@permafrost.dev>
+  description: stackup tasks for starting and stopping containers
+
+tasks:
+  - id: start-containers
+    command: '{{ $containerEngineBinary + " up -d" }}'
+    silent: true
+
+  - id: stop-containers
+    command: '{{ $containerEngineBinary + " down" }}'
+    silent: true
