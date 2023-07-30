@@ -1,10 +1,18 @@
 template:
   name: container tasks
   version: 1.0.0
-  checksum: sha256
   last-modified: 2023-Jul-30 04:00
   author: Patrick Organ <patrick@permafrost.dev>
   description: stackup tasks for starting and stopping containers
+
+init: |
+  vars.Set("containerEngineBinary", "docker-compose");
+
+  if (binaryExists("podman-compose")) {
+    vars.Set("containerEngineBinary", "podman-compose");
+  }
+
+  app.SuccessMessage("selected " + $containerEngineBinary + " as the container engine");
 
 tasks:
   - id: start-containers

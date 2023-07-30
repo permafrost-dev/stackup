@@ -227,9 +227,17 @@ func createJavascriptFunctionEnv(call otto.FunctionCall) otto.Value {
 }
 
 func createJavascriptFunctionExec(call otto.FunctionCall) otto.Value {
-	result := utils.RunCommandInPath(call.Argument(0).String(), ".", false)
+	result, err := utils.RunCommandInPath(call.Argument(0).String(), ".", false)
 
-	finalResult, _ := call.Otto.ToValue(result.ProcessState.Success())
+	if err != nil {
+		support.WarningMessage(err.Error())
+	}
+
+	finalResult, err := call.Otto.ToValue(result)
+
+	if err != nil {
+		support.WarningMessage(err.Error())
+	}
 
 	return finalResult
 }

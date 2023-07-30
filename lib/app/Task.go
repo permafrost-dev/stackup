@@ -1,23 +1,39 @@
 package app
 
 import (
+	"fmt"
 	"runtime"
 	"strings"
 
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/utils"
+	"gopkg.in/yaml.v2"
 )
 
+type IncludedTemplate struct {
+	Name         string  `yaml:"name"`
+	Version      string  `yaml:"version"`
+	Checksum     string  `yaml:"checksum"`
+	LastModified string  `yaml:"last-modified"`
+	Author       string  `yaml:"author"`
+	Description  string  `yaml:"description"`
+	Init         string  `yaml:"init"`
+	Tasks        []*Task `yaml:"tasks"`
+}
+
 type Task struct {
-	Name      string   `yaml:"name"`
-	Command   string   `yaml:"command"`
-	If        string   `yaml:"if,omitempty"`
-	Id        string   `yaml:"id,omitempty"`
-	Silent    bool     `yaml:"silent"`
-	Path      string   `yaml:"path"`
-	Platforms []string `yaml:"platforms,omitempty"`
-	MaxRuns   int      `yaml:"maxRuns,omitempty"`
-	RunCount  int
+	Name       string   `yaml:"name"`
+	Command    string   `yaml:"command"`
+	If         string   `yaml:"if,omitempty"`
+	Id         string   `yaml:"id,omitempty"`
+	Silent     bool     `yaml:"silent"`
+	Path       string   `yaml:"path"`
+	Platforms  []string `yaml:"platforms,omitempty"`
+	MaxRuns    int      `yaml:"maxRuns,omitempty"`
+	Include    string   `yaml:"include,omitempty"`
+	RunCount   int
+	Uuid       string
+	FromRemote bool
 }
 
 func (task *Task) CanRunOnCurrentPlatform() bool {
@@ -51,7 +67,82 @@ func (task *Task) CanRunConditionally() bool {
 	return false
 }
 
+func (task *Task) ProcessInclude() bool {
+	if !strings.HasPrefix(strings.TrimSpace(task.Include), "https") || task.Include == "" {
+		return false
+	}
+
+	contents, err := utils.GetUrlContents(task.Include)
+
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	if App.Workflow.RemoteTemplateIndex.Loaded {
+		support.StatusMessage("Validating checksum for remote template: "+task.Include, false)
+		remoteMeta := App.Workflow.RemoteTemplateIndex.GetTemplate(task.Include)
+		validated, err := remoteMeta.ValidateChecksum(contents)
+
+		if err != nil {
+			support.PrintXMarkLine()
+			fmt.Println(err)
+			return false
+		}
+
+		if !validated {
+			support.PrintXMarkLine()
+			support.WarningMessage("Checksum mismatch for remote template: " + task.Include)
+			task.Include = ""
+			return false
+		}
+
+		support.PrintCheckMarkLine()
+	}
+
+	template := &IncludedTemplate{}
+	err = yaml.Unmarshal([]byte(contents), template)
+
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	// if App.Workflow.RemoteTemplateIndex.Loaded {
+	// 	remoteTemplate := App.Workflow.RemoteTemplateIndex.GetTemplate(task.Include)
+
+	// 	if remoteTemplate != nil {
+	// 		if remoteTemplate.Checksum != template.Checksum {
+	// 			support.WarningMessage("Checksum mismatch for remote template: " + task.Include)
+	// 			task.Include = ""
+	// 			return false
+	// 		}
+	// 	}
+	// }
+
+	if len(template.Init) > 0 {
+		App.JsEngine.Evaluate(template.Init)
+	}
+
+	// TODO: validate checksum for each task file
+	for _, t := range template.Tasks {
+		t.Initialize()
+		t.FromRemote = true
+		App.Workflow.Tasks = append(App.Workflow.Tasks, t)
+	}
+
+	displayUrl := task.Include
+	displayUrl = strings.Replace(displayUrl, "https://", "", -1)
+	displayUrl = strings.Replace(displayUrl, "github.com/", "", -1)
+	displayUrl = strings.Replace(displayUrl, "raw.githubusercontent.com/", "", -1)
+
+	support.SuccessMessageWithCheck("Included remote task file: " + displayUrl)
+
+	return true
+}
+
 func (task *Task) Initialize() {
+
 	task.RunCount = 0
 
 	if task.MaxRuns <= 0 {
@@ -76,7 +167,12 @@ func (task *Task) runWithStatusMessagesSync(runningSilently bool) {
 		command = App.JsEngine.Evaluate(command).(string)
 	}
 
-	cmd := utils.RunCommandInPath(command, task.Path, runningSilently)
+	cmd, err := utils.RunCommandInPath(command, task.Path, runningSilently)
+
+	if err != nil {
+		support.FailureMessageWithXMark(task.GetDisplayName())
+		return
+	}
 
 	if cmd != nil && runningSilently {
 		support.PrintCheckMarkLine()
@@ -92,15 +188,28 @@ func (task *Task) runWithStatusMessagesSync(runningSilently bool) {
 }
 
 func (task *Task) GetDisplayName() string {
+	if len(task.Include) > 0 {
+		return strings.Replace(task.Include, "https://", "", -1)
+	}
+
 	if len(task.Name) > 0 {
 		return task.Name
 	}
 
-	return task.Id
+	if len(task.Id) > 0 {
+		return task.Id
+	}
+
+	return task.Uuid
 }
 
 func (task *Task) Run(synchronous bool) {
+	App.Workflow.State.History.Push(task)
 	App.Workflow.State.CurrentTask = task
+
+	defer func() {
+		App.Workflow.State.CurrentTask = nil
+	}()
 
 	if task.RunCount >= task.MaxRuns && task.MaxRuns > 0 {
 		support.SkippedMessageWithSymbol(task.GetDisplayName())
@@ -149,5 +258,5 @@ func (task *Task) Run(synchronous bool) {
 
 	support.PrintCheckMarkLine()
 
-	App.ProcessMap.Store(task.Id, cmd)
+	App.ProcessMap.Store(task.Uuid, cmd)
 }

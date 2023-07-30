@@ -1,11 +1,14 @@
 package utils
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
+	"math/big"
 	"net/http"
 	"os"
 	"os/exec"
@@ -56,7 +59,7 @@ func ChangeWorkingDirectory(path string) error {
 	return nil
 }
 
-func RunCommandInPath(input string, dir string, silent bool) *exec.Cmd {
+func RunCommandInPath(input string, dir string, silent bool) (*exec.Cmd, error) {
 	// Split the input into command and arguments
 	parts := strings.Split(input, " ")
 	cmd := parts[0]
@@ -70,10 +73,10 @@ func RunCommandInPath(input string, dir string, silent bool) *exec.Cmd {
 	c.Dir = dir
 
 	if err := c.Run(); err != nil {
-		log.Println(err)
+		return c, err
 	}
 
-	return c
+	return c, nil
 }
 
 func StartCommand(input string, cwd string) (*exec.Cmd, error) {
@@ -117,7 +120,6 @@ func FindFirstExistingFile(filenames []string) (string, error) {
 }
 
 func GetUrlContents(url string) (string, error) {
-	// Send an HTTP GET request to the URL
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
@@ -206,4 +208,42 @@ func SaveUrlToFile(url string, filename string) error {
 	}
 
 	return nil
+}
+
+func GenerateTaskUuid() string {
+	return GenerateShortID(8)
+}
+
+func GenerateShortID(length ...int) string {
+	var charCount = 8
+	if len(length) > 0 {
+		charCount = length[0]
+	}
+
+	// Define the character set to use for the short ID
+	charset := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+	// Define the length of the short ID
+	// charCount := 8
+
+	// Generate a random number for each character in the short ID
+	var result string
+	for i := 0; i < charCount; i++ {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			return ""
+		}
+
+		result += string(charset[n.Int64()])
+	}
+
+	return result
+}
+
+func CalculateSHA256Hash(input string) string {
+	inputBytes := []byte(input)
+	hash := sha256.Sum256(inputBytes)
+	hashString := hex.EncodeToString(hash[:])
+
+	return strings.ToLower(hashString)
 }
