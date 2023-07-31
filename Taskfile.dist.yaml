@@ -92,15 +92,15 @@ tasks:
       - cp -f ./templates/*.yaml {{.BUILD_OUTPUT_DIR}}
 
   bump-minor-version-and-tag:
+    run: once
     desc: Bumps minor version and creates a new git tag
     cmds:
+      - echo "bumping version to $(svu minor)"
       - git tag $(svu minor)
 
   release-new-minor-version:
     desc: Create a new minor version release on github
-    deps:
+    cmds:
       - task: bump-minor-version-and-tag
       - task: update-version-file
-    cmds:
-      - git tag $(svu minor)
       - git push --tags
