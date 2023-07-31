@@ -1,7 +1,12 @@
 package app
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/hex"
 	"fmt"
+	"path"
 	"strings"
 
 	lla "github.com/emirpasic/gods/lists/arraylist"
@@ -31,6 +36,7 @@ type StackupWorkflow struct {
 
 type WorkflowInclude struct {
 	Url            string `yaml:"url"`
+	ChecksumUrl    string `yaml:"checksum-url"`
 	VerifyChecksum *bool  `yaml:"verify,omitempty"`
 }
 
@@ -81,6 +87,95 @@ func (ws *WorkflowSettings) FullRemoteIndexUrl() string {
 	}
 
 	return ws.RemoteIndexUrl
+}
+
+func (wi *WorkflowInclude) getChecksumFromContents(contents string) string {
+	lines := strings.Split(contents, "\n")
+	filename := path.Base(wi.FullUrl())
+
+	for _, line := range lines {
+		parts := strings.Split(line, " ")
+		if len(parts) != 2 {
+			continue
+		}
+
+		if strings.TrimSpace(parts[1]) != filename {
+			continue
+		}
+
+		return strings.TrimSpace(parts[0])
+	}
+
+	return strings.TrimSpace(contents)
+}
+
+func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
+	if wi.ChecksumUrl == "" && wi.VerifyChecksum != nil && *wi.VerifyChecksum == false {
+		return true, nil
+	}
+
+	checksumUrls := []string{
+		wi.FullUrl() + ".sha256",
+		wi.FullUrl() + ".sha512",
+	}
+
+	algorithm := ""
+	checksumContents := ""
+
+	for _, url := range checksumUrls {
+		checksumContents, err := utils.GetUrlContents(url)
+		if err != nil {
+			continue
+		}
+
+		if checksumContents != "" {
+			checksumContents = wi.getChecksumFromContents(checksumContents)
+			wi.ChecksumUrl = url
+			if strings.HasSuffix(url, ".sha256") {
+				algorithm = "sha256"
+			}
+			if strings.HasSuffix(url, ".sha512") {
+				algorithm = "sha512"
+			}
+			break
+		}
+	}
+
+	if algorithm == "" {
+		return false, fmt.Errorf("unable to find valid checksum file for %s", wi.DisplayUrl())
+	}
+
+	var hash []byte
+
+	switch algorithm {
+	case "sha256":
+		h := sha256.New()
+		h.Write([]byte(wi.getChecksumFromContents(contents)))
+		hash = h.Sum(nil)
+		break
+	case "sha512":
+		h := sha512.New()
+		h.Write([]byte(wi.getChecksumFromContents(contents)))
+		hash = h.Sum(nil)
+		break
+	default:
+		return false, fmt.Errorf("unsupported algorithm: %s", algorithm)
+	}
+
+	fmt.Printf("checksum url: %s\n", wi.ChecksumUrl)
+	fmt.Printf("algorithm: %s\n", algorithm)
+	fmt.Printf("hash: %x\n", hash)
+	fmt.Printf("checksum: %s\n", checksumContents)
+
+	checksumBytes, err := hex.DecodeString(string(checksumContents))
+	if err != nil {
+		return false, err
+	}
+	if !hmac.Equal(hash, checksumBytes) {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func (wi *WorkflowInclude) FullUrl() string {
@@ -197,22 +292,22 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 	// set default value for verify checksum to true
 	for _, wi := range workflow.Includes {
 		if wi.VerifyChecksum == nil {
-			boolValue := true
+			boolValue := wi.ChecksumUrl != ""
 			wi.VerifyChecksum = &boolValue
 		}
 	}
 
-	if workflow.Settings.RemoteIndexUrl != "" {
-		remoteIndex, err := LoadRemoteTemplateIndex(workflow.Settings.FullRemoteIndexUrl())
+	// if workflow.Settings.RemoteIndexUrl != "" {
+	// 	remoteIndex, err := LoadRemoteTemplateIndex(workflow.Settings.FullRemoteIndexUrl())
 
-		remoteIndex.Loaded = err == nil
-		if !remoteIndex.Loaded {
-			support.WarningMessage("Unable to load remote template index.")
-		} else {
-			workflow.RemoteTemplateIndex = remoteIndex
-			support.SuccessMessageWithCheck("Downloaded remote template index file.")
-		}
-	}
+	// 	remoteIndex.Loaded = err == nil
+	// 	if !remoteIndex.Loaded {
+	// 		support.WarningMessage("Unable to load remote template index.")
+	// 	} else {
+	// 		workflow.RemoteTemplateIndex = remoteIndex
+	// 		support.SuccessMessageWithCheck("Downloaded remote template index file.")
+	// 	}
+	// }
 
 	for _, include := range workflow.Includes {
 		workflow.ProcessInclude(include)
@@ -231,10 +326,9 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		return false
 	}
 
-	if App.Workflow.RemoteTemplateIndex.Loaded && *include.VerifyChecksum == true {
-		support.StatusMessage("Validating checksum for remote template: "+include.DisplayUrl(), false)
-		remoteMeta := App.Workflow.RemoteTemplateIndex.GetTemplate(include.FullUrl())
-		validated, err := remoteMeta.ValidateChecksum(contents)
+	if *include.VerifyChecksum == true {
+		support.StatusMessage("Validating checksum for remote include: "+include.DisplayUrl(), false)
+		validated, err := include.ValidateChecksum(contents)
 
 		if err != nil {
 			support.PrintXMarkLine()
@@ -244,7 +338,6 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 
 		if !validated {
 			support.PrintXMarkLine()
-			//support.WarningMessage("Checksum mismatch for remote template: " + include.DisplayUrl())
 
 			if App.Workflow.Settings.ExitOnChecksumMismatch {
 				support.FailureMessageWithXMark("Exiting due to checksum mismatch.")
@@ -278,7 +371,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		App.Workflow.Tasks = append(App.Workflow.Tasks, t)
 	}
 
-	support.SuccessMessageWithCheck("Loaded remote configuration file: " + include.DisplayUrl())
+	support.SuccessMessageWithCheck("Included remote file (checksum verified): " + include.DisplayUrl())
 
 	return true
 }
