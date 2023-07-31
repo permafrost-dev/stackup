@@ -110,7 +110,7 @@ func (wi *WorkflowInclude) getChecksumFromContents(contents string) string {
 }
 
 func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
-	if wi.ChecksumUrl == "" && wi.VerifyChecksum != nil && *wi.VerifyChecksum == false {
+	if wi.VerifyChecksum != nil && *wi.VerifyChecksum == false {
 		return true, nil
 	}
 
@@ -130,6 +130,8 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
 
 		if checksumContents != "" {
 			checksumContents = wi.getChecksumFromContents(checksumContents)
+			fmt.Println(checksumContents)
+
 			wi.ChecksumUrl = url
 			if strings.HasSuffix(url, ".sha256") {
 				algorithm = "sha256"
@@ -142,7 +144,7 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
 	}
 
 	if algorithm == "" {
-		return false, fmt.Errorf("unable to find valid checksum file for %s", wi.DisplayUrl())
+		// return false, fmt.Errorf("unable to find valid checksum file for %s", wi.DisplayUrl())
 	}
 
 	var hash []byte
@@ -150,12 +152,12 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
 	switch algorithm {
 	case "sha256":
 		h := sha256.New()
-		h.Write([]byte(wi.getChecksumFromContents(contents)))
+		h.Write([]byte(wi.getChecksumFromContents(checksumContents)))
 		hash = h.Sum(nil)
 		break
 	case "sha512":
 		h := sha512.New()
-		h.Write([]byte(wi.getChecksumFromContents(contents)))
+		h.Write([]byte(wi.getChecksumFromContents(checksumContents)))
 		hash = h.Sum(nil)
 		break
 	default:
