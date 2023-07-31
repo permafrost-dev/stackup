@@ -30,3 +30,6 @@ tasks:
     if: $composer.HasDependency("laravel/horizon")
     command: php artisan horizon
     platforms: ['linux', 'darwin']
+
+  - id: run-artisan-scheduler
+    command: php artisan schedule:run

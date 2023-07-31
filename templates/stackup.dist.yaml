@@ -4,7 +4,6 @@ version: 1.0.0
 
 settings:
   exit-on-checksum-mismatch: false
-  remote-index-url: gh:permafrost-dev/stackup/main/templates/stackup-template-index.yaml
   defaults:
     tasks:
       silent: false
@@ -12,26 +11,15 @@ settings:
 
 includes:
   - url: gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
-    verify: false
+  - url: gh:permafrost-dev/stackup/main/templates/remote-includes/laravel.yaml
+  - url: gh:permafrost-dev/stackup/main/templates/remote-includes/php.yaml
+  - url: gh:permafrost-dev/stackup/main/templates/remote-includes/node.yaml
 
 init: |
-  vars.Set("php_version", semver(outputOf("php --version")));
-  vars.Set("node_version", semver(outputOf("node --version")));
-  vars.Set("laravel-version", semver(outputOf("php artisan --version")));
   vars.Set("run_migrations_taskId", "run-migrations-" + (hasFlag("seed") ? "fresh" : "no-seed"));
   vars.Set("frontend_http_cmd", (platform() == "windows" ? "npm run dev" : "node ./node_modules/.bin/next dev"));
-  vars.Set("composer", dev.ComposerJson($LOCAL_BACKEND_PROJECT_PATH));
 
 preconditions:
-    - name: dependencies are installed
-      check: binaryExists("php") && binaryExists("node")
-
-    - name: PHP is version 8+
-      check: $php_version.Gte("8")
-
-    - name: Node is version 16+
-      check: $node_version.Gte("16")
-
     - name: environment variables exist and are not empty
       check: |
         hasEnv("FRONTEND_PROJECT_PATH") && hasEnv("LOCAL_BACKEND_PROJECT_PATH") &&
@@ -39,9 +27,6 @@ preconditions:
 
     - name: frontend project directory exists
       check: fs.Exists($FRONTEND_PROJECT_PATH) && fs.IsDirectory($FRONTEND_PROJECT_PATH)
-
-    - name: backend project is a laravel project
-      check: fs.Exists("artisan") && fs.Exists("composer.json")
 
 startup:
   - task: start-containers
@@ -52,7 +37,7 @@ shutdown:
 
 servers:
   - task: frontend-httpd
-  - task: backend-httpd
+  - task: httpd
   - task: horizon-queue
 
 scheduler:
@@ -60,27 +45,6 @@ scheduler:
       cron: '* * * * *'
 
 tasks:
-  - name: run migrations (rebuild db)
-    id: run-migrations-fresh
-    if: hasFlag("seed")
-    command: php artisan migrate:fresh --seed
-
-  - name: run migrations (no seeding)
-    id: run-migrations-no-seed
-    if: hasFlag("seed") == false
-    command: php artisan migrate
-
-  - id: run-artisan-scheduler
-    command: php artisan schedule:run
-
   - id: frontend-httpd
     path: $FRONTEND_PROJECT_PATH
     command: '{{ $frontend_http_cmd }}'
-
-  - id: backend-httpd
-    command: php artisan serve
-
-  - id: horizon-queue
-    if: $composer.HasDependency("laravel/horizon")
-    command: php artisan horizon
-    platforms: ['linux', 'darwin']
