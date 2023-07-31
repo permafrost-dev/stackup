@@ -101,8 +101,6 @@ If the optional `checksum-url` field is not specified, the application will atte
 
 Valid algorithms are `sha256` or `sha512`, and checksum files may be generated with the `sha256sum` or `sha512sum` command line utilities.
 
-```yaml
-
 ### Configuration: Preconditions
 
 The `preconditions` section of the configuration file is used to specify a list of conditions that must be met before the tasks and servers can run. Each precondition is defined by a `name` and a `check`. The `name` is a human-readable description of the precondition, and the `check` is a javascript expression that returns a boolean value indicating whether the precondition is met. Unlike other fields, the `check` field does not need to be wrapped in double braces; it is always interpreted as a javascript expression.
