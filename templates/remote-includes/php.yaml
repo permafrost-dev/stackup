@@ -1,0 +1,22 @@
+template:
+  name: php project tasks
+  version: 1.0.0
+  last-modified: 2023-Jul-31 08:40
+  author: Patrick Organ <patrick@permafrost.dev>
+  description: stackup tasks for php-based projects
+
+init: |
+    vars.Set("php_version", semver(outputOf("php --version")));
+    vars.Set("composer", dev.ComposerJson($LOCAL_BACKEND_PROJECT_PATH));
+
+preconditions:
+    - name: php is installed
+      check: binaryExists("php")
+
+    - name: PHP is version 8+
+      check: $php_version.Gte("8")
+
+    - name: project is a composer-based php project
+      check: fs.Exists("composer.json")
+
+tasks:
