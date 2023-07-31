@@ -97,27 +97,11 @@ includes:
 
 If the optional field `verify` is set to `false`, the application will not attempt to verify the checksum of the file before fetching it.  This may be useful for files that are frequently updated, but is not recommended.
 
-```yaml
+If the optional `checksum-url` field is not specified, the application will attempt to fetch the checksum file from the same location as the included file, but with the `.sha256` extension appended to the filename.  For example, if the included file is `gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml`, the checksum file will be fetched from `gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml.sha256`.
 
-An additional file, if specified in the `settings` section, defines an index file that contains a list of file urls and their checksums; if specified, the checksum of each file will be compared to the checksum in the index file before fetching the file.  This is useful for ensuring that the file has not been modified since it was last fetched.
-
-```yaml
-settings:
-  exit-on-checksum-mismatch: false
-  remote-index-url: gh:permafrost-dev/stackup/main/templates/stackup-template-index.yaml
-```
-
-Here is an example of a remote index file, `stackup-template-index.yaml`:
+Valid algorithms are `sha256` or `sha512`, and checksum files may be generated with the `sha256sum` or `sha512sum` command line utilities.
 
 ```yaml
-templates:
-  - name: container tasks
-    location: https://raw.githubusercontent.com/permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
-    checksum: 9e0d9fea90950908c356734df89bfdff4984de4a6143fe32c404cfbc91984fb7
-    algorithm: sha256
-```
-
-Valid algorithms are `sha256` or `sha512`.
 
 ### Configuration: Preconditions
 
