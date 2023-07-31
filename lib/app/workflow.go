@@ -164,10 +164,10 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
 		return false, fmt.Errorf("unsupported algorithm: %s", algorithm)
 	}
 
-	fmt.Printf("checksum url: %s\n", wi.ChecksumUrl)
-	fmt.Printf("algorithm: %s\n", algorithm)
-	fmt.Printf("hash: %x\n", hash)
-	fmt.Printf("checksum: %s\n", checksumContents)
+	// fmt.Printf("checksum url: %s\n", wi.ChecksumUrl)
+	// fmt.Printf("algorithm: %s\n", algorithm)
+	// fmt.Printf("hash: %x\n", hash)
+	// fmt.Printf("checksum: %s\n", checksumContents)
 
 	checksumBytes, err := hex.DecodeString(string(checksumContents))
 	if err != nil {
@@ -224,6 +224,15 @@ func (workflow *StackupWorkflow) TaskIdToUuid(id string) string {
 	}
 
 	return task.Uuid
+}
+
+func (workflow *StackupWorkflow) reversePreconditions(items []*Precondition) []*Precondition {
+	length := len(items)
+	for i := 0; i < length/2; i++ {
+		items[i], items[length-i-1] = items[length-i-1], items[i]
+	}
+
+	return items
 }
 
 func (workflow *StackupWorkflow) Initialize() {
@@ -323,6 +332,8 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 
 	contents, err := utils.GetUrlContents(include.FullUrl())
 
+	fmt.Println("contents: ", contents)
+
 	if err != nil {
 		fmt.Println(err)
 		return false
@@ -363,13 +374,22 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		workflow.Init += "\n\n" + template.Init
 	}
 
+	// prepend the included preconditions; we reverse the order of the preconditions in the included file,
+	// then reverse the existing preconditions, append them, then reverse the workflow preconditions again
+	// to achieve the correct order.
+	App.Workflow.Preconditions = workflow.reversePreconditions(App.Workflow.Preconditions)
+	template.Preconditions = workflow.reversePreconditions(template.Preconditions)
+
 	for _, p := range template.Preconditions {
 		p.FromRemote = true
 		App.Workflow.Preconditions = append(App.Workflow.Preconditions, p)
 	}
 
+	App.Workflow.Preconditions = workflow.reversePreconditions(App.Workflow.Preconditions)
+
 	for _, t := range template.Tasks {
 		t.FromRemote = true
+		t.Uuid = utils.GenerateTaskUuid()
 		App.Workflow.Tasks = append(App.Workflow.Tasks, t)
 	}
 

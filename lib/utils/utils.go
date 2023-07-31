@@ -120,7 +120,7 @@ func FindFirstExistingFile(filenames []string) (string, error) {
 }
 
 func GetUrlContents(url string) (string, error) {
-	resp, err := http.Get(url)
+	resp, err := http.Get(url + "?nocache=" + GenerateShortID(8))
 	if err != nil {
 		return "", err
 	}
@@ -246,4 +246,12 @@ func CalculateSHA256Hash(input string) string {
 	hashString := hex.EncodeToString(hash[:])
 
 	return strings.ToLower(hashString)
+}
+
+func ReverseStructArray(arr []*interface{}) any {
+	length := len(arr)
+	for i := 0; i < length/2; i++ {
+		arr[i], arr[length-i-1] = arr[length-i-1], arr[i]
+	}
+	return arr
 }
