@@ -104,3 +104,20 @@ tasks:
       - task: bump-minor-version-and-tag
       - task: update-version-file
       - git push --tags
+
+  update-checksums:
+    dir: templates/remote-includes
+    cmds:
+      - sha256sum containers.yaml > containers.yaml.sha256
+      - sha256sum laravel.yaml > laravel.yaml.sha256
+      - sha256sum node.yaml > node.yaml.sha256
+      - sha256sum php.yaml > php.yaml.sha256
+      - task: commit-updated-checksums
+
+  commit-updated-checksums:
+    desc: Commits updated checksum files
+    preconditions:
+      - git status --porcelain | grep ' M ' | grep '.sha256'
+    cmds:
+      - git add templates/remote-includes/*.sha256
+      - git commit -m "update checksum files"
