@@ -136,6 +136,21 @@ preconditions:
       max-retries: 1
 ```
 
+This functionality can be used to configure projects, install dependencies, or perform other tasks that are required for the project to run.  Consider the following:
+
+```yaml
+preconditions:
+  - name: ensure dependencies are installed
+    check: fs.Exists("vendor") && fs.IsDirectory("vendor")
+    on-fail: install-composer-deps
+    max-retries: 1
+
+tasks:
+  - name: install composer dependencies
+    id: install-composer-deps
+    command: composer install --no-interaction
+```
+
 ### Configuration: Tasks
 
 The `tasks` section of the configuration file is used to specify all tasks that can be run during startup, shutdown, as a server, or as a scheduled task.
