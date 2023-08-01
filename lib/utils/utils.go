@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -127,7 +127,7 @@ func GetUrlContents(url string) (string, error) {
 	defer resp.Body.Close()
 
 	// Read the response body into a byte slice
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -254,4 +254,16 @@ func ReverseStructArray(arr []*interface{}) any {
 		arr[i], arr[length-i-1] = arr[length-i-1], arr[i]
 	}
 	return arr
+}
+
+func ReplaceFilenameInUrl(u string, newFilename string) (string, error) {
+	parsedUrl, err := url.Parse(u)
+	if err != nil {
+		return "", err
+	}
+
+	// Replace the filename in the URL path
+	parsedUrl.Path = path.Join(path.Dir(parsedUrl.Path), newFilename)
+
+	return parsedUrl.String(), nil
 }
