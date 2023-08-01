@@ -117,6 +117,8 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
 	checksumUrls := []string{
 		wi.FullUrl() + ".sha256",
 		wi.FullUrl() + ".sha512",
+		path.Dir(wi.FullUrl()) + "/checksums.sha256.txt",
+		path.Dir(wi.FullUrl()) + "/checksums.sha512.txt",
 	}
 
 	algorithm := ""
@@ -130,13 +132,12 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
 
 		if checksumContents != "" {
 			checksumContents = wi.getChecksumFromContents(checksumContents)
-			fmt.Println(checksumContents)
 
 			wi.ChecksumUrl = url
-			if strings.HasSuffix(url, ".sha256") {
+			if strings.HasSuffix(url, ".sha256") || strings.HasSuffix(url, ".sha256.txt") {
 				algorithm = "sha256"
 			}
-			if strings.HasSuffix(url, ".sha512") {
+			if strings.HasSuffix(url, ".sha512") || strings.HasSuffix(url, ".sha512.txt") {
 				algorithm = "sha512"
 			}
 			break
@@ -303,7 +304,7 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 	// set default value for verify checksum to true
 	for _, wi := range workflow.Includes {
 		if wi.VerifyChecksum == nil {
-			boolValue := wi.ChecksumUrl != ""
+			boolValue := true //wi.ChecksumUrl != ""
 			wi.VerifyChecksum = &boolValue
 		}
 	}
@@ -332,14 +333,12 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 
 	contents, err := utils.GetUrlContents(include.FullUrl())
 
-	fmt.Println("contents: ", contents)
-
 	if err != nil {
 		fmt.Println(err)
 		return false
 	}
 
-	if *include.VerifyChecksum == true {
+	if *include.VerifyChecksum == true || include.VerifyChecksum == nil {
 		support.StatusMessage("Validating checksum for remote include: "+include.DisplayUrl(), false)
 		validated, err := include.ValidateChecksum(contents)
 
