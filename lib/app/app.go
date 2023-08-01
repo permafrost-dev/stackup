@@ -218,17 +218,44 @@ func (a *Application) runServerTasks() {
 	}
 }
 
-func (a *Application) runPreconditions() {
-	for _, c := range a.Workflow.Preconditions {
-		if c.Check != "" {
-			result := a.JsEngine.Evaluate(c.Check)
+func (a *Application) runPrecondition(c *Precondition) bool {
+	result := true
 
-			if result != nil && !result.(bool) {
-				support.FailureMessageWithXMark(c.Name)
-				os.Exit(1)
-			}
+	if c.Check != "" {
+		if (c.Attempts - 1) > *c.MaxRetries {
+			support.FailureMessageWithXMark(c.Name)
+			return false
 		}
 
+		c.Attempts++
+
+		result = a.JsEngine.Evaluate(c.Check).(bool)
+
+		if !result && len(c.OnFail) > 0 {
+			support.FailureMessageWithXMark(c.Name)
+			rerunCheck := c.HandleOnFailure()
+
+			if rerunCheck {
+				return a.runPrecondition(c)
+			}
+
+			return false
+		}
+
+		if !result {
+			support.FailureMessageWithXMark(c.Name)
+			return false
+		}
+	}
+
+	return result
+}
+
+func (a *Application) runPreconditions() {
+	for _, c := range a.Workflow.Preconditions {
+		if !a.runPrecondition(c) {
+			os.Exit(1)
+		}
 		support.SuccessMessageWithCheck(c.Name)
 	}
 }

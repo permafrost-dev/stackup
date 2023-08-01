@@ -126,6 +126,16 @@ preconditions:
       check: fs.Exists($LOCAL_BACKEND_PROJECT_PATH + "/artisan")
 ```
 
+Preconditions can be configured to run a task or script on failure. If a `on-fail` attribute is specified for a precondition, the application will run the task or script when the precondition fails.  The `on-fail` attribute can be a task `id` or a javascript expression.  If specified, the precondition will re-run in an attempt to successfully pass the check. The maximum number of retries is specified by the `max-retries` attribute, and defaults to 0 (no retries).
+
+```yaml
+preconditions:
+    - name: check for missing text file
+      check: fs.Exists("missing.txt")
+      on-fail: '{{ fs.WriteFile("missing.txt", "test") }}'
+      max-retries: 1
+```
+
 ### Configuration: Tasks
 
 The `tasks` section of the configuration file is used to specify all tasks that can be run during startup, shutdown, as a server, or as a scheduled task.

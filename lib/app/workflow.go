@@ -64,7 +64,10 @@ type StackupWorkflowState struct {
 type Precondition struct {
 	Name       string `yaml:"name"`
 	Check      string `yaml:"check"`
+	OnFail     string `yaml:"on-fail"`
 	FromRemote bool
+	Attempts   int
+	MaxRetries *int `yaml:"max-retries,omitempty"`
 }
 
 type TaskReference struct {
@@ -78,6 +81,29 @@ type ScheduledTask struct {
 
 func GetState() *StackupWorkflowState {
 	return App.Workflow.State
+}
+
+func (p *Precondition) Initialize() {
+	p.Attempts = 0
+	if p.MaxRetries == nil {
+		p.MaxRetries = new(int)
+		*p.MaxRetries = 0
+	}
+}
+
+func (p *Precondition) HandleOnFailure() bool {
+	result := true
+
+	if App.JsEngine.IsEvaluatableScriptString(p.OnFail) {
+		App.JsEngine.Evaluate(p.OnFail)
+	} else {
+		task := App.Workflow.FindTaskById(p.OnFail)
+		if task != nil {
+			task.Run(true)
+		}
+	}
+
+	return result
 }
 
 func (ws *WorkflowSettings) FullRemoteIndexUrl() string {
@@ -281,6 +307,10 @@ func (workflow *StackupWorkflow) Initialize() {
 
 	if len(workflow.Init) > 0 {
 		App.JsEngine.Evaluate(workflow.Init)
+	}
+
+	for _, pc := range workflow.Preconditions {
+		pc.Initialize()
 	}
 
 	for _, task := range workflow.Tasks {
