@@ -140,7 +140,7 @@ This functionality can be used to configure projects, install dependencies, or p
 
 ```yaml
 preconditions:
-  - name: ensure dependencies are installed
+  - name: ensure php dependencies are installed
     check: fs.Exists("vendor") && fs.IsDirectory("vendor")
     on-fail: install-composer-deps
     max-retries: 1
