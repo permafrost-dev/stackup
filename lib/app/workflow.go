@@ -18,6 +18,7 @@ type StackupWorkflow struct {
 	Description   string            `yaml:"description"`
 	Version       string            `yaml:"version"`
 	Settings      *WorkflowSettings `yaml:"settings"`
+	Env           []string          `yaml:"env"`
 	Init          string            `yaml:"init"`
 	Preconditions []*Precondition   `yaml:"preconditions"`
 	Tasks         []*Task           `yaml:"tasks"`

@@ -93,10 +93,14 @@ The `includes` section of the configuration file is used to specify a list of fi
 
 Included urls can be prefixed with `gh:` to indicate that the file should be fetched from GitHub.  For example, `gh:permafrost-dev/stackup/main/templates/stackup.dist.yaml` will fetch the `stackup.dist.yaml` file from the `permafrost-dev/stackup` repository on GitHub.
 
+Included files can be specified with either a relative or absolute pathname.  Relative pathnames are relative to the directory containing the configuration file.  Absolute pathnames are relative to the current working directory.
+
 ```yaml
 includes:
   - url: gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
     verify: false # optional, defaults to true
+
+  - file: python.yaml # includes a local file
 ```
 
 If the optional field `verify` is set to `false`, the application will not attempt to verify the checksum of the file before fetching it.  This may be useful for files that are frequently updated, but is not recommended.
