@@ -53,11 +53,11 @@ The `settings` section of the configuration file is used to configure the applic
 
 | field     | description                        | required? |
 |-----------|------------------------------------|-----------|
+| `defaults.tasks.path` | default path for tasks | no |
+| `defaults.tasks.platforms` | default platforms for tasks | no |
+| `defaults.tasks.silent` | default silent setting for tasks | no |
 | `dotenv`  | array of `.env` filenames to load  | no        |
 | `exit-on-checksum-mismatch` | `boolean` value specifying whether to exit if a checksum mismatch occurs when including a remote file | no |
-| `defaults.tasks.path` | default path for tasks | no |
-| `defaults.tasks.silent` | default silent setting for tasks | no |
-| `defaults.tasks.platforms` | default platforms for tasks | no |
 
 Example `settings` section:
 
