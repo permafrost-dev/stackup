@@ -114,6 +114,9 @@ Alternatively, a single `checksums.sha256.txt` or `checksums.sha512.txt` file ca
 69b87009a87e38e5470191a9e40c441ce963fb4cf260fd44cf5f032b9566454a  laravel.yaml
 ```
 
+See the [example configuration](./templates/stackup.dist.yaml) for an example of using includes, the [example remote includes](./templates/remote-includes) for examples of remote include templates, and the [example checksum file](./templates/remote-includes/checksums.sha256.txt) for an example of a checksum file.
+
+
 Valid algorithms are `sha256` or `sha512`, and checksum files may be generated with the `sha256sum` or `sha512sum` command line utilities.
 
 ### Configuration: Preconditions
