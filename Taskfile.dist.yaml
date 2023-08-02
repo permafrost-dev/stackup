@@ -112,12 +112,14 @@ tasks:
       - sha256sum laravel.yaml > laravel.yaml.sha256
       - sha256sum node.yaml > node.yaml.sha256
       - sha256sum php.yaml > php.yaml.sha256
+      - sha256sum python.yaml > python.yaml.sha256
+      - sha256sum *.yaml > checksums.sha256.txt
       - task: commit-updated-checksums
 
   commit-updated-checksums:
     desc: Commits updated checksum files
-    preconditions:
-      - git status --porcelain | grep ' M ' | grep '.sha256'
+    internal: true
+    silent: true
     cmds:
-      - git add templates/remote-includes/*.sha256
+      - git add templates/remote-includes/*.sha256 templates/remote-includes/checksums.*.txt
       - git commit -m "update checksum files"
