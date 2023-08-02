@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -42,9 +43,11 @@ type WorkflowInclude struct {
 
 type WorkflowSettings struct {
 	Defaults               *WorkflowSettingsDefaults `yaml:"defaults"`
-	RemoteIndexUrl         string                    `yaml:"remote-index-url"`
 	ExitOnChecksumMismatch bool                      `yaml:"exit-on-checksum-mismatch"`
 	DotEnvFiles            []string                  `yaml:"dotenv"`
+	Domains                struct {
+		Allowed []string `yaml:"allowed"`
+	} `yaml:"domains"`
 }
 
 type WorkflowSettingsDefaults struct {
@@ -97,14 +100,6 @@ func (p *Precondition) HandleOnFailure() bool {
 	}
 
 	return result
-}
-
-func (ws *WorkflowSettings) FullRemoteIndexUrl() string {
-	if strings.HasPrefix(strings.TrimSpace(ws.RemoteIndexUrl), "gh:") {
-		return "https://raw.githubusercontent.com/" + strings.TrimPrefix(ws.RemoteIndexUrl, "gh:")
-	}
-
-	return ws.RemoteIndexUrl
 }
 
 func (wi *WorkflowInclude) getChecksumFromContents(contents string) string {
@@ -290,6 +285,13 @@ func (workflow *StackupWorkflow) Initialize() {
 	// generate uuids for each task as the initial step, as other code below relies on a uuid existing
 	for _, task := range workflow.Tasks {
 		task.Uuid = utils.GenerateTaskUuid()
+	}
+
+	if len(workflow.Env) > 0 {
+		for _, def := range workflow.Env {
+			key, value, _ := strings.Cut(def, "=")
+			os.Setenv(key, value)
+		}
 	}
 
 	// no default settings were provided, so create sensible defaults

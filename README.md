@@ -87,6 +87,16 @@ tasks:
     platforms: ['linux', 'darwin'] # overrides the default
 ```
 
+### Configuration: Environment Variables
+
+Environment variables can be defined in the optional `env` section of the configuration file.  These variables can be referenced in other sections of the configuration file using the `env()` function or by prefixing the variable name with `$` (e.g. `$MY_VAR`).
+
+```yaml
+env:
+  - MY_ENV_VAR_ONE=test1234
+  - MY_ENV_VAR_TWO=1234test
+```
+
 ### Configuration: Includes
 
 The `includes` section of the configuration file is used to specify a list of filenames or file urls that should be merged with the configuration.  This is useful for splitting up a large configuration file into smaller, more manageable files or reusing commonly-used tasks, init scripts, or preconditions. Startup, shutdown, servers, and scheduled tasks are not merged from the included files.
