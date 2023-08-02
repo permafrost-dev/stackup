@@ -43,6 +43,7 @@ type WorkflowSettings struct {
 	Defaults               *WorkflowSettingsDefaults `yaml:"defaults"`
 	RemoteIndexUrl         string                    `yaml:"remote-index-url"`
 	ExitOnChecksumMismatch bool                      `yaml:"exit-on-checksum-mismatch"`
+	DotEnvFiles            []string                  `yaml:"dotenv"`
 }
 
 type WorkflowSettingsDefaults struct {
@@ -278,6 +279,7 @@ func (workflow *StackupWorkflow) Initialize() {
 	// no default settings were provided, so create sensible defaults
 	if workflow.Settings == nil {
 		workflow.Settings = &WorkflowSettings{
+			DotEnvFiles: []string{".env"},
 			Defaults: &WorkflowSettingsDefaults{
 				Tasks: &WorkflowSettingsDefaultsTasks{
 					Silent:    false,
@@ -286,6 +288,10 @@ func (workflow *StackupWorkflow) Initialize() {
 				},
 			},
 		}
+	}
+
+	if len(workflow.Settings.DotEnvFiles) == 0 {
+		workflow.Settings.DotEnvFiles = []string{".env"}
 	}
 
 	// copy the default settings into each task if appropriate

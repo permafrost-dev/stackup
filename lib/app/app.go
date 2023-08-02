@@ -333,6 +333,8 @@ func (a *Application) Run() {
 	}
 
 	a.Workflow.Initialize()
+	godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
+	a.JsEngine.CreateEnvironmentVariables()
 	a.JsEngine.CreateAppVariables()
 
 	a.hookSignals()
