@@ -5,6 +5,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 
 	lla "github.com/emirpasic/gods/lists/arraylist"
 	lls "github.com/emirpasic/gods/stacks/linkedliststack"
@@ -379,20 +380,22 @@ func (workflow *StackupWorkflow) RemoveTasks(uuidsToRemove []string) {
 	workflow.Tasks = newTasks
 }
 
-func (workflow *StackupWorkflow) ProcessIncludes() {
-	// set default value for verify checksum to true
-	for _, wi := range workflow.Includes {
-		if wi.VerifyChecksum == nil {
-			boolValue := true //wi.ChecksumUrl != ""
-			wi.VerifyChecksum = &boolValue
-		}
-		wi.ValidationState = "not validated"
-		wi.ChecksumIsValid = nil
-	}
+// func (workflow *StackupWorkflow) ProcessIncludes() {
+// 	for _, include := range workflow.Includes {
+// 		workflow.ProcessInclude(include)
+// 	}
+// }
 
+func (workflow *StackupWorkflow) ProcessIncludes() {
+	var wg sync.WaitGroup
 	for _, include := range workflow.Includes {
-		workflow.ProcessInclude(include)
+		wg.Add(1)
+		go func(include *WorkflowInclude) {
+			defer wg.Done()
+			workflow.ProcessInclude(include)
+		}(include)
 	}
+	wg.Wait()
 }
 
 func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
@@ -495,12 +498,20 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	return true
 }
 
-func (inc *WorkflowInclude) Initialize() {
+func (wi *WorkflowInclude) Initialize() {
 	// expand environment variables in the include headers
-	for i, v := range inc.Headers {
+	for i, v := range wi.Headers {
 		if App.JsEngine.IsEvaluatableScriptString(v) {
-			inc.Headers[i] = App.JsEngine.Evaluate(v).(string)
+			wi.Headers[i] = App.JsEngine.Evaluate(v).(string)
 		}
-		inc.Headers[i] = os.ExpandEnv(v)
+		wi.Headers[i] = os.ExpandEnv(v)
 	}
+
+	// set some default values
+	if wi.VerifyChecksum == nil {
+		boolValue := true //wi.ChecksumUrl != ""
+		wi.VerifyChecksum = &boolValue
+	}
+	wi.ValidationState = "not validated"
+	wi.ChecksumIsValid = nil
 }

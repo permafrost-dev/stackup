@@ -158,8 +158,11 @@ func GetUrlContentsEx(url string, headers []string) (string, error) {
 		}
 	}
 
+	fmt.Printf("req: %v\n", req)
+	fmt.Printf("req.Header: %v\n", req.Header.Get("Authorization"))
+
 	// Add a cache-busting query parameter to the URL
-	req.URL.RawQuery = "nocache=" + GenerateShortID(8)
+	//req.URL.RawQuery = "nocache=" + GenerateShortID(8)
 
 	// Send the HTTP request and get the response
 	resp, err := http.DefaultClient.Do(req)
