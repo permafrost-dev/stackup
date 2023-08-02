@@ -309,10 +309,7 @@ func (a *Application) checkForApplicationUpdates() {
 	}
 }
 
-func (a *Application) Run() {
-	godotenv.Load()
-	a.init()
-
+func (a *Application) handleFlagOptions() {
 	if *a.flags.DisplayHelp {
 		flag.Usage()
 		os.Exit(0)
@@ -331,9 +328,17 @@ func (a *Application) Run() {
 		a.createNewConfigFile()
 		os.Exit(0)
 	}
+}
+
+func (a *Application) Run() {
+	godotenv.Load()
+	a.init()
+	a.handleFlagOptions()
 
 	a.Workflow.Initialize()
-	godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
+	if len(a.Workflow.Settings.DotEnvFiles) > 0 {
+		godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
+	}
 	a.JsEngine.CreateEnvironmentVariables()
 	a.JsEngine.CreateAppVariables()
 

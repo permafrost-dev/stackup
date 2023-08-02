@@ -2,12 +2,14 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
 	lla "github.com/emirpasic/gods/lists/arraylist"
 	lls "github.com/emirpasic/gods/stacks/linkedliststack"
 	"github.com/stackup-app/stackup/lib/checksums"
+	"github.com/stackup-app/stackup/lib/downloader"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/utils"
 	"gopkg.in/yaml.v2"
@@ -36,15 +38,21 @@ type WorkflowInclude struct {
 	File            string `yaml:"file"`
 	ChecksumUrl     string `yaml:"checksum-url"`
 	VerifyChecksum  *bool  `yaml:"verify,omitempty"`
+	AccessKey       string `yaml:"access-key"`
+	SecretKey       string `yaml:"secret-key"`
+	Secure          bool   `yaml:"secure"`
 	ChecksumIsValid *bool
 	ValidationState string
+	Contents        string
 }
 
 type WorkflowSettings struct {
 	Defaults               *WorkflowSettingsDefaults `yaml:"defaults"`
-	RemoteIndexUrl         string                    `yaml:"remote-index-url"`
 	ExitOnChecksumMismatch bool                      `yaml:"exit-on-checksum-mismatch"`
 	DotEnvFiles            []string                  `yaml:"dotenv"`
+	Domains                struct {
+		Allowed []string `yaml:"allowed"`
+	} `yaml:"domains"`
 }
 
 type WorkflowSettingsDefaults struct {
@@ -97,14 +105,6 @@ func (p *Precondition) HandleOnFailure() bool {
 	}
 
 	return result
-}
-
-func (ws *WorkflowSettings) FullRemoteIndexUrl() string {
-	if strings.HasPrefix(strings.TrimSpace(ws.RemoteIndexUrl), "gh:") {
-		return "https://raw.githubusercontent.com/" + strings.TrimPrefix(ws.RemoteIndexUrl, "gh:")
-	}
-
-	return ws.RemoteIndexUrl
 }
 
 func (wi *WorkflowInclude) getChecksumFromContents(contents string) string {
@@ -205,6 +205,10 @@ func (wi *WorkflowInclude) IsRemoteUrl() bool {
 	return wi.FullUrl() != "" && strings.HasPrefix(wi.FullUrl(), "http")
 }
 
+func (wi *WorkflowInclude) IsS3Url() bool {
+	return wi.FullUrl() != "" && strings.HasPrefix(wi.FullUrl(), "s3:")
+}
+
 func (wi *WorkflowInclude) Filename() string {
 	return utils.AbsoluteFilePath(wi.File)
 }
@@ -227,6 +231,7 @@ func (wi *WorkflowInclude) DisplayUrl() string {
 	displayUrl := strings.Replace(wi.FullUrl(), "https://", "", -1)
 	displayUrl = strings.Replace(displayUrl, "github.com/", "", -1)
 	displayUrl = strings.Replace(displayUrl, "raw.githubusercontent.com/", "", -1)
+	// displayUrl = strings.Replace(displayUrl, "s3://", "", -1)
 
 	return displayUrl
 }
@@ -238,6 +243,10 @@ func (wi *WorkflowInclude) DisplayName() string {
 
 	if wi.IsLocalFile() {
 		return wi.Filename()
+	}
+
+	if wi.IsS3Url() {
+		return wi.DisplayUrl()
 	}
 
 	return "<unknown>"
@@ -290,6 +299,13 @@ func (workflow *StackupWorkflow) Initialize() {
 	// generate uuids for each task as the initial step, as other code below relies on a uuid existing
 	for _, task := range workflow.Tasks {
 		task.Uuid = utils.GenerateTaskUuid()
+	}
+
+	if len(workflow.Env) > 0 {
+		for _, def := range workflow.Env {
+			key, value, _ := strings.Cut(def, "=")
+			os.Setenv(key, value)
+		}
 	}
 
 	// no default settings were provided, so create sensible defaults
@@ -374,7 +390,7 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 }
 
 func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
-	if !include.IsLocalFile() && !include.IsRemoteUrl() {
+	if !include.IsLocalFile() && !include.IsRemoteUrl() && !include.IsS3Url() {
 		return false
 	}
 
@@ -385,9 +401,22 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		contents, err = utils.GetFileContents(include.Filename())
 	} else if include.IsRemoteUrl() {
 		contents, err = utils.GetUrlContents(include.FullUrl())
+	} else if include.IsS3Url() {
+		include.AccessKey = os.ExpandEnv(include.AccessKey)
+		include.SecretKey = os.ExpandEnv(include.SecretKey)
+
+		contents = downloader.ReadS3FileContents(include.FullUrl(), include.AccessKey, include.SecretKey, include.Secure)
 	} else {
 		return false
 	}
+
+	contents = strings.TrimSpace(contents)
+
+	include.Contents = contents
+
+	// fmt.Printf("include: %s\n", include.DisplayName())
+	// fmt.Printf("include: %s\n", include.FullUrl())
+	// fmt.Printf("contents: %s\n", include.Contents)
 
 	if err != nil {
 		fmt.Println(err)
