@@ -126,6 +126,10 @@ func GetUrlContents(url string) (string, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("HTTP error: %d", resp.StatusCode)
+	}
+
 	// Read the response body into a byte slice
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -158,9 +162,6 @@ func GetUrlContentsEx(url string, headers []string) (string, error) {
 		}
 	}
 
-	fmt.Printf("req: %v\n", req)
-	fmt.Printf("req.Header: %v\n", req.Header.Get("Authorization"))
-
 	// Add a cache-busting query parameter to the URL
 	//req.URL.RawQuery = "nocache=" + GenerateShortID(8)
 
@@ -170,6 +171,10 @@ func GetUrlContentsEx(url string, headers []string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("HTTP error: %d", resp.StatusCode)
+	}
 
 	// Read the response body into a byte slice
 	body, err := io.ReadAll(resp.Body)
@@ -325,4 +330,13 @@ func GetFileContents(filename string) (string, error) {
 	}
 
 	return string(contents), nil
+}
+
+func GetUrlHostAndPath(urlStr string) string {
+	parsedUrl, err := url.Parse(urlStr)
+	if err != nil {
+		return path.Dir(urlStr)
+	}
+
+	return parsedUrl.Host + parsedUrl.Path
 }

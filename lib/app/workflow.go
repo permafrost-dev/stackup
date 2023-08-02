@@ -9,6 +9,7 @@ import (
 
 	lla "github.com/emirpasic/gods/lists/arraylist"
 	lls "github.com/emirpasic/gods/stacks/linkedliststack"
+	"github.com/stackup-app/stackup/lib/cache"
 	"github.com/stackup-app/stackup/lib/checksums"
 	"github.com/stackup-app/stackup/lib/downloader"
 	"github.com/stackup-app/stackup/lib/support"
@@ -32,6 +33,7 @@ type StackupWorkflow struct {
 	Scheduler     []ScheduledTask    `yaml:"scheduler"`
 	Includes      []*WorkflowInclude `yaml:"includes"`
 	State         *StackupWorkflowState
+	Cache         *cache.Cache
 }
 
 type WorkflowInclude struct {
@@ -46,6 +48,8 @@ type WorkflowInclude struct {
 	ChecksumIsValid *bool
 	ValidationState string
 	Contents        string
+	Hash            string
+	Workflow        *StackupWorkflow
 }
 
 type WorkflowSettings struct {
@@ -143,32 +147,39 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
 
 	algorithm := ""
 	storedChecksum := ""
+	checksumContents := ""
+	hashUrl := ""
 
 	for _, url := range checksumUrls {
+		if wi.Workflow.Cache.Has(url) && !wi.Workflow.Cache.IsExpired(url) {
+			hashUrl = url
+			checksumContents = wi.Workflow.Cache.Get(url)
+			fmt.Printf("using cached checksum file %s\n", url)
+			break
+		}
+
 		checksumContents, err := utils.GetUrlContents(url)
 		if err != nil {
-			fmt.Printf("error: %s\n", err)
 			continue
 		}
 
-		// fmt.Printf("using checksum file %s\n", url)
-
 		if checksumContents != "" {
-			storedChecksum = wi.getChecksumFromContents(checksumContents)
-
-			wi.ChecksumUrl = url
-			if strings.HasSuffix(url, ".sha256") || strings.HasSuffix(url, ".sha256.txt") {
-				algorithm = "sha256"
-			}
-			if strings.HasSuffix(url, ".sha512") || strings.HasSuffix(url, ".sha512.txt") {
-				algorithm = "sha512"
-			}
+			hashUrl = url
+			wi.Workflow.Cache.Set(url, checksumContents, 5)
+			fmt.Printf("using non-cached checksum file %s\n", url)
 			break
 		}
 	}
 
-	if algorithm == "" {
-		// return false, fmt.Errorf("unable to find valid checksum file for %s", wi.DisplayUrl())
+	if checksumContents != "" {
+		storedChecksum = wi.getChecksumFromContents(checksumContents)
+
+		wi.ChecksumUrl = hashUrl
+		algorithm = wi.GetChecksumAlgorithm()
+	}
+
+	if algorithm == "unknown" {
+		return false, fmt.Errorf("unable to find valid checksum file for %s", wi.DisplayUrl())
 	}
 
 	var hash string
@@ -184,11 +195,6 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
 		wi.SetChecksumIsValid(false)
 		return false, fmt.Errorf("unsupported algorithm: %s", algorithm)
 	}
-
-	// fmt.Printf("checksum url: %s\n", wi.ChecksumUrl)
-	// fmt.Printf("algorithm: %s\n", algorithm)
-	// fmt.Printf("hash: %s\n", hash)
-	// fmt.Printf("checksum: %s\n", storedChecksum)
 
 	if !strings.EqualFold(hash, storedChecksum) {
 		wi.SetChecksumIsValid(false)
@@ -254,6 +260,17 @@ func (wi *WorkflowInclude) DisplayName() string {
 	return "<unknown>"
 }
 
+func (wi *WorkflowInclude) GetChecksumAlgorithm() string {
+	if strings.HasSuffix(wi.ChecksumUrl, ".sha256") || strings.HasSuffix(wi.ChecksumUrl, ".sha256.txt") {
+		return "sha256"
+	}
+	if strings.HasSuffix(wi.ChecksumUrl, ".sha512") || strings.HasSuffix(wi.ChecksumUrl, ".sha512.txt") {
+		return "sha512"
+	}
+
+	return "unknown"
+}
+
 func (wi *WorkflowInclude) SetChecksumIsValid(value bool) {
 	wi.ChecksumIsValid = &value
 }
@@ -298,6 +315,7 @@ func (workflow *StackupWorkflow) reversePreconditions(items []*Precondition) []*
 }
 
 func (workflow *StackupWorkflow) Initialize() {
+	workflow.Cache = cache.CreateCache()
 	// generate uuids for each task as the initial step, as other code below relies on a uuid existing
 	for _, task := range workflow.Tasks {
 		task.Uuid = utils.GenerateTaskUuid()
@@ -345,7 +363,7 @@ func (workflow *StackupWorkflow) Initialize() {
 
 	// initialize the includes
 	for _, inc := range workflow.Includes {
-		inc.Initialize()
+		inc.Initialize(workflow)
 	}
 
 	workflow.ProcessIncludes()
@@ -406,22 +424,33 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	var contents string
 	var err error
 
-	if include.IsLocalFile() {
-		contents, err = utils.GetFileContents(include.Filename())
-	} else if include.IsRemoteUrl() {
-		contents, err = utils.GetUrlContentsEx(include.FullUrl(), include.Headers)
-	} else if include.IsS3Url() {
-		include.AccessKey = os.ExpandEnv(include.AccessKey)
-		include.SecretKey = os.ExpandEnv(include.SecretKey)
-
-		contents = downloader.ReadS3FileContents(include.FullUrl(), include.AccessKey, include.SecretKey, include.Secure)
-	} else {
-		return false
+	if workflow.Cache.Has(include.DisplayName()) && !workflow.Cache.IsExpired(include.DisplayName()) {
+		include.Contents = workflow.Cache.Get(include.DisplayName())
+		include.Hash = workflow.Cache.GetHash(include.DisplayName())
+		fmt.Println("loaded from cache")
 	}
 
-	contents = strings.TrimSpace(contents)
+	if !workflow.Cache.Has(include.DisplayName()) || workflow.Cache.IsExpired(include.DisplayName()) {
+		fmt.Println("not loaded from cache")
+		if include.IsLocalFile() {
+			include.Contents, err = utils.GetFileContents(include.Filename())
+		} else if include.IsRemoteUrl() {
+			include.Contents, err = utils.GetUrlContentsEx(include.FullUrl(), include.Headers)
+		} else if include.IsS3Url() {
+			include.AccessKey = os.ExpandEnv(include.AccessKey)
+			include.SecretKey = os.ExpandEnv(include.SecretKey)
+			include.Contents = downloader.ReadS3FileContents(include.FullUrl(), include.AccessKey, include.SecretKey, include.Secure)
+		} else {
+			return false
+		}
 
-	include.Contents = contents
+		include.Hash = checksums.CalculateSha256Hash(include.Contents)
+		workflow.Cache.Set(include.DisplayName(), include.Contents, 5)
+	}
+
+	// fmt.Printf("value: %v\n", workflow.Cache.Get(include.DisplayName()))
+	// fmt.Printf("expires: %v\n", workflow.Cache.GetExpiresAt(include.DisplayName()))
+	// fmt.Printf("hash: %v\n", workflow.Cache.GetHash(include.DisplayName()))
 
 	// fmt.Printf("include: %s\n", include.DisplayName())
 	// fmt.Printf("include: %s\n", include.FullUrl())
@@ -437,7 +466,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	if include.IsRemoteUrl() {
 		if *include.VerifyChecksum == true || include.VerifyChecksum == nil {
 			//support.StatusMessage("Validating checksum for remote include: "+include.DisplayUrl(), false)
-			validated, err := include.ValidateChecksum(contents)
+			validated, err := include.ValidateChecksum(include.Contents)
 
 			if include.ChecksumIsValid != nil && *include.ChecksumIsValid == true {
 				include.ValidationState = "checksum validated"
@@ -498,7 +527,9 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	return true
 }
 
-func (wi *WorkflowInclude) Initialize() {
+func (wi *WorkflowInclude) Initialize(workflow *StackupWorkflow) {
+	wi.Workflow = workflow
+
 	// expand environment variables in the include headers
 	for i, v := range wi.Headers {
 		if App.JsEngine.IsEvaluatableScriptString(v) {
