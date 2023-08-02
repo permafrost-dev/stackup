@@ -340,3 +340,7 @@ func GetUrlHostAndPath(urlStr string) string {
 
 	return parsedUrl.Host + parsedUrl.Path
 }
+
+func GetProjectName() string {
+	return path.Base(WorkingDir())
+}

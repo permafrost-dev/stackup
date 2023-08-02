@@ -56,7 +56,10 @@ type WorkflowSettings struct {
 	Defaults               *WorkflowSettingsDefaults `yaml:"defaults"`
 	ExitOnChecksumMismatch bool                      `yaml:"exit-on-checksum-mismatch"`
 	DotEnvFiles            []string                  `yaml:"dotenv"`
-	Domains                struct {
+	Cache                  struct {
+		TtlMinutes int `yaml:"ttl-minutes"`
+	} `yaml:"cache"`
+	Domains struct {
 		Allowed []string `yaml:"allowed"`
 	} `yaml:"domains"`
 }
@@ -165,7 +168,7 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
 
 		if checksumContents != "" {
 			hashUrl = url
-			wi.Workflow.Cache.Set(url, checksumContents, 5)
+			wi.Workflow.Cache.Set(url, checksumContents, wi.Workflow.Settings.Cache.TtlMinutes)
 			fmt.Printf("using non-cached checksum file %s\n", url)
 			break
 		}
@@ -315,7 +318,8 @@ func (workflow *StackupWorkflow) reversePreconditions(items []*Precondition) []*
 }
 
 func (workflow *StackupWorkflow) Initialize() {
-	workflow.Cache = cache.CreateCache()
+	workflow.Cache = cache.CreateCache(utils.GetProjectName())
+
 	// generate uuids for each task as the initial step, as other code below relies on a uuid existing
 	for _, task := range workflow.Tasks {
 		task.Uuid = utils.GenerateTaskUuid()
@@ -340,6 +344,10 @@ func (workflow *StackupWorkflow) Initialize() {
 				},
 			},
 		}
+	}
+
+	if workflow.Settings.Cache.TtlMinutes <= 0 {
+		workflow.Settings.Cache.TtlMinutes = 5
 	}
 
 	if len(workflow.Settings.DotEnvFiles) == 0 {
@@ -445,7 +453,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		}
 
 		include.Hash = checksums.CalculateSha256Hash(include.Contents)
-		workflow.Cache.Set(include.DisplayName(), include.Contents, 5)
+		workflow.Cache.Set(include.DisplayName(), include.Contents, workflow.Settings.Cache.TtlMinutes)
 	}
 
 	// fmt.Printf("value: %v\n", workflow.Cache.Get(include.DisplayName()))
