@@ -33,6 +33,7 @@ type StackupWorkflow struct {
 
 type WorkflowInclude struct {
 	Url             string `yaml:"url"`
+	File            string `yaml:"file"`
 	ChecksumUrl     string `yaml:"checksum-url"`
 	VerifyChecksum  *bool  `yaml:"verify,omitempty"`
 	ChecksumIsValid *bool
@@ -205,6 +206,18 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
 	return true, nil
 }
 
+func (wi *WorkflowInclude) IsLocalFile() bool {
+	return wi.File != "" && utils.IsFile(wi.File)
+}
+
+func (wi *WorkflowInclude) IsRemoteUrl() bool {
+	return wi.FullUrl() != "" && strings.HasPrefix(wi.FullUrl(), "http")
+}
+
+func (wi *WorkflowInclude) Filename() string {
+	return utils.AbsoluteFilePath(wi.File)
+}
+
 func (wi *WorkflowInclude) FullUrl() string {
 	if strings.HasPrefix(strings.TrimSpace(wi.Url), "gh:") {
 		return "https://raw.githubusercontent.com/" + strings.TrimPrefix(wi.Url, "gh:")
@@ -225,6 +238,18 @@ func (wi *WorkflowInclude) DisplayUrl() string {
 	displayUrl = strings.Replace(displayUrl, "raw.githubusercontent.com/", "", -1)
 
 	return displayUrl
+}
+
+func (wi *WorkflowInclude) DisplayName() string {
+	if wi.IsRemoteUrl() {
+		return wi.DisplayUrl()
+	}
+
+	if wi.IsLocalFile() {
+		return wi.Filename()
+	}
+
+	return "<unknown>"
 }
 
 func (wi *WorkflowInclude) SetChecksumIsValid(value bool) {
@@ -360,11 +385,20 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 }
 
 func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
-	if !strings.HasPrefix(strings.TrimSpace(include.FullUrl()), "https") || include.Url == "" {
+	if !include.IsLocalFile() && !include.IsRemoteUrl() {
 		return false
 	}
 
-	contents, err := utils.GetUrlContents(include.FullUrl())
+	var contents string
+	var err error
+
+	if include.IsLocalFile() {
+		contents, err = utils.GetFileContents(include.Filename())
+	} else if include.IsRemoteUrl() {
+		contents, err = utils.GetUrlContents(include.FullUrl())
+	} else {
+		return false
+	}
 
 	if err != nil {
 		fmt.Println(err)
@@ -373,28 +407,30 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 
 	include.ValidationState = "checksum not validated"
 
-	if *include.VerifyChecksum == true || include.VerifyChecksum == nil {
-		//support.StatusMessage("Validating checksum for remote include: "+include.DisplayUrl(), false)
-		validated, err := include.ValidateChecksum(contents)
+	if include.IsRemoteUrl() {
+		if *include.VerifyChecksum == true || include.VerifyChecksum == nil {
+			//support.StatusMessage("Validating checksum for remote include: "+include.DisplayUrl(), false)
+			validated, err := include.ValidateChecksum(contents)
 
-		if include.ChecksumIsValid != nil && *include.ChecksumIsValid == true {
-			include.ValidationState = "checksum validated"
-		}
+			if include.ChecksumIsValid != nil && *include.ChecksumIsValid == true {
+				include.ValidationState = "checksum validated"
+			}
 
-		if include.ChecksumIsValid != nil && *include.ChecksumIsValid == false {
-			include.ValidationState = "checksum mismatch"
-		}
+			if include.ChecksumIsValid != nil && *include.ChecksumIsValid == false {
+				include.ValidationState = "checksum mismatch"
+			}
 
-		if err != nil {
-			fmt.Println(err)
-			return false
-		}
-
-		if !validated {
-			if App.Workflow.Settings.ExitOnChecksumMismatch {
-				support.FailureMessageWithXMark("Exiting due to checksum mismatch.")
-				App.exitApp()
+			if err != nil {
+				fmt.Println(err)
 				return false
+			}
+
+			if !validated {
+				if App.Workflow.Settings.ExitOnChecksumMismatch {
+					support.FailureMessageWithXMark("Exiting due to checksum mismatch.")
+					App.exitApp()
+					return false
+				}
 			}
 		}
 	}
@@ -408,7 +444,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	}
 
 	if len(template.Init) > 0 {
-		workflow.Init += "\n\n" + template.Init
+		workflow.Init += "\n" + template.Init
 	}
 
 	// prepend the included preconditions; we reverse the order of the preconditions in the included file,
@@ -430,7 +466,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		App.Workflow.Tasks = append(App.Workflow.Tasks, t)
 	}
 
-	support.SuccessMessageWithCheck("Included remote file (" + include.ValidationState + "): " + include.DisplayUrl())
+	support.SuccessMessageWithCheck("Included file (" + include.ValidationState + "): " + include.DisplayName())
 
 	return true
 }

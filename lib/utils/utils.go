@@ -267,3 +267,18 @@ func ReplaceFilenameInUrl(u string, newFilename string) (string, error) {
 
 	return parsedUrl.String(), nil
 }
+
+func GetFileContents(filename string) (string, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	contents, err := io.ReadAll(file)
+	if err != nil {
+		return "", err
+	}
+
+	return string(contents), nil
+}
