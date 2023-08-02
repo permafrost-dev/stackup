@@ -4,6 +4,7 @@ version: 1.0.0
 
 settings:
   exit-on-checksum-mismatch: false
+  dotenv: ['.env']
   defaults:
     tasks:
       silent: false
