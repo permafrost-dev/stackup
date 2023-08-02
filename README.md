@@ -66,8 +66,8 @@ name: my stack
 version: 1.0.0
 
 settings:
-  dotenv: ['.env', '.env.local']
-  exit-on-checksum-mismatch: false
+  dotenv: ['.env', '.env.local'] # loads both `.env` and `.env.local` files, defaults to `.env`.
+  exit-on-checksum-mismatch: false # do not exit if a checksum mismatch occurs, defaults to true.
   defaults:
     tasks:
       silent: true
