@@ -136,6 +136,47 @@ func GetUrlContents(url string) (string, error) {
 	return string(body), nil
 }
 
+func GetUrlContentsEx(url string, headers []string) (string, error) {
+	// remove the header items that are empty strings:
+	var tempHeaders []string
+	for _, header := range headers {
+		if strings.TrimSpace(header) != "" {
+			tempHeaders = append(tempHeaders, header)
+		}
+	}
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	// Add headers to the request
+	for _, header := range tempHeaders {
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) == 2 {
+			req.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+		}
+	}
+
+	// Add a cache-busting query parameter to the URL
+	req.URL.RawQuery = "nocache=" + GenerateShortID(8)
+
+	// Send the HTTP request and get the response
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	// Read the response body into a byte slice
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return string(body), nil
+}
+
 func GetUrlJson(url string) (interface{}, error) {
 	body, err := GetUrlContents(url)
 	if err != nil {

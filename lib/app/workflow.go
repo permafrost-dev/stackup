@@ -34,13 +34,14 @@ type StackupWorkflow struct {
 }
 
 type WorkflowInclude struct {
-	Url             string `yaml:"url"`
-	File            string `yaml:"file"`
-	ChecksumUrl     string `yaml:"checksum-url"`
-	VerifyChecksum  *bool  `yaml:"verify,omitempty"`
-	AccessKey       string `yaml:"access-key"`
-	SecretKey       string `yaml:"secret-key"`
-	Secure          bool   `yaml:"secure"`
+	Url             string   `yaml:"url"`
+	Headers         []string `yaml:"headers"`
+	File            string   `yaml:"file"`
+	ChecksumUrl     string   `yaml:"checksum-url"`
+	VerifyChecksum  *bool    `yaml:"verify,omitempty"`
+	AccessKey       string   `yaml:"access-key"`
+	SecretKey       string   `yaml:"secret-key"`
+	Secure          bool     `yaml:"secure"`
 	ChecksumIsValid *bool
 	ValidationState string
 	Contents        string
@@ -341,6 +342,11 @@ func (workflow *StackupWorkflow) Initialize() {
 		}
 	}
 
+	// initialize the includes
+	for _, inc := range workflow.Includes {
+		inc.Initialize()
+	}
+
 	workflow.ProcessIncludes()
 
 	if len(workflow.Init) > 0 {
@@ -400,7 +406,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	if include.IsLocalFile() {
 		contents, err = utils.GetFileContents(include.Filename())
 	} else if include.IsRemoteUrl() {
-		contents, err = utils.GetUrlContents(include.FullUrl())
+		contents, err = utils.GetUrlContentsEx(include.FullUrl(), include.Headers)
 	} else if include.IsS3Url() {
 		include.AccessKey = os.ExpandEnv(include.AccessKey)
 		include.SecretKey = os.ExpandEnv(include.SecretKey)
@@ -487,4 +493,14 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	support.SuccessMessageWithCheck("Included file (" + include.ValidationState + "): " + include.DisplayName())
 
 	return true
+}
+
+func (inc *WorkflowInclude) Initialize() {
+	// expand environment variables in the include headers
+	for i, v := range inc.Headers {
+		if App.JsEngine.IsEvaluatableScriptString(v) {
+			inc.Headers[i] = App.JsEngine.Evaluate(v).(string)
+		}
+		inc.Headers[i] = os.ExpandEnv(v)
+	}
 }
