@@ -9,6 +9,7 @@ import (
 	lla "github.com/emirpasic/gods/lists/arraylist"
 	lls "github.com/emirpasic/gods/stacks/linkedliststack"
 	"github.com/stackup-app/stackup/lib/checksums"
+	"github.com/stackup-app/stackup/lib/downloader"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/utils"
 	"gopkg.in/yaml.v2"
@@ -37,8 +38,12 @@ type WorkflowInclude struct {
 	File            string `yaml:"file"`
 	ChecksumUrl     string `yaml:"checksum-url"`
 	VerifyChecksum  *bool  `yaml:"verify,omitempty"`
+	AccessKey       string `yaml:"access-key"`
+	SecretKey       string `yaml:"secret-key"`
+	Secure          bool   `yaml:"secure"`
 	ChecksumIsValid *bool
 	ValidationState string
+	Contents        string
 }
 
 type WorkflowSettings struct {
@@ -200,6 +205,10 @@ func (wi *WorkflowInclude) IsRemoteUrl() bool {
 	return wi.FullUrl() != "" && strings.HasPrefix(wi.FullUrl(), "http")
 }
 
+func (wi *WorkflowInclude) IsS3Url() bool {
+	return wi.FullUrl() != "" && strings.HasPrefix(wi.FullUrl(), "s3:")
+}
+
 func (wi *WorkflowInclude) Filename() string {
 	return utils.AbsoluteFilePath(wi.File)
 }
@@ -222,6 +231,7 @@ func (wi *WorkflowInclude) DisplayUrl() string {
 	displayUrl := strings.Replace(wi.FullUrl(), "https://", "", -1)
 	displayUrl = strings.Replace(displayUrl, "github.com/", "", -1)
 	displayUrl = strings.Replace(displayUrl, "raw.githubusercontent.com/", "", -1)
+	// displayUrl = strings.Replace(displayUrl, "s3://", "", -1)
 
 	return displayUrl
 }
@@ -233,6 +243,10 @@ func (wi *WorkflowInclude) DisplayName() string {
 
 	if wi.IsLocalFile() {
 		return wi.Filename()
+	}
+
+	if wi.IsS3Url() {
+		return wi.DisplayUrl()
 	}
 
 	return "<unknown>"
@@ -376,7 +390,7 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 }
 
 func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
-	if !include.IsLocalFile() && !include.IsRemoteUrl() {
+	if !include.IsLocalFile() && !include.IsRemoteUrl() && !include.IsS3Url() {
 		return false
 	}
 
@@ -387,9 +401,22 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		contents, err = utils.GetFileContents(include.Filename())
 	} else if include.IsRemoteUrl() {
 		contents, err = utils.GetUrlContents(include.FullUrl())
+	} else if include.IsS3Url() {
+		include.AccessKey = os.ExpandEnv(include.AccessKey)
+		include.SecretKey = os.ExpandEnv(include.SecretKey)
+
+		contents = downloader.ReadS3FileContents(include.FullUrl(), include.AccessKey, include.SecretKey, include.Secure)
 	} else {
 		return false
 	}
+
+	contents = strings.TrimSpace(contents)
+
+	include.Contents = contents
+
+	// fmt.Printf("include: %s\n", include.DisplayName())
+	// fmt.Printf("include: %s\n", include.FullUrl())
+	// fmt.Printf("contents: %s\n", include.Contents)
 
 	if err != nil {
 		fmt.Println(err)

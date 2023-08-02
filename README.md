@@ -99,9 +99,11 @@ env:
 
 ### Configuration: Includes
 
-The `includes` section of the configuration file is used to specify a list of filenames or file urls that should be merged with the configuration.  This is useful for splitting up a large configuration file into smaller, more manageable files or reusing commonly-used tasks, init scripts, or preconditions. Startup, shutdown, servers, and scheduled tasks are not merged from the included files.
+The `includes` section of the configuration file is used to specify a list of filenames, file urls, or s3 urls that should be merged with the configuration.  This is useful for splitting up a large configuration file into smaller, more manageable files or reusing commonly-used tasks, init scripts, or preconditions. Startup, shutdown, servers, and scheduled tasks are not merged from the included files.
 
 Included urls can be prefixed with `gh:` to indicate that the file should be fetched from GitHub.  For example, `gh:permafrost-dev/stackup/main/templates/stackup.dist.yaml` will fetch the `stackup.dist.yaml` file from the `permafrost-dev/stackup` repository on GitHub.
+
+To use a file from an S3 bucket, prefix the url with `s3:`. For example, `s3:hostname/my-bucket-name/my-config.yaml` will fetch the `my-config.yaml` file from the `my-bucket-name` bucket on `hostname`. Amazon S3 and Minio are supported.
 
 Included files can be specified with either a relative or absolute pathname.  Relative pathnames are relative to the directory containing the configuration file.  Absolute pathnames are relative to the current working directory.
 
@@ -111,6 +113,11 @@ includes:
     verify: false # optional, defaults to true
 
   - file: python.yaml # includes a local file
+
+  - url: s3:127.0.0.1:9000/stackup-includes/python.yaml # includes a file from a minio bucket
+    access-key: $S3_KEY # access key loaded from `.env` or `env` section
+    secret-key: $S3_SECRET # secret key env loaded from `.env` or `env` section
+    secure: false # optional, defaults to true
 ```
 
 If the optional field `verify` is set to `false`, the application will not attempt to verify the checksum of the file before fetching it.  This may be useful for files that are frequently updated, but is not recommended.
