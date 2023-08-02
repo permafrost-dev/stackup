@@ -1,20 +1,20 @@
 template:
   name: python project tasks
   version: 1.0.0
-  last-modified: 2023-Aug-01 11:00
+  last-modified: 2023-Aug-01 21:11
   author: Patrick Organ <patrick@permafrost.dev>
   description: stackup tasks for python-based projects
 
 init: |
-    vars.Set("pythonBin", "python")
-    if binaryExists("python3") {
+    vars.Set("pythonBin", "python");
+    if (binaryExists("python3")) {
         vars.Set("pythonBin", "python3");
     }
-    vars.Set("python_version", semver(outputOf(vars.Get("pythonBin") + " --version")));
+    vars.Set("python_version", semver(outputOf($pythonBin + " --version")));
 
 preconditions:
     - name: python is installed
-      check: binaryExists(vars.Get("pythonBin"))
+      check: binaryExists($pythonBin)
 
     - name: python is version 3+
       check: $python_version.Gte("3")
