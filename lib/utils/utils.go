@@ -126,6 +126,10 @@ func GetUrlContents(url string) (string, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("HTTP error: %d", resp.StatusCode)
+	}
+
 	// Read the response body into a byte slice
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -133,6 +137,51 @@ func GetUrlContents(url string) (string, error) {
 	}
 
 	// Convert the byte slice to a string and return it
+	return string(body), nil
+}
+
+func GetUrlContentsEx(url string, headers []string) (string, error) {
+	// remove the header items that are empty strings:
+	var tempHeaders []string
+	for _, header := range headers {
+		if strings.TrimSpace(header) != "" {
+			tempHeaders = append(tempHeaders, header)
+		}
+	}
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	// Add headers to the request
+	for _, header := range tempHeaders {
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) == 2 {
+			req.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+		}
+	}
+
+	// Add a cache-busting query parameter to the URL
+	//req.URL.RawQuery = "nocache=" + GenerateShortID(8)
+
+	// Send the HTTP request and get the response
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("HTTP error: %d", resp.StatusCode)
+	}
+
+	// Read the response body into a byte slice
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
 	return string(body), nil
 }
 
@@ -281,4 +330,17 @@ func GetFileContents(filename string) (string, error) {
 	}
 
 	return string(contents), nil
+}
+
+func GetUrlHostAndPath(urlStr string) string {
+	parsedUrl, err := url.Parse(urlStr)
+	if err != nil {
+		return path.Dir(urlStr)
+	}
+
+	return parsedUrl.Host + parsedUrl.Path
+}
+
+func GetProjectName() string {
+	return path.Base(WorkingDir())
 }

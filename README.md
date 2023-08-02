@@ -57,6 +57,7 @@ The `settings` section of the configuration file is used to configure the applic
 | `defaults.tasks.platforms` | default platforms for tasks | no |
 | `defaults.tasks.silent` | default silent setting for tasks | no |
 | `dotenv`  | array of `.env` filenames to load  | no        |
+| `cache.ttl-minutes` | number of minutes to cache remote files | no |
 | `exit-on-checksum-mismatch` | `boolean` value specifying whether to exit if a checksum mismatch occurs when including a remote file | no |
 
 Example `settings` section:
@@ -68,6 +69,8 @@ version: 1.0.0
 settings:
   dotenv: ['.env', '.env.local'] # loads both `.env` and `.env.local` files, defaults to `.env`.
   exit-on-checksum-mismatch: false # do not exit if a checksum mismatch occurs, defaults to true.
+  cache:
+    ttl-minutes: 60 # cache remote files for 60 minutes, defaults to 5 minutes.
   defaults:
     tasks:
       silent: true
@@ -102,8 +105,19 @@ env:
 The `includes` section of the configuration file is used to specify a list of filenames, file urls, or s3 urls that should be merged with the configuration.  This is useful for splitting up a large configuration file into smaller, more manageable files or reusing commonly-used tasks, init scripts, or preconditions. Startup, shutdown, servers, and scheduled tasks are not merged from the included files.
 
 Included urls can be prefixed with `gh:` to indicate that the file should be fetched from GitHub.  For example, `gh:permafrost-dev/stackup/main/templates/stackup.dist.yaml` will fetch the `stackup.dist.yaml` file from the `permafrost-dev/stackup` repository on GitHub.
+Add a `headers` field to the `url` entry to specify headers to send with the request.  The `headers` field should be an array of strings, where each string is a header to send with the request.  The header value can be a javascript expression if wrapped in double braces.  For example:
 
-To use a file from an S3 bucket, prefix the url with `s3:`. For example, `s3:hostname/my-bucket-name/my-config.yaml` will fetch the `my-config.yaml` file from the `my-bucket-name` bucket on `hostname`. Amazon S3 and Minio are supported.
+```yaml
+  - url: gh:permafrost-dev/stackup/main/templates/remote-includes/node.yaml
+    headers:
+      - 'Authorization: token $GITHUB_TOKEN' 
+
+  - url: gh:permafrost-dev/stackup/main/templates/remote-includes/php.yaml
+    headers:
+      - '{{ "Authorization: token " + $myGithubTokenVar }}'
+```
+
+To import a file from an S3 bucket, prefix the url with `s3:`. For example, `s3:hostname/my-bucket-name/my-config.yaml` will fetch the `my-config.yaml` file from the `my-bucket-name` bucket on `hostname`. Amazon S3 and Minio are supported.
 
 Included files can be specified with either a relative or absolute pathname.  Relative pathnames are relative to the directory containing the configuration file.  Absolute pathnames are relative to the current working directory.
 
@@ -111,6 +125,10 @@ Included files can be specified with either a relative or absolute pathname.  Re
 includes:
   - url: gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
     verify: false # optional, defaults to true
+
+  - url: gh:permafrost-dev/stackup/main/templates/remote-includes/node.yaml
+    headers:
+      - 'Authorization: token $GITHUB_TOKEN' # headers to send with the request, can be javascript if wrapped in double braces
 
   - file: python.yaml # includes a local file
 
