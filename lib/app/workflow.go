@@ -14,21 +14,20 @@ import (
 )
 
 type StackupWorkflow struct {
-	Name                string            `yaml:"name"`
-	Description         string            `yaml:"description"`
-	Version             string            `yaml:"version"`
-	Settings            *WorkflowSettings `yaml:"settings"`
-	Init                string            `yaml:"init"`
-	Preconditions       []*Precondition   `yaml:"preconditions"`
-	Tasks               []*Task           `yaml:"tasks"`
-	TaskList            *lla.List
-	Startup             []TaskReference    `yaml:"startup"`
-	Shutdown            []TaskReference    `yaml:"shutdown"`
-	Servers             []TaskReference    `yaml:"servers"`
-	Scheduler           []ScheduledTask    `yaml:"scheduler"`
-	Includes            []*WorkflowInclude `yaml:"includes"`
-	State               *StackupWorkflowState
-	RemoteTemplateIndex *RemoteTemplateIndex
+	Name          string            `yaml:"name"`
+	Description   string            `yaml:"description"`
+	Version       string            `yaml:"version"`
+	Settings      *WorkflowSettings `yaml:"settings"`
+	Init          string            `yaml:"init"`
+	Preconditions []*Precondition   `yaml:"preconditions"`
+	Tasks         []*Task           `yaml:"tasks"`
+	TaskList      *lla.List
+	Startup       []TaskReference    `yaml:"startup"`
+	Shutdown      []TaskReference    `yaml:"shutdown"`
+	Servers       []TaskReference    `yaml:"servers"`
+	Scheduler     []ScheduledTask    `yaml:"scheduler"`
+	Includes      []*WorkflowInclude `yaml:"includes"`
+	State         *StackupWorkflowState
 }
 
 type WorkflowInclude struct {
@@ -70,15 +69,6 @@ type Precondition struct {
 	FromRemote bool
 	Attempts   int
 	MaxRetries *int `yaml:"max-retries,omitempty"`
-}
-
-type TaskReference struct {
-	Task string `yaml:"task"`
-}
-
-type ScheduledTask struct {
-	Task string `yaml:"task"`
-	Cron string `yaml:"cron"`
 }
 
 func GetState() *StackupWorkflowState {
@@ -367,8 +357,6 @@ func (workflow *StackupWorkflow) RemoveTasks(uuidsToRemove []string) {
 }
 
 func (workflow *StackupWorkflow) ProcessIncludes() {
-	workflow.RemoteTemplateIndex = &RemoteTemplateIndex{Loaded: false}
-
 	// set default value for verify checksum to true
 	for _, wi := range workflow.Includes {
 		if wi.VerifyChecksum == nil {
@@ -469,20 +457,4 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	support.SuccessMessageWithCheck("Included file (" + include.ValidationState + "): " + include.DisplayName())
 
 	return true
-}
-
-func (tr *TaskReference) TaskId() string {
-	if App.JsEngine.IsEvaluatableScriptString(tr.Task) {
-		return App.JsEngine.Evaluate(tr.Task).(string)
-	}
-
-	return tr.Task
-}
-
-func (st *ScheduledTask) TaskId() string {
-	if App.JsEngine.IsEvaluatableScriptString(st.Task) {
-		return App.JsEngine.Evaluate(st.Task).(string)
-	}
-
-	return st.Task
 }

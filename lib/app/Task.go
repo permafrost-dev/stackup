@@ -35,6 +35,15 @@ type Task struct {
 	FromRemote bool
 }
 
+type TaskReference struct {
+	Task string `yaml:"task"`
+}
+
+type ScheduledTask struct {
+	Task string `yaml:"task"`
+	Cron string `yaml:"cron"`
+}
+
 func (task *Task) CanRunOnCurrentPlatform() bool {
 	if task.Platforms == nil || len(task.Platforms) == 0 {
 		return true
@@ -184,4 +193,20 @@ func (task *Task) Run(synchronous bool) {
 	support.PrintCheckMarkLine()
 
 	App.ProcessMap.Store(task.Uuid, cmd)
+}
+
+func (tr *TaskReference) TaskId() string {
+	if App.JsEngine.IsEvaluatableScriptString(tr.Task) {
+		return App.JsEngine.Evaluate(tr.Task).(string)
+	}
+
+	return tr.Task
+}
+
+func (st *ScheduledTask) TaskId() string {
+	if App.JsEngine.IsEvaluatableScriptString(st.Task) {
+		return App.JsEngine.Evaluate(st.Task).(string)
+	}
+
+	return st.Task
 }
