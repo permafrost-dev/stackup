@@ -5,6 +5,7 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"fmt"
+	"path"
 	"regexp"
 	"strings"
 
@@ -39,7 +40,7 @@ func ParseChecksumFileContents(contents string) ([]*Checksum, error) {
 
 func FindChecksumForFileFromUrl(checksums []*Checksum, url string) *Checksum {
 	for _, checksum := range checksums {
-		if checksum.FilenameAsUrl(url) == url {
+		if path.Base(checksum.Filename) == path.Base(url) {
 			return checksum
 		}
 	}
