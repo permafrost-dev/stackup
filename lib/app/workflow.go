@@ -49,21 +49,22 @@ type WorkflowInclude struct {
 	ValidationState string
 	Contents        string
 	Hash            string
-	Workflow        *StackupWorkflow
+	//Workflow        *StackupWorkflow
 }
 
 type WorkflowSettings struct {
 	Defaults               *WorkflowSettingsDefaults `yaml:"defaults"`
 	ExitOnChecksumMismatch bool                      `yaml:"exit-on-checksum-mismatch"`
 	DotEnvFiles            []string                  `yaml:"dotenv"`
-	Cache                  struct {
-		TtlMinutes int `yaml:"ttl-minutes"`
-	} `yaml:"cache"`
-	Domains struct {
+	Cache                  *WorkflowSettingsCache    `yaml:"cache"`
+	Domains                struct {
 		Allowed []string `yaml:"allowed"`
 	} `yaml:"domains"`
 }
 
+type WorkflowSettingsCache struct {
+	TtlMinutes int `yaml:"ttl-minutes"`
+}
 type WorkflowSettingsDefaults struct {
 	Tasks *WorkflowSettingsDefaultsTasks `yaml:"tasks"`
 }
@@ -151,13 +152,13 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
 	algorithm := ""
 	storedChecksum := ""
 	checksumContents := ""
-	hashUrl := ""
 
 	for _, url := range checksumUrls {
-		if wi.Workflow.Cache.Has(url) && !wi.Workflow.Cache.IsExpired(url) {
-			hashUrl = url
-			checksumContents = wi.Workflow.Cache.Get(url)
-			fmt.Printf("using cached checksum file %s\n", url)
+
+		if !App.Workflow.Cache.IsExpired(url) {
+			wi.ChecksumUrl = url
+			checksumContents = App.Workflow.Cache.Get(url)
+			// fmt.Printf("using cached checksum file %s\n", url)
 			break
 		}
 
@@ -166,10 +167,12 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
 			continue
 		}
 
+		wi.ChecksumUrl = url
+
 		if checksumContents != "" {
-			hashUrl = url
-			wi.Workflow.Cache.Set(url, checksumContents, wi.Workflow.Settings.Cache.TtlMinutes)
-			fmt.Printf("using non-cached checksum file %s\n", url)
+			// fmt.Printf("using checksum file %s\n", wi.ChecksumUrl)
+			App.Workflow.Cache.Set(url, checksumContents, 3)
+			// fmt.Printf("using non-cached checksum file %s\n", url)
 			break
 		}
 	}
@@ -177,11 +180,14 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, error) {
 	if checksumContents != "" {
 		storedChecksum = wi.getChecksumFromContents(checksumContents)
 
-		wi.ChecksumUrl = hashUrl
+		// wi.ChecksumUrl = hashUrl
+		// fmt.Println("checksum url: " + wi.ChecksumUrl)
 		algorithm = wi.GetChecksumAlgorithm()
 	}
 
-	if algorithm == "unknown" {
+	// algorithm = "sha256"
+
+	if algorithm == "unknown" || algorithm == "" {
 		return false, fmt.Errorf("unable to find valid checksum file for %s", wi.DisplayUrl())
 	}
 
@@ -318,7 +324,7 @@ func (workflow *StackupWorkflow) reversePreconditions(items []*Precondition) []*
 }
 
 func (workflow *StackupWorkflow) Initialize() {
-	workflow.Cache = cache.CreateCache(utils.GetProjectName())
+	workflow.Cache = cache.CreateCache("")
 
 	// generate uuids for each task as the initial step, as other code below relies on a uuid existing
 	for _, task := range workflow.Tasks {
@@ -336,6 +342,7 @@ func (workflow *StackupWorkflow) Initialize() {
 	if workflow.Settings == nil {
 		workflow.Settings = &WorkflowSettings{
 			DotEnvFiles: []string{".env"},
+			Cache:       &WorkflowSettingsCache{TtlMinutes: 5},
 			Defaults: &WorkflowSettingsDefaults{
 				Tasks: &WorkflowSettingsDefaultsTasks{
 					Silent:    false,
@@ -371,7 +378,7 @@ func (workflow *StackupWorkflow) Initialize() {
 
 	// initialize the includes
 	for _, inc := range workflow.Includes {
-		inc.Initialize(workflow)
+		inc.Initialize()
 	}
 
 	workflow.ProcessIncludes()
@@ -416,9 +423,9 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 	var wg sync.WaitGroup
 	for _, include := range workflow.Includes {
 		wg.Add(1)
-		go func(include *WorkflowInclude) {
+		go func(inc *WorkflowInclude) {
 			defer wg.Done()
-			workflow.ProcessInclude(include)
+			workflow.ProcessInclude(inc)
 		}(include)
 	}
 	wg.Wait()
@@ -429,17 +436,16 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		return false
 	}
 
-	var contents string
 	var err error
 
 	if workflow.Cache.Has(include.DisplayName()) && !workflow.Cache.IsExpired(include.DisplayName()) {
 		include.Contents = workflow.Cache.Get(include.DisplayName())
 		include.Hash = workflow.Cache.GetHash(include.DisplayName())
-		fmt.Println("loaded from cache")
+		// fmt.Println("loaded from cache")
 	}
 
 	if !workflow.Cache.Has(include.DisplayName()) || workflow.Cache.IsExpired(include.DisplayName()) {
-		fmt.Println("not loaded from cache")
+		// fmt.Println("not loaded from cache")
 		if include.IsLocalFile() {
 			include.Contents, err = utils.GetFileContents(include.Filename())
 		} else if include.IsRemoteUrl() {
@@ -453,7 +459,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		}
 
 		include.Hash = checksums.CalculateSha256Hash(include.Contents)
-		workflow.Cache.Set(include.DisplayName(), include.Contents, workflow.Settings.Cache.TtlMinutes)
+		workflow.Cache.Set(include.DisplayName(), include.Contents, 3)
 	}
 
 	// fmt.Printf("value: %v\n", workflow.Cache.Get(include.DisplayName()))
@@ -473,8 +479,8 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 
 	if include.IsRemoteUrl() {
 		if *include.VerifyChecksum == true || include.VerifyChecksum == nil {
-			//support.StatusMessage("Validating checksum for remote include: "+include.DisplayUrl(), false)
-			validated, err := include.ValidateChecksum(include.Contents)
+			// support.StatusMessage("Validating checksum for remote include: "+include.DisplayUrl(), false)
+			validated, _ := include.ValidateChecksum(include.Contents)
 
 			if include.ChecksumIsValid != nil && *include.ChecksumIsValid == true {
 				include.ValidationState = "checksum validated"
@@ -484,10 +490,10 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 				include.ValidationState = "checksum mismatch"
 			}
 
-			if err != nil {
-				fmt.Println(err)
-				return false
-			}
+			// if err != nil {
+			// 	fmt.Println(err)
+			// 	return false
+			// }
 
 			if !validated {
 				if App.Workflow.Settings.ExitOnChecksumMismatch {
@@ -500,7 +506,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	}
 
 	template := &IncludedTemplate{}
-	err = yaml.Unmarshal([]byte(contents), template)
+	err = yaml.Unmarshal([]byte(include.Contents), template)
 
 	if err != nil {
 		fmt.Println(err)
@@ -508,21 +514,21 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	}
 
 	if len(template.Init) > 0 {
-		workflow.Init += "\n" + template.Init
+		App.Workflow.Init += "\n" + template.Init
 	}
 
 	// prepend the included preconditions; we reverse the order of the preconditions in the included file,
 	// then reverse the existing preconditions, append them, then reverse the workflow preconditions again
 	// to achieve the correct order.
-	App.Workflow.Preconditions = workflow.reversePreconditions(App.Workflow.Preconditions)
-	template.Preconditions = workflow.reversePreconditions(template.Preconditions)
+	App.Workflow.Preconditions = App.Workflow.reversePreconditions(App.Workflow.Preconditions)
+	template.Preconditions = App.Workflow.reversePreconditions(template.Preconditions)
 
 	for _, p := range template.Preconditions {
 		p.FromRemote = true
 		App.Workflow.Preconditions = append(App.Workflow.Preconditions, p)
 	}
 
-	App.Workflow.Preconditions = workflow.reversePreconditions(App.Workflow.Preconditions)
+	App.Workflow.Preconditions = App.Workflow.reversePreconditions(App.Workflow.Preconditions)
 
 	for _, t := range template.Tasks {
 		t.FromRemote = true
@@ -535,8 +541,8 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	return true
 }
 
-func (wi *WorkflowInclude) Initialize(workflow *StackupWorkflow) {
-	wi.Workflow = workflow
+func (wi *WorkflowInclude) Initialize() {
+	//wi.Workflow = workflow
 
 	// expand environment variables in the include headers
 	for i, v := range wi.Headers {

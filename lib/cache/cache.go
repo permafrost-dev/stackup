@@ -23,6 +23,7 @@ type Cache struct {
 func CreateCache(name string) *Cache {
 	result := Cache{Name: name, Enabled: false}
 	result.Init()
+	result.Enabled = true
 
 	return &result
 }
@@ -39,7 +40,7 @@ func ensureConfigDirExists(dirName string) (string, error) {
 	configDir := filepath.Join(homeDir, dirName)
 
 	// Ensure the directory exists
-	err = os.MkdirAll(configDir, 0700)
+	err = os.MkdirAll(configDir, 0744)
 	if err != nil {
 		return "", err
 	}
@@ -79,7 +80,6 @@ func (c *Cache) Init() {
 	})
 
 	c.Enabled = true
-	c.purgeExpired()
 }
 
 // The `Get` function in the `Cache` struct is used to retrieve the value of a cache entry with a given
@@ -87,14 +87,14 @@ func (c *Cache) Init() {
 func (c *Cache) Get(key string) string {
 	var result string
 
-	if !c.Has(key) {
-		return ""
-	}
+	// if !c.Has(key) {
+	// 	return ""
+	// }
 
-	if c.IsExpired(key) {
-		c.purgeExpired()
-		return ""
-	}
+	// if c.IsExpired(key) {
+	// 	c.purgeExpired()
+	// 	return ""
+	// }
 
 	c.Db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(c.Name))
@@ -112,6 +112,7 @@ func (c *Cache) Get(key string) string {
 // function ensures that expired cache entries are automatically removed from the cache to free up
 // space and maintain cache integrity.
 func (c *Cache) purgeExpired() {
+	return
 	c.Db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(c.Name))
 		cur := b.Cursor()
