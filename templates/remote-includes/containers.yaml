@@ -1,9 +1,8 @@
-template:
-  name: container tasks
-  version: 1.0.0
-  last-modified: 2023-Jul-30 04:00
-  author: Patrick Organ <patrick@permafrost.dev>
-  description: stackup tasks for starting and stopping containers
+name: container tasks
+version: 1.0.0
+last-modified: 2023-Jul-30 04:00
+author: Patrick Organ <patrick@permafrost.dev>
+description: stackup tasks for starting and stopping containers
 
 init: |
   vars.Set("containerEngineBinary", "docker-compose");

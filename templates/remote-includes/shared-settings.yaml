@@ -9,11 +9,9 @@ settings:
   domains:
     allowed:
       - '*.githubusercontent.com'
-      - '*.github.com'
+      - api.github.com
       - app.posthog.com
 
 init:
-
 preconditions:
-
 tasks:

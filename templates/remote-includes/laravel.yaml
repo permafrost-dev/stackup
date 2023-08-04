@@ -1,9 +1,8 @@
-template:
-  name: laravel project tasks
-  version: 1.0.0
-  last-modified: 2023-Jul-31 08:40
-  author: Patrick Organ <patrick@permafrost.dev>
-  description: stackup tasks for laravel-based projects
+name: laravel project tasks
+version: 1.0.0
+last-modified: 2023-Jul-31 08:40
+author: Patrick Organ <patrick@permafrost.dev>
+description: stackup tasks for laravel-based projects
 
 init: |
     vars.Set("laravel-version", semver(outputOf("php artisan --version")));
