@@ -42,6 +42,17 @@ stackup init
 stackup --no-update-check
 ```
 
+## Feature Notes
+
+`StackUp` offers many features and advanced functionality. Here are some of the highlights:
+
+- Request cache to speed up remote file downloads.
+- Request gateway that acts as a firewall to prevent remote file access unless it's been explicitly allowed.
+- Scriptable tasks and preconditions using javascript.
+- Share common configurations: include remote files from GitHub, S3, or any other URL.
+- Checksum validation of remotely included files.
+- Run tasks on a cron schedule, i.e. running `php artisan schedule:run` once every minute.
+
 ## Configuration
 
 The application is configured using a YAML file named `stackup.yaml` and contains five required sections: `preconditions`, `tasks`, `startup`, `shutdown`, and `scheduler`.
