@@ -4,7 +4,15 @@ version: 1.0.0
 
 settings:
   exit-on-checksum-mismatch: false
-  dotenv: ['.env']
+  dotenv: ['.env', '.env.local']
+  checksum-verification: false
+  cache:
+    ttl-minutes: 15
+  domains:
+    allowed:
+      - raw.githubusercontent.com
+      - '*.githubusercontent.com'
+      - api.github.com
   defaults:
     tasks:
       silent: false
