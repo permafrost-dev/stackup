@@ -591,11 +591,6 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 					include.ValidationState = "verification failed"
 				}
 
-				// if err != nil {
-				// 	fmt.Println(err)
-				// 	return false
-				// }
-
 				if !include.ChecksumValidated && App.Workflow.Settings.ExitOnChecksumMismatch {
 					support.FailureMessageWithXMark("Exiting due to checksum mismatch.")
 					App.exitApp()
@@ -618,9 +613,35 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		App.Workflow.Init += "\n" + template.Init
 	}
 
-	// prepend the included preconditions; we reverse the order of the preconditions in the included file,
-	// then reverse the existing preconditions, append them, then reverse the workflow preconditions again
-	// to achieve the correct order.
+	workflow.importPreconditionsFromIncludedTemplate(&template)
+	workflow.importTasksFromIncludedTemplate(&template)
+	workflow.copySettingsFromIncludedTemplate(&template)
+
+	workflow.Settings.Domains.Allowed = utils.GetUniqueStrings(workflow.Settings.Domains.Allowed)
+	App.Gateway.SetAllowedDomains(workflow.Settings.Domains.Allowed)
+
+	cachedText := ""
+	if include.FromCache {
+		cachedText = ", cached"
+	}
+
+	support.SuccessMessageWithCheck("Included file (" + include.ValidationState + cachedText + "): " + include.DisplayName())
+
+	return true
+}
+
+func (*StackupWorkflow) importTasksFromIncludedTemplate(template *IncludedTemplate) {
+	for _, t := range template.Tasks {
+		t.FromRemote = true
+		t.Uuid = utils.GenerateTaskUuid()
+		App.Workflow.Tasks = append(App.Workflow.Tasks, t)
+	}
+}
+
+// prepend the included preconditions; we reverse the order of the preconditions in the included file,
+// then reverse the existing preconditions, append them, then reverse the workflow preconditions again
+// to achieve the correct order.
+func (*StackupWorkflow) importPreconditionsFromIncludedTemplate(template *IncludedTemplate) {
 	App.Workflow.Preconditions = App.Workflow.reversePreconditions(App.Workflow.Preconditions)
 	template.Preconditions = App.Workflow.reversePreconditions(template.Preconditions)
 
@@ -630,22 +651,28 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	}
 
 	App.Workflow.Preconditions = App.Workflow.reversePreconditions(App.Workflow.Preconditions)
+}
 
-	for _, t := range template.Tasks {
-		t.FromRemote = true
-		t.Uuid = utils.GenerateTaskUuid()
-		App.Workflow.Tasks = append(App.Workflow.Tasks, t)
+func (workflow *StackupWorkflow) copySettingsFromIncludedTemplate(template *IncludedTemplate) {
+	if template.Settings != nil {
+		if template.Settings.ChecksumVerification != nil {
+			workflow.Settings.ChecksumVerification = template.Settings.ChecksumVerification
+		}
+		if template.Settings.AnonymousStatistics != nil {
+			workflow.Settings.AnonymousStatistics = template.Settings.AnonymousStatistics
+		}
+		if template.Settings.Domains != nil {
+			for _, domain := range template.Settings.Domains.Allowed {
+				workflow.Settings.Domains.Allowed = append(workflow.Settings.Domains.Allowed, domain)
+			}
+		}
+		if template.Settings.Cache != nil {
+			workflow.Settings.Cache = template.Settings.Cache
+		}
+		if template.Settings.Defaults != nil {
+			workflow.Settings.Defaults = template.Settings.Defaults
+		}
 	}
-
-	cachedText := ""
-
-	if include.FromCache {
-		cachedText = ", cached"
-	}
-
-	support.SuccessMessageWithCheck("Included file (" + include.ValidationState + cachedText + "): " + include.DisplayName())
-
-	return true
 }
 
 func (wi *WorkflowInclude) Initialize() {

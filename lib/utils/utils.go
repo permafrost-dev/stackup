@@ -344,3 +344,15 @@ func GetUrlHostAndPath(urlStr string) string {
 func GetProjectName() string {
 	return path.Base(WorkingDir())
 }
+
+func GetUniqueStrings(items []string) []string {
+	uniqueItems := make([]string, 0)
+
+	for _, item := range items {
+		if !StringArrayContains(uniqueItems, item) {
+			uniqueItems = append(uniqueItems, item)
+		}
+	}
+
+	return uniqueItems
+}
