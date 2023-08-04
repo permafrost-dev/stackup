@@ -1,9 +1,8 @@
-template:
-  name: example shared configuration settings
-  version: 1.0.0
-  last-modified: 2023-Aug-04 19:11
-  author: Patrick Organ <patrick@permafrost.dev>
-  description: example of shared configuration settings
+name: example shared configuration settings
+version: 1.0.0
+last-modified: 2023-Aug-04 19:11
+author: Patrick Organ <patrick@permafrost.dev>
+description: example of shared configuration settings
 
 settings:
   anonymous-stats: true
@@ -14,5 +13,7 @@ settings:
       - app.posthog.com
 
 init:
+
 preconditions:
+
 tasks:

@@ -526,6 +526,8 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	data, found := workflow.Cache.Get(include.DisplayName())
 	include.FromCache = found
 
+	fmt.Printf("data: %v\n", data)
+
 	if found {
 		include.Hash = data.Hash
 		include.HashAlgorithm = data.Hash
