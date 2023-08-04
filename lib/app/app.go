@@ -14,6 +14,7 @@ import (
 	"github.com/emirpasic/gods/stacks/linkedliststack"
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
+	"github.com/stackup-app/stackup/lib/gateway"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/updater"
 	"github.com/stackup-app/stackup/lib/utils"
@@ -42,7 +43,7 @@ type Application struct {
 	CmdStartCallback    CommandCallback
 	KillCommandCallback CommandCallback
 	ConfigFilename      string
-	Gatekeeper          *Gatekeeper
+	Gateway             *gateway.Gateway
 }
 
 func (a *Application) loadWorkflowFile(filename string) *StackupWorkflow {
@@ -68,7 +69,7 @@ func (a *Application) loadWorkflowFile(filename string) *StackupWorkflow {
 }
 
 func (a *Application) init() {
-	a.Gatekeeper = CreateGatekeeper()
+	a.Gateway = gateway.New([]string{}, []string{})
 	a.ConfigFilename = support.FindExistingFile([]string{"stackup.dist.yaml", "stackup.yaml"}, "stackup.yaml")
 
 	a.flags = AppFlags{
@@ -336,6 +337,8 @@ func (a *Application) Run() {
 	a.handleFlagOptions()
 
 	a.Workflow.Initialize()
+	a.Gateway.SetAllowedDomains(a.Workflow.Settings.Domains.Allowed)
+
 	if len(a.Workflow.Settings.DotEnvFiles) > 0 {
 		godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
 	}

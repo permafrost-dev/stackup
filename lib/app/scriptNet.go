@@ -15,7 +15,7 @@ func CreateScriptNetObject(vm *otto.Otto) {
 }
 
 func (net *ScriptNet) Fetch(url string) any {
-	if !App.Gatekeeper.CanAccessUrl(url) {
+	if !App.Gateway.Allowed(url) {
 		support.FailureMessageWithXMark("fetch failed: access to " + url + " is not allowed.")
 		return ""
 	}
@@ -26,7 +26,7 @@ func (net *ScriptNet) Fetch(url string) any {
 }
 
 func (net *ScriptNet) FetchJson(url string) any {
-	if !App.Gatekeeper.CanAccessUrl(url) {
+	if !App.Gateway.Allowed(url) {
 		support.FailureMessageWithXMark("fetchJson failed: access to " + url + " is not allowed.")
 		return interface{}(nil)
 	}
@@ -37,7 +37,7 @@ func (net *ScriptNet) FetchJson(url string) any {
 }
 
 func (net *ScriptNet) DownloadTo(url string, filename string) {
-	if !App.Gatekeeper.CanAccessUrl(url) {
+	if !App.Gateway.Allowed(url) {
 		support.FailureMessageWithXMark("download failed: access to " + url + " is not allowed.")
 		return
 	}

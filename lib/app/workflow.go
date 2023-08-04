@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"path"
 	"regexp"
@@ -163,7 +162,7 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, string, erro
 	}
 
 	for _, url := range checksumUrls {
-		if !App.Gatekeeper.CanAccessUrl(url) {
+		if !App.Gateway.Allowed(url) {
 			support.FailureMessageWithXMark("Access to " + url + " is not allowed.")
 			continue
 		}
@@ -395,6 +394,8 @@ func (workflow *StackupWorkflow) Initialize() {
 		workflow.Settings.Domains.Allowed = []string{"raw.githubusercontent.com", "api.github.com"}
 	}
 
+	App.Gateway.SetAllowedDomains(workflow.Settings.Domains.Allowed)
+
 	if workflow.Settings.Cache.TtlMinutes <= 0 {
 		workflow.Settings.Cache.TtlMinutes = 5
 	}
@@ -418,18 +419,17 @@ func (workflow *StackupWorkflow) Initialize() {
 		}
 	}
 
-	// ensure that the allowed domains are in the correct format, i.e. without a protocol or port
-	tempDomains := []string{}
-	for _, domain := range workflow.Settings.Domains.Allowed {
-		if strings.Contains(domain, "://") {
-			parsedUrl, _ := url.Parse(domain)
-			tempDomains = append(tempDomains, parsedUrl.Host)
-		} else {
-			tempDomains = append(tempDomains, domain)
-		}
-	}
-
-	copy(workflow.Settings.Domains.Allowed, tempDomains)
+	// // ensure that the allowed domains are in the correct format, i.e. without a protocol or port
+	// tempDomains := []string{}
+	// for _, domain := range workflow.Settings.Domains.Allowed {
+	// 	if strings.Contains(domain, "://") {
+	// 		parsedUrl, _ := url.Parse(domain)
+	// 		tempDomains = append(tempDomains, parsedUrl.Host)
+	// 	} else {
+	// 		tempDomains = append(tempDomains, domain)
+	// 	}
+	// }
+	// copy(workflow.Settings.Domains.Allowed, tempDomains)
 	// workflow.Settings.Domains.Allowed = tempDomains
 
 	// initialize the includes
@@ -498,7 +498,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	}
 
 	if include.IsS3Url() || include.IsRemoteUrl() {
-		if !App.Gatekeeper.CanAccessUrl(include.FullUrl()) {
+		if !App.Gateway.Allowed(include.FullUrl()) {
 			support.FailureMessageWithXMark("Access to " + include.FullUrl() + " is not allowed.")
 			return false
 		}
