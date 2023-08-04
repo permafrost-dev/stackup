@@ -92,7 +92,8 @@ settings:
     allowed:
       # domains allowed for remote file downloads and remote file includes.
       - raw.githubusercontent.com
-      - '*.github.com'
+      - api.github.com
+      - app.posthog.com # allow anonymous usage statistics to be sent
   defaults:
     tasks:
       silent: true
