@@ -421,10 +421,16 @@ func (workflow *StackupWorkflow) Initialize() {
 	// ensure that the allowed domains are in the correct format, i.e. without a protocol or port
 	tempDomains := []string{}
 	for _, domain := range workflow.Settings.Domains.Allowed {
-		parsedUrl, _ := url.Parse(domain)
-		tempDomains = append(tempDomains, parsedUrl.Host)
+		if strings.Contains(domain, "://") {
+			parsedUrl, _ := url.Parse(domain)
+			tempDomains = append(tempDomains, parsedUrl.Host)
+		} else {
+			tempDomains = append(tempDomains, domain)
+		}
 	}
-	workflow.Settings.Domains.Allowed = tempDomains
+
+	copy(workflow.Settings.Domains.Allowed, tempDomains)
+	// workflow.Settings.Domains.Allowed = tempDomains
 
 	// initialize the includes
 	for _, inc := range workflow.Includes {

@@ -20,6 +20,14 @@ func (g *Gatekeeper) Initialize() {
 }
 
 func (g *Gatekeeper) CanAccessUrl(urlStr string) bool {
+	if !g.Enabled {
+		return true
+	}
+
+	if App.Workflow.Settings.Domains.Allowed == nil {
+		return true
+	}
+
 	for _, domain := range App.Workflow.Settings.Domains.Allowed {
 		parsedUrl, _ := url.Parse(urlStr)
 

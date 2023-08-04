@@ -304,13 +304,13 @@ func (a *Application) createNewConfigFile() {
 }
 
 func (a *Application) checkForApplicationUpdates() {
-	if a.Gatekeeper.CanAccessUrl(updater.GetUpdateCheckUrlFormat()) {
-		updateAvailable := updater.IsLatestApplicationReleaseNewerThanCurrent(version.APP_VERSION, "permafrost-dev/stackup")
+	// if a.Gatekeeper.CanAccessUrl(updater.GetUpdateCheckUrlFormat()) {
+	updateAvailable := updater.IsLatestApplicationReleaseNewerThanCurrent(version.APP_VERSION, "permafrost-dev/stackup")
 
-		if updateAvailable {
-			support.WarningMessage("A new version of StackUp is available. Please update to the latest version.")
-		}
+	if updateAvailable {
+		support.WarningMessage("A new version of StackUp is available. Please update to the latest version.")
 	}
+	// }
 }
 
 func (a *Application) handleFlagOptions() {
