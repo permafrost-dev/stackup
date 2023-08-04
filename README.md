@@ -56,6 +56,7 @@ The `settings` section of the configuration file is used to configure the applic
 | `defaults.tasks.path` | default path for tasks | no |
 | `defaults.tasks.platforms` | default platforms for tasks | no |
 | `defaults.tasks.silent` | default silent setting for tasks | no |
+| `domains.allowed` | array of domain names that can be accessed (downloads/urls/includes), wildcards are supported. | no |
 | `dotenv`  | array of `.env` filenames to load  | no        |
 | `cache.ttl-minutes` | number of minutes to cache remote files | no |
 | `checksum-verification` | `boolean` value specifying if remote file checksums should be verified, defaults to `true` | no |
@@ -73,6 +74,11 @@ settings:
   checksum-verification: false # do not verify checksums, defaults to true.
   cache:
     ttl-minutes: 60 # cache remote files for 60 minutes, defaults to 5 minutes.
+  domains:
+    allowed:
+      # domains allowed for remote file downloads and remote file includes.
+      - raw.githubusercontent.com
+      - '*.github.com'
   defaults:
     tasks:
       silent: true
@@ -90,6 +96,21 @@ tasks:
     command: printf "goodbye world\n"
     path: $FRONTEND_PROJECT_PATH # overrides the default
     platforms: ['linux', 'darwin'] # overrides the default
+```
+
+#### Configuration: Settings: Domains
+
+The `domains` section of the configuration file is used to specify a list of domain names that can be accessed when downloading remote files
+or including remote files.  Wildcards are supported, such as `*.github.com`.  
+If the `domains` section is not specified, default values of `raw.githubusercontent.com` and `api.github.com` are used.
+
+> The domain allow list is applied to all url access, including when `StackUp` checks to see if it is running the latest version.
+
+```yaml
+domains:
+  allowed:
+    - raw.githubusercontent.com
+    - '*.github.com'
 ```
 
 ### Configuration: Environment Variables
