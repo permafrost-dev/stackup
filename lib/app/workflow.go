@@ -61,6 +61,7 @@ type WorkflowInclude struct {
 type WorkflowSettings struct {
 	Defaults               *WorkflowSettingsDefaults `yaml:"defaults"`
 	ExitOnChecksumMismatch bool                      `yaml:"exit-on-checksum-mismatch"`
+	ChecksumVerification   *bool                     `yaml:"checksum-verification"`
 	DotEnvFiles            []string                  `yaml:"dotenv"`
 	Cache                  *WorkflowSettingsCache    `yaml:"cache"`
 	Domains                struct {
@@ -355,9 +356,11 @@ func (workflow *StackupWorkflow) Initialize() {
 
 	// no default settings were provided, so create sensible defaults
 	if workflow.Settings == nil {
+		verifyChecksums := true
 		workflow.Settings = &WorkflowSettings{
-			DotEnvFiles: []string{".env"},
-			Cache:       &WorkflowSettingsCache{TtlMinutes: 5},
+			DotEnvFiles:          []string{".env"},
+			Cache:                &WorkflowSettingsCache{TtlMinutes: 5},
+			ChecksumVerification: &verifyChecksums,
 			Defaults: &WorkflowSettingsDefaults{
 				Tasks: &WorkflowSettingsDefaultsTasks{
 					Silent:    false,
@@ -366,6 +369,11 @@ func (workflow *StackupWorkflow) Initialize() {
 				},
 			},
 		}
+	}
+
+	if workflow.Settings.ChecksumVerification == nil {
+		verifyChecksums := true
+		workflow.Settings.ChecksumVerification = &verifyChecksums
 	}
 
 	if workflow.Settings.Cache.TtlMinutes <= 0 {
@@ -486,7 +494,9 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		workflow.Cache.Set(include.DisplayName(), item, App.Workflow.Settings.Cache.TtlMinutes)
 	}
 
-	include.ChecksumValidated, include.FoundChecksum, _ = include.ValidateChecksum(include.Contents)
+	if workflow.Settings.ChecksumVerification != nil && *workflow.Settings.ChecksumVerification {
+		include.ChecksumValidated, include.FoundChecksum, _ = include.ValidateChecksum(include.Contents)
+	}
 
 	if err != nil {
 		fmt.Println(err)
@@ -495,25 +505,27 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 
 	include.ValidationState = "verification skipped"
 
-	if include.IsRemoteUrl() {
-		if *include.VerifyChecksum == true || include.VerifyChecksum == nil {
-			if include.ChecksumValidated {
-				include.ValidationState = "verified"
-			}
+	if workflow.Settings.ChecksumVerification != nil && *workflow.Settings.ChecksumVerification {
+		if include.IsRemoteUrl() {
+			if *include.VerifyChecksum == true || include.VerifyChecksum == nil {
+				if include.ChecksumValidated {
+					include.ValidationState = "verified"
+				}
 
-			if !include.ChecksumValidated && include.FoundChecksum != "" {
-				include.ValidationState = "verification failed"
-			}
+				if !include.ChecksumValidated && include.FoundChecksum != "" {
+					include.ValidationState = "verification failed"
+				}
 
-			// if err != nil {
-			// 	fmt.Println(err)
-			// 	return false
-			// }
+				// if err != nil {
+				// 	fmt.Println(err)
+				// 	return false
+				// }
 
-			if !include.ChecksumValidated && App.Workflow.Settings.ExitOnChecksumMismatch {
-				support.FailureMessageWithXMark("Exiting due to checksum mismatch.")
-				App.exitApp()
-				return false
+				if !include.ChecksumValidated && App.Workflow.Settings.ExitOnChecksumMismatch {
+					support.FailureMessageWithXMark("Exiting due to checksum mismatch.")
+					App.exitApp()
+					return false
+				}
 			}
 		}
 	}
