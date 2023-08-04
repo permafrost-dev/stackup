@@ -3,6 +3,7 @@ description: laravel application stack
 version: 1.0.0
 
 settings:
+  anonymous-stats: true
   exit-on-checksum-mismatch: false
   dotenv: ['.env', '.env.local']
   checksum-verification: false
@@ -13,6 +14,7 @@ settings:
       - raw.githubusercontent.com
       - '*.githubusercontent.com'
       - api.github.com
+      - app.posthog.com
   defaults:
     tasks:
       silent: false
