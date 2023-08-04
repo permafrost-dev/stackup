@@ -16,6 +16,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/stackup-app/stackup/lib/gateway"
 	"github.com/stackup-app/stackup/lib/support"
+	"github.com/stackup-app/stackup/lib/telemetry"
 	"github.com/stackup-app/stackup/lib/updater"
 	"github.com/stackup-app/stackup/lib/utils"
 	"github.com/stackup-app/stackup/lib/version"
@@ -44,6 +45,7 @@ type Application struct {
 	KillCommandCallback CommandCallback
 	ConfigFilename      string
 	Gateway             *gateway.Gateway
+	Analytics           *telemetry.Telemetry
 }
 
 func (a *Application) loadWorkflowFile(filename string) *StackupWorkflow {
@@ -336,8 +338,13 @@ func (a *Application) Run() {
 	a.init()
 	a.handleFlagOptions()
 
+	a.Analytics = telemetry.New(true, a.Gateway)
 	a.Workflow.Initialize()
 	a.Gateway.SetAllowedDomains(a.Workflow.Settings.Domains.Allowed)
+
+	if *a.Workflow.Settings.AnonymousStatistics {
+		a.Analytics.EventOnly("app.start")
+	}
 
 	if len(a.Workflow.Settings.DotEnvFiles) > 0 {
 		godotenv.Load(a.Workflow.Settings.DotEnvFiles...)

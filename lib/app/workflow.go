@@ -2,12 +2,14 @@ package app
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"regexp"
 	"strings"
 	"sync"
 
+	"github.com/dotenv-org/godotenvvault"
 	lla "github.com/emirpasic/gods/lists/arraylist"
 	lls "github.com/emirpasic/gods/stacks/linkedliststack"
 	"github.com/golang-module/carbon/v2"
@@ -65,6 +67,7 @@ type WorkflowSettings struct {
 	DotEnvFiles            []string                  `yaml:"dotenv"`
 	Cache                  *WorkflowSettingsCache    `yaml:"cache"`
 	Domains                *WorkflowSettingsDomains  `yaml:"domains"`
+	AnonymousStatistics    *bool                     `yaml:"anonymous-stats"`
 }
 
 type WorkflowSettingsDomains struct {
@@ -346,6 +349,28 @@ func (workflow *StackupWorkflow) reversePreconditions(items []*Precondition) []*
 	return items
 }
 
+func (workflow *StackupWorkflow) TryLoadDotEnvVaultFile(value string) bool {
+	if !utils.IsFile(utils.WorkingDir(".env.vault")) {
+		return false
+	}
+
+	parsedUrl, err := url.Parse(value)
+	if err != nil || parsedUrl.Scheme != "dotenv" || parsedUrl.Hostname() != "vault" {
+		return false
+	}
+
+	vars, err := godotenvvault.Read()
+	if err != nil {
+		return false
+	}
+
+	for key, value := range vars {
+		os.Setenv(key, value)
+	}
+
+	return true
+}
+
 func (workflow *StackupWorkflow) Initialize() {
 	workflow.Cache = cache.CreateCache("")
 
@@ -354,36 +379,33 @@ func (workflow *StackupWorkflow) Initialize() {
 		task.Uuid = utils.GenerateTaskUuid()
 	}
 
-	if len(workflow.Env) > 0 {
-		for _, def := range workflow.Env {
-			key, value, _ := strings.Cut(def, "=")
-			os.Setenv(key, value)
-		}
+	workflow.processEnvSection()
+	workflow.createMissingSettingsSection()
+	workflow.configureDefaultSettings()
+	workflow.ProcessIncludes()
+
+	if len(workflow.Init) > 0 {
+		App.JsEngine.Evaluate(workflow.Init)
 	}
 
-	// no default settings were provided, so create sensible defaults
-	if workflow.Settings == nil {
-		verifyChecksums := true
-		workflow.Settings = &WorkflowSettings{
-			DotEnvFiles:          []string{".env"},
-			Cache:                &WorkflowSettingsCache{TtlMinutes: 5},
-			ChecksumVerification: &verifyChecksums,
-			Domains: &WorkflowSettingsDomains{
-				Allowed: []string{"raw.githubusercontent.com", "api.github.com"},
-			},
-			Defaults: &WorkflowSettingsDefaults{
-				Tasks: &WorkflowSettingsDefaultsTasks{
-					Silent:    false,
-					Path:      App.JsEngine.MakeStringEvaluatable("getCwd()"),
-					Platforms: []string{"windows", "linux", "darwin"},
-				},
-			},
-		}
+	for _, pc := range workflow.Preconditions {
+		pc.Initialize()
 	}
 
+	for _, task := range workflow.Tasks {
+		task.Initialize()
+	}
+}
+
+func (workflow *StackupWorkflow) configureDefaultSettings() {
 	if workflow.Settings.ChecksumVerification == nil {
 		verifyChecksums := true
 		workflow.Settings.ChecksumVerification = &verifyChecksums
+	}
+
+	if workflow.Settings.AnonymousStatistics == nil {
+		enableStats := false
+		workflow.Settings.AnonymousStatistics = &enableStats
 	}
 
 	if workflow.Settings.Domains == nil {
@@ -418,37 +440,45 @@ func (workflow *StackupWorkflow) Initialize() {
 			task.Platforms = workflow.Settings.Defaults.Tasks.Platforms
 		}
 	}
+}
 
-	// // ensure that the allowed domains are in the correct format, i.e. without a protocol or port
-	// tempDomains := []string{}
-	// for _, domain := range workflow.Settings.Domains.Allowed {
-	// 	if strings.Contains(domain, "://") {
-	// 		parsedUrl, _ := url.Parse(domain)
-	// 		tempDomains = append(tempDomains, parsedUrl.Host)
-	// 	} else {
-	// 		tempDomains = append(tempDomains, domain)
-	// 	}
-	// }
-	// copy(workflow.Settings.Domains.Allowed, tempDomains)
-	// workflow.Settings.Domains.Allowed = tempDomains
-
-	// initialize the includes
-	for _, inc := range workflow.Includes {
-		inc.Initialize()
+func (workflow *StackupWorkflow) createMissingSettingsSection() {
+	// no default settings were provided, so create sensible defaults
+	if workflow.Settings == nil {
+		verifyChecksums := true
+		enableStats := false
+		workflow.Settings = &WorkflowSettings{
+			AnonymousStatistics:  &enableStats,
+			DotEnvFiles:          []string{".env"},
+			Cache:                &WorkflowSettingsCache{TtlMinutes: 5},
+			ChecksumVerification: &verifyChecksums,
+			Domains: &WorkflowSettingsDomains{
+				Allowed: []string{"raw.githubusercontent.com", "api.github.com"},
+			},
+			Defaults: &WorkflowSettingsDefaults{
+				Tasks: &WorkflowSettingsDefaultsTasks{
+					Silent:    false,
+					Path:      App.JsEngine.MakeStringEvaluatable("getCwd()"),
+					Platforms: []string{"windows", "linux", "darwin"},
+				},
+			},
+		}
 	}
+}
 
-	workflow.ProcessIncludes()
+func (workflow *StackupWorkflow) processEnvSection() {
+	if len(workflow.Env) > 0 {
+		for _, def := range workflow.Env {
+			if strings.Contains(def, "://") {
+				workflow.TryLoadDotEnvVaultFile(def)
+				continue
+			}
 
-	if len(workflow.Init) > 0 {
-		App.JsEngine.Evaluate(workflow.Init)
-	}
-
-	for _, pc := range workflow.Preconditions {
-		pc.Initialize()
-	}
-
-	for _, task := range workflow.Tasks {
-		task.Initialize()
+			if strings.Contains(def, "=") {
+				key, value, _ := strings.Cut(def, "=")
+				os.Setenv(key, value)
+			}
+		}
 	}
 }
 
@@ -470,6 +500,11 @@ func (workflow *StackupWorkflow) RemoveTasks(uuidsToRemove []string) {
 }
 
 func (workflow *StackupWorkflow) ProcessIncludes() {
+	// initialize the includes
+	for _, inc := range workflow.Includes {
+		inc.Initialize()
+	}
+
 	var wg sync.WaitGroup
 	for _, include := range workflow.Includes {
 		wg.Add(1)

@@ -65,6 +65,7 @@ The `settings` section of the configuration file is used to configure the applic
 
 | field     | description                        | required? |
 |-----------|------------------------------------|-----------|
+| `anonymous-stats` | `boolean` value specifying whether to send anonymous usage statistics, defaults to `false` | no |
 | `defaults.tasks.path` | default path for tasks | no |
 | `defaults.tasks.platforms` | default platforms for tasks | no |
 | `defaults.tasks.silent` | default silent setting for tasks | no |
@@ -81,6 +82,7 @@ name: my stack
 version: 1.0.0
 
 settings:
+  anonymous-stats: true # opt-in to sending anonymous usage statistics, default is false.
   dotenv: ['.env', '.env.local'] # loads both `.env` and `.env.local` files, defaults to `.env`.
   exit-on-checksum-mismatch: false # do not exit if a checksum mismatch occurs, defaults to true.
   checksum-verification: false # do not verify checksums, defaults to true.
@@ -133,6 +135,19 @@ Environment variables can be defined in the optional `env` section of the config
 env:
   - MY_ENV_VAR_ONE=test1234
   - MY_ENV_VAR_TWO=1234test
+```
+
+#### Integration: dotenv-vault
+
+`StackUp` supports loading encrypted values from `.env.vault` files (see the [dotenv-vault website](https://vault.dotenv.org)).
+
+To load a `.env.vault` file, add an entry to the `env` section named `dotenv://vault`.  This item will cause the `.env.vault` file to
+be loaded into the environment, if it exists.  If it does not exist, no action is taken.
+
+```yaml
+env:
+  - MY_ENV_VAR_ONE=test1234
+  - dotenv://vault # loads .env.vault, if it exists
 ```
 
 ### Configuration: Includes

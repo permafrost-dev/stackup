@@ -47,6 +47,10 @@ func verifyFileTypeHandler(g *Gateway, link string) error {
 	baseName := path.Base(parsedUrl.Path)
 	fileExt := path.Ext(baseName)
 
+	if fileExt == "" {
+		return nil
+	}
+
 	allowedFileNames := []string{"checksums.txt", "checksums.sha256.txt", "checksums.sha512.txt", "sha256sum", "sha512sum"}
 	allowedExts := []string{".yaml", ".yml", ".txt", ".sha256", ".sha512"}
 
