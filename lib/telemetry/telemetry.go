@@ -10,7 +10,6 @@ import (
 
 	"github.com/denisbrodbeck/machineid"
 	"github.com/posthog/posthog-go"
-	"github.com/rs/zerolog/log"
 	"github.com/stackup-app/stackup/lib/gateway"
 )
 
@@ -24,11 +23,11 @@ type Telemetry struct {
 type NoOpLogger struct{}
 
 func (NoOpLogger) Logf(format string, args ...interface{}) {
-	log.Info().Msgf(format, args...)
+	//log.Info().Msgf(format, args...)
 }
 
 func (NoOpLogger) Errorf(format string, args ...interface{}) {
-	log.Debug().Msgf(format, args...)
+	//log.Debug().Msgf(format, args...)
 	//fmt.Printf("  Error: %v\n", args)
 }
 
