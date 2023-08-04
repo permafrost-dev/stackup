@@ -46,6 +46,7 @@ require (
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/minio/minio-go v6.0.14+incompatible
 	github.com/minio/minio-go/v7 v7.0.61
+	github.com/ryanuber/go-glob v1.0.0
 	go.etcd.io/bbolt v1.3.7
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )

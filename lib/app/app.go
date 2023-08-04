@@ -42,6 +42,7 @@ type Application struct {
 	CmdStartCallback    CommandCallback
 	KillCommandCallback CommandCallback
 	ConfigFilename      string
+	Gatekeeper          *Gatekeeper
 }
 
 func (a *Application) loadWorkflowFile(filename string) *StackupWorkflow {
@@ -67,6 +68,7 @@ func (a *Application) loadWorkflowFile(filename string) *StackupWorkflow {
 }
 
 func (a *Application) init() {
+	a.Gatekeeper = CreateGatekeeper()
 	a.ConfigFilename = support.FindExistingFile([]string{"stackup.dist.yaml", "stackup.yaml"}, "stackup.yaml")
 
 	a.flags = AppFlags{
@@ -302,10 +304,12 @@ func (a *Application) createNewConfigFile() {
 }
 
 func (a *Application) checkForApplicationUpdates() {
-	updateAvailable := updater.IsLatestApplicationReleaseNewerThanCurrent(version.APP_VERSION, "permafrost-dev/stackup")
+	if a.Gatekeeper.CanAccessUrl(updater.GetUpdateCheckUrlFormat()) {
+		updateAvailable := updater.IsLatestApplicationReleaseNewerThanCurrent(version.APP_VERSION, "permafrost-dev/stackup")
 
-	if updateAvailable {
-		support.WarningMessage("A new version of StackUp is available. Please update to the latest version.")
+		if updateAvailable {
+			support.WarningMessage("A new version of StackUp is available. Please update to the latest version.")
+		}
 	}
 }
 
@@ -318,10 +322,6 @@ func (a *Application) handleFlagOptions() {
 	if *a.flags.DisplayVersion {
 		fmt.Println("StackUp version " + version.APP_VERSION)
 		os.Exit(0)
-	}
-
-	if !*a.flags.NoUpdateCheck {
-		a.checkForApplicationUpdates()
 	}
 
 	if len(os.Args) > 1 && os.Args[1] == "init" {
@@ -341,6 +341,10 @@ func (a *Application) Run() {
 	}
 	a.JsEngine.CreateEnvironmentVariables()
 	a.JsEngine.CreateAppVariables()
+
+	if !*a.flags.NoUpdateCheck {
+		a.checkForApplicationUpdates()
+	}
 
 	a.hookSignals()
 	a.hookKeyboard()

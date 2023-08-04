@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"regexp"
@@ -64,9 +65,11 @@ type WorkflowSettings struct {
 	ChecksumVerification   *bool                     `yaml:"checksum-verification"`
 	DotEnvFiles            []string                  `yaml:"dotenv"`
 	Cache                  *WorkflowSettingsCache    `yaml:"cache"`
-	Domains                struct {
-		Allowed []string `yaml:"allowed"`
-	} `yaml:"domains"`
+	Domains                *WorkflowSettingsDomains  `yaml:"domains"`
+}
+
+type WorkflowSettingsDomains struct {
+	Allowed []string `yaml:"allowed"`
 }
 
 type WorkflowSettingsCache struct {
@@ -160,6 +163,11 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, string, erro
 	}
 
 	for _, url := range checksumUrls {
+		if !App.Gatekeeper.CanAccessUrl(url) {
+			support.FailureMessageWithXMark("Access to " + url + " is not allowed.")
+			continue
+		}
+
 		checksumContents, err := utils.GetUrlContents(url)
 		if err != nil {
 			continue
@@ -361,6 +369,9 @@ func (workflow *StackupWorkflow) Initialize() {
 			DotEnvFiles:          []string{".env"},
 			Cache:                &WorkflowSettingsCache{TtlMinutes: 5},
 			ChecksumVerification: &verifyChecksums,
+			Domains: &WorkflowSettingsDomains{
+				Allowed: []string{"raw.githubusercontent.com", "api.github.com"},
+			},
 			Defaults: &WorkflowSettingsDefaults{
 				Tasks: &WorkflowSettingsDefaultsTasks{
 					Silent:    false,
@@ -374,6 +385,14 @@ func (workflow *StackupWorkflow) Initialize() {
 	if workflow.Settings.ChecksumVerification == nil {
 		verifyChecksums := true
 		workflow.Settings.ChecksumVerification = &verifyChecksums
+	}
+
+	if workflow.Settings.Domains == nil {
+		workflow.Settings.Domains = &WorkflowSettingsDomains{Allowed: []string{}}
+	}
+
+	if len(workflow.Settings.Domains.Allowed) == 0 {
+		workflow.Settings.Domains.Allowed = []string{"raw.githubusercontent.com", "api.github.com"}
 	}
 
 	if workflow.Settings.Cache.TtlMinutes <= 0 {
@@ -398,6 +417,14 @@ func (workflow *StackupWorkflow) Initialize() {
 			task.Platforms = workflow.Settings.Defaults.Tasks.Platforms
 		}
 	}
+
+	// ensure that the allowed domains are in the correct format, i.e. without a protocol or port
+	tempDomains := []string{}
+	for _, domain := range workflow.Settings.Domains.Allowed {
+		parsedUrl, _ := url.Parse(domain)
+		tempDomains = append(tempDomains, parsedUrl.Host)
+	}
+	workflow.Settings.Domains.Allowed = tempDomains
 
 	// initialize the includes
 	for _, inc := range workflow.Includes {
@@ -462,6 +489,13 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		include.Hash = data.Hash
 		include.HashAlgorithm = data.Hash
 		include.Contents = data.Value
+	}
+
+	if include.IsS3Url() || include.IsRemoteUrl() {
+		if !App.Gatekeeper.CanAccessUrl(include.FullUrl()) {
+			support.FailureMessageWithXMark("Access to " + include.FullUrl() + " is not allowed.")
+			return false
+		}
 	}
 
 	if !found || data.IsExpired() {

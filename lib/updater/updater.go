@@ -15,6 +15,10 @@ type Release struct {
 	Prerelease bool   `json:"prerelease"`
 }
 
+func GetUpdateCheckUrlFormat() string {
+	return "https://api.github.com/repos/%s/%s/releases/latest"
+}
+
 // Example: IsLatestApplicationReleaseNewerThanCurrent("v0.0.1", "permafrost-dev/stackup")
 func IsLatestApplicationReleaseNewerThanCurrent(currentVersion string, githubRepository string) bool {
 	latestRelease := getLatestApplicationRelease(githubRepository)
@@ -43,7 +47,7 @@ func getLatestApplicationRelease(repository string) *Release {
 }
 
 func getLatestReleaseForRepository(owner, repo string) (*Release, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
+	url := fmt.Sprintf(GetUpdateCheckUrlFormat(), owner, repo)
 
 	resp, err := http.Get(url)
 	if err != nil {
