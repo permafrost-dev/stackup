@@ -5,13 +5,13 @@ template:
   author: Patrick Organ <patrick@permafrost.dev>
   description: example of shared configuration settings
 
-  settings:
-    anonymous-stats: true
-    domains:
-      allowed:
-        - '*.githubusercontent.com'
-        - '*.github.com'
-        - app.posthog.com
+settings:
+  anonymous-stats: true
+  domains:
+    allowed:
+      - '*.githubusercontent.com'
+      - '*.github.com'
+      - app.posthog.com
 
 init:
 preconditions:

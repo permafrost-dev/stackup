@@ -615,7 +615,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 
 	workflow.importPreconditionsFromIncludedTemplate(&template)
 	workflow.importTasksFromIncludedTemplate(&template)
-	workflow.copySettingsFromIncludedTemplate(&template)
+	workflow.copySettingsFromIncludedTemplate(template)
 
 	workflow.Settings.Domains.Allowed = utils.GetUniqueStrings(workflow.Settings.Domains.Allowed)
 	App.Gateway.SetAllowedDomains(workflow.Settings.Domains.Allowed)
@@ -653,8 +653,8 @@ func (*StackupWorkflow) importPreconditionsFromIncludedTemplate(template *Includ
 	App.Workflow.Preconditions = App.Workflow.reversePreconditions(App.Workflow.Preconditions)
 }
 
-func (workflow *StackupWorkflow) copySettingsFromIncludedTemplate(template *IncludedTemplate) {
-	fmt.Printf("copying settings: %v\n", template.Settings)
+func (workflow *StackupWorkflow) copySettingsFromIncludedTemplate(template IncludedTemplate) {
+	fmt.Printf("copying settings: %v\n", template)
 	//fmt.Printf("workflow settings: %v\n", workflow.Settings)
 
 	if template.Settings != nil {
