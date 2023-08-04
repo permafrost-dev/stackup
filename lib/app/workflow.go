@@ -654,6 +654,9 @@ func (*StackupWorkflow) importPreconditionsFromIncludedTemplate(template *Includ
 }
 
 func (workflow *StackupWorkflow) copySettingsFromIncludedTemplate(template *IncludedTemplate) {
+	fmt.Printf("copying settings: %v\n", template.Settings)
+	//fmt.Printf("workflow settings: %v\n", workflow.Settings)
+
 	if template.Settings != nil {
 		if template.Settings.ChecksumVerification != nil {
 			workflow.Settings.ChecksumVerification = template.Settings.ChecksumVerification
