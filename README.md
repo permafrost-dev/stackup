@@ -58,6 +58,7 @@ The `settings` section of the configuration file is used to configure the applic
 | `defaults.tasks.silent` | default silent setting for tasks | no |
 | `dotenv`  | array of `.env` filenames to load  | no        |
 | `cache.ttl-minutes` | number of minutes to cache remote files | no |
+| `checksum-verification` | `boolean` value specifying if remote file checksums should be verified, defaults to `true` | no |
 | `exit-on-checksum-mismatch` | `boolean` value specifying whether to exit if a checksum mismatch occurs when including a remote file | no |
 
 Example `settings` section:
@@ -69,6 +70,7 @@ version: 1.0.0
 settings:
   dotenv: ['.env', '.env.local'] # loads both `.env` and `.env.local` files, defaults to `.env`.
   exit-on-checksum-mismatch: false # do not exit if a checksum mismatch occurs, defaults to true.
+  checksum-verification: false # do not verify checksums, defaults to true.
   cache:
     ttl-minutes: 60 # cache remote files for 60 minutes, defaults to 5 minutes.
   defaults:
