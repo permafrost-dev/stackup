@@ -8,6 +8,18 @@
 
 A single application to spin up your entire dev stack.
 
+## Feature Notes
+
+`StackUp` offers many features and advanced functionality. Here are some of the highlights:
+
+- Define tasks and run them with automation
+- Scriptable tasks and preconditions using javascript.
+- Run tasks on a cron schedule, i.e. running `php artisan schedule:run` once every minute.
+- Request cache to speed up remote file downloads.
+- Request gateway that acts as a firewall to prevent remote file access unless it's been explicitly allowed.
+- Share common configurations: include remote files from GitHub, S3, or any other URL.
+- Checksum validation of remotely included files.
+
 ## About
 
 `StackUp` is a scriptable tool for developers that automates the process of spinning up complicated development environments.  It allows you to defines a series of steps that execute in order on startup and shutdown, as well as a list of server processes that should be started.  Additionally, `StackUp` runs an event loop while the server processes are running, allowing you to run tasks on a cron schedule.
@@ -41,17 +53,6 @@ stackup init
 ```bash
 stackup --no-update-check
 ```
-
-## Feature Notes
-
-`StackUp` offers many features and advanced functionality. Here are some of the highlights:
-
-- Request cache to speed up remote file downloads.
-- Request gateway that acts as a firewall to prevent remote file access unless it's been explicitly allowed.
-- Scriptable tasks and preconditions using javascript.
-- Share common configurations: include remote files from GitHub, S3, or any other URL.
-- Checksum validation of remotely included files.
-- Run tasks on a cron schedule, i.e. running `php artisan schedule:run` once every minute.
 
 ## Configuration
 
