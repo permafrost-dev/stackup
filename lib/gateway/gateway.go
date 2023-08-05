@@ -68,8 +68,6 @@ func (g *Gateway) AddMiddleware(mw *GatewayUrlRequestMiddleware) {
 // `nil`.
 func (g *Gateway) runUrlRequestPipeline(link string) error {
 	for _, mw := range g.Middleware {
-		fmt.Printf("running middleware: %s\n", mw.Name)
-
 		err := (*mw).Handler(g, link)
 		if err != nil {
 			return err

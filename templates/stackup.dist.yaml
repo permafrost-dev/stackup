@@ -2,8 +2,11 @@ name: my stack
 description: laravel application stack
 version: 1.0.0
 
+env:
+  - MY_ENV_VAR_ONE=test1234
+  - dotenv://vault
+
 settings:
-  anonymous-stats: true
   exit-on-checksum-mismatch: false
   dotenv: ['.env', '.env.local']
   checksum-verification: false
@@ -12,15 +15,13 @@ settings:
   domains:
     allowed:
       - raw.githubusercontent.com
-      - '*.githubusercontent.com'
-      - api.github.com
-      - app.posthog.com
   defaults:
     tasks:
       silent: false
       path: $LOCAL_BACKEND_PROJECT_PATH
 
 includes:
+  - url: gh:permafrost-dev/stackup/main/templates/remote-includes/shared-settings.yaml
   - url: gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
   - url: gh:permafrost-dev/stackup/main/templates/remote-includes/laravel.yaml
   - url: gh:permafrost-dev/stackup/main/templates/remote-includes/php.yaml

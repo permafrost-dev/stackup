@@ -356,8 +356,6 @@ func (a *Application) Run() {
 		a.checkForApplicationUpdates()
 	}
 
-	fmt.Printf("settings: %v\n", a.Workflow.Settings.Domains.Allowed)
-
 	a.hookSignals()
 	a.hookKeyboard()
 

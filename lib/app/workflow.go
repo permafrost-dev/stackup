@@ -526,8 +526,6 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 	data, found := workflow.Cache.Get(include.DisplayName())
 	include.FromCache = found
 
-	fmt.Printf("data: %v\n", data)
-
 	if found {
 		include.Hash = data.Hash
 		include.HashAlgorithm = data.Hash
@@ -580,7 +578,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		return false
 	}
 
-	include.ValidationState = "verification skipped"
+	include.ValidationState = ""
 
 	if workflow.Settings.ChecksumVerification != nil && *workflow.Settings.ChecksumVerification {
 		if include.IsRemoteUrl() {
@@ -617,17 +615,17 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 
 	workflow.importPreconditionsFromIncludedTemplate(&template)
 	workflow.importTasksFromIncludedTemplate(&template)
-	workflow.copySettingsFromIncludedTemplate(template)
+	workflow.copySettingsFromIncludedTemplate(&template)
 
-	workflow.Settings.Domains.Allowed = utils.GetUniqueStrings(workflow.Settings.Domains.Allowed)
-	App.Gateway.SetAllowedDomains(workflow.Settings.Domains.Allowed)
-
-	cachedText := ""
+	cachedText := "fetched"
 	if include.FromCache {
-		cachedText = ", cached"
+		cachedText = "cached"
+		if include.ValidationState != "" {
+			cachedText += ", " + cachedText
+		}
 	}
 
-	support.SuccessMessageWithCheck("Included file (" + include.ValidationState + cachedText + "): " + include.DisplayName())
+	support.SuccessMessageWithCheck("remote include (" + include.ValidationState + cachedText + "): " + include.DisplayName())
 
 	return true
 }
@@ -655,10 +653,7 @@ func (*StackupWorkflow) importPreconditionsFromIncludedTemplate(template *Includ
 	App.Workflow.Preconditions = App.Workflow.reversePreconditions(App.Workflow.Preconditions)
 }
 
-func (workflow *StackupWorkflow) copySettingsFromIncludedTemplate(template IncludedTemplate) {
-	fmt.Printf("copying settings: %v\n", template)
-	//fmt.Printf("workflow settings: %v\n", workflow.Settings)
-
+func (workflow *StackupWorkflow) copySettingsFromIncludedTemplate(template *IncludedTemplate) {
 	if template.Settings != nil {
 		if template.Settings.ChecksumVerification != nil {
 			workflow.Settings.ChecksumVerification = template.Settings.ChecksumVerification
@@ -678,6 +673,9 @@ func (workflow *StackupWorkflow) copySettingsFromIncludedTemplate(template Inclu
 			workflow.Settings.Defaults = template.Settings.Defaults
 		}
 	}
+
+	workflow.Settings.Domains.Allowed = utils.GetUniqueStrings(workflow.Settings.Domains.Allowed)
+	App.Gateway.SetAllowedDomains(workflow.Settings.Domains.Allowed)
 }
 
 func (wi *WorkflowInclude) Initialize() {
