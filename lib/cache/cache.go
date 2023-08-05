@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
 
 	carbon "github.com/golang-module/carbon/v2"
-	"github.com/stackup-app/stackup/lib/utils"
+	"github.com/stackup-app/stackup/lib/projectinfo"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -46,9 +45,9 @@ func CreateCacheEntry(keyName string, value string, expiresAt *carbon.Carbon, ha
 		Key:       keyName,
 		Value:     value,
 		Algorithm: algorithm,
-		ExpiresAt: expiresAt.ToDateTimeString(),
+		ExpiresAt: expiresAt.ToDateTimeString("America/New_York"),
 		Hash:      hash,
-		UpdatedAt: updatedAt.ToDateTimeString(),
+		UpdatedAt: updatedAt.ToDateTimeString("America/New_York"),
 	}
 }
 
@@ -82,7 +81,7 @@ func ensureConfigDirExists(dirName string) (string, error) {
 }
 
 func (ce *CacheEntry) IsExpired() bool {
-	return carbon.Parse(ce.ExpiresAt).IsPast()
+	return carbon.Parse(ce.ExpiresAt, "America/New_York").IsPast()
 }
 
 func (c *Cache) IsBaseKey(key string) bool {
@@ -95,11 +94,6 @@ func (c *Cache) GetBaseKey(key string) string {
 	if c.IsBaseKey(key) {
 		return key
 	}
-
-	// result := strings.TrimSuffix(key, "_expires_at")
-	// result = strings.TrimSuffix(result, "_hash")
-	// result = strings.TrimSuffix(result, "_updated_at")
-
 	return key
 }
 
@@ -113,7 +107,7 @@ func (c *Cache) Init() {
 	c.Path, _ = ensureConfigDirExists(".stackup")
 	c.Filename = filepath.Join(c.Path, "stackup.db")
 	if c.Name == "" {
-		c.Name = path.Base(utils.WorkingDir())
+		c.Name = projectinfo.New().FsSafeName()
 	}
 
 	db, err := bolt.Open(c.Filename, 0644, bolt.DefaultOptions)
@@ -139,7 +133,12 @@ func (c *Cache) Init() {
 }
 
 func (c *Cache) StartAutoPurge() {
-	ticker := time.NewTicker(30 * time.Second)
+	interval, err := time.ParseDuration("15s")
+	if err != nil {
+		interval = time.Minute
+	}
+
+	ticker := time.NewTicker(interval)
 	go func() {
 		for {
 			select {
@@ -159,8 +158,8 @@ func (c *Cache) Get(key string) (*CacheEntry, bool) {
 		return nil, false
 	}
 
-	// if c.IsBaseKey(key) && c.IsExpired(key) {
-	// 	//c.purgeExpired()
+	// if c.IsExpired(key) {
+	// 	c.Remove(key)
 	// 	return nil, false
 	// }
 
@@ -191,28 +190,33 @@ func (c *Cache) Get(key string) (*CacheEntry, bool) {
 // space and maintain cache integrity.
 func (c *Cache) purgeExpired() {
 
+	primaryKeys := []string{}
+
+	c.Db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(c.Name))
+
+		b.ForEach(func(k, v []byte) error {
+			primaryKeys = append(primaryKeys, string(k))
+			return nil
+		})
+
+		return nil
+	})
+
 	c.Db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(c.Name))
-		cur := b.Cursor()
-
-		primaryKeys := []string{}
-
-		for k, _ := cur.First(); k != nil; k, _ = cur.Next() {
-			if c.IsBaseKey(string(k)) {
-				primaryKeys = append(primaryKeys, string(k))
-			}
-		}
 
 		for _, key := range primaryKeys {
 			if c.IsExpired(key) {
 				fmt.Printf("Removing expired cache entry: %s\n", key)
-				c.Remove(key)
+				b.Delete([]byte(key))
 			}
 		}
 
 		return nil
 	})
 
+	c.Db.Sync()
 }
 
 // The `GetExpiresAt` function in the `Cache` struct is used to retrieve the expiration time of a cache
@@ -224,7 +228,7 @@ func (c *Cache) GetExpiresAt(key string) *carbon.Carbon {
 		return nil
 	}
 
-	result := carbon.Parse(value.ExpiresAt)
+	result := carbon.Parse(value.ExpiresAt, "America/New_York")
 	return &result
 }
 
@@ -235,7 +239,7 @@ func (c *Cache) GetUpdatedAt(key string) *carbon.Carbon {
 		return nil
 	}
 
-	result := carbon.Parse(value.UpdatedAt)
+	result := carbon.Parse(value.UpdatedAt, "America/New_York")
 	return &result
 }
 
@@ -247,7 +251,7 @@ func (c *Cache) IsExpired(key string) bool {
 		return true
 	}
 
-	result := carbon.Parse(item.ExpiresAt)
+	result := carbon.Parse(item.ExpiresAt, "America/New_York")
 	return result.IsPast()
 }
 
@@ -277,9 +281,10 @@ func (c *Cache) Set(key string, value *CacheEntry, ttlMinutes int) {
 		}
 
 		err = b.Put([]byte(key), code)
-
 		return err
 	})
+
+	c.Db.Sync()
 }
 
 // The `Has` function in the `Cache` struct is used to check if a cache entry with a given key exists
@@ -292,9 +297,12 @@ func (c *Cache) Has(key string) bool {
 
 	c.Db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(c.Name))
-		value := b.Get([]byte(key))
-		found = value != nil
-
+		b.ForEach(func(k, v []byte) error {
+			if string(k) == key {
+				found = true
+			}
+			return nil
+		})
 		return nil
 	})
 
@@ -311,13 +319,9 @@ func (c *Cache) Remove(key string) {
 
 	c.Db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(c.Name))
-		baseKey := c.GetBaseKey(key)
-
-		b.Delete([]byte(baseKey))
-		// b.Delete([]byte(baseKey + "_hash"))
-		// b.Delete([]byte(baseKey + "_expires_at"))
-		// b.Delete([]byte(baseKey + "_updated_at"))
-
+		b.Delete([]byte(key))
 		return nil
 	})
+
+	c.Db.Sync()
 }
