@@ -129,6 +129,18 @@ func (p *Precondition) HandleOnFailure() bool {
 	return result
 }
 
+func (wi *WorkflowInclude) LoadedStatusText() string {
+	cachedText := "fetched"
+	if wi.FromCache {
+		cachedText = "cached"
+	}
+	if wi.ValidationState != "" {
+		cachedText += wi.ValidationState + ", " + cachedText
+	}
+
+	return cachedText
+}
+
 func (wi *WorkflowInclude) getChecksumFromContents(contents string) string {
 	checksumsArr, _ := checksums.ParseChecksumFileContents(contents)
 	checksum := checksums.FindChecksumForFileFromUrl(checksumsArr, wi.FullUrl())
@@ -231,6 +243,17 @@ func (wi *WorkflowInclude) FullUrl() string {
 	}
 
 	return wi.Url
+}
+
+func (wi *WorkflowInclude) Domain() string {
+	urlStr := wi.FullUrl()
+	parsedUrl, err := url.Parse(urlStr)
+
+	if err != nil {
+		return urlStr
+	}
+
+	return parsedUrl.Hostname()
 }
 
 func (wi *WorkflowInclude) FullUrlPath() string {
@@ -516,28 +539,103 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 	wg.Wait()
 }
 
-func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
-	if !include.IsLocalFile() && !include.IsRemoteUrl() && !include.IsS3Url() {
-		return false
+func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) {
+	var err error = nil
+	data := workflow.tryLoadingCachedData(include)
+
+	if !workflow.hasRemoteDomainAccess(include) {
+		return
 	}
 
-	var err error
+	if err = workflow.handleDataNotCached(include.FromCache, data, include); err != nil {
+		fmt.Println(err)
+		return
+	}
 
+	if !workflow.handleChecksumVerification(include) {
+		return
+	}
+
+	if err = workflow.loadRemoteFileInclude(include); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	support.SuccessMessageWithCheck("remote include (" + include.LoadedStatusText() + "): " + include.DisplayName())
+}
+
+func (*StackupWorkflow) hasRemoteDomainAccess(include *WorkflowInclude) bool {
+	if include.IsS3Url() || include.IsRemoteUrl() {
+		if !App.Gateway.Allowed(include.FullUrl()) {
+			support.FailureMessageWithXMark("remote include (rejected): domain " + include.Domain() + " access denied.")
+			return false
+		}
+	}
+
+	return true
+}
+
+func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) *cache.CacheEntry {
 	data, found := workflow.Cache.Get(include.DisplayName())
 	include.FromCache = found
 
-	if found {
+	if include.FromCache {
 		include.Hash = data.Hash
 		include.HashAlgorithm = data.Hash
 		include.Contents = data.Value
 	}
 
-	if include.IsS3Url() || include.IsRemoteUrl() {
-		if !App.Gateway.Allowed(include.FullUrl()) {
-			support.FailureMessageWithXMark("Access to " + include.FullUrl() + " is not allowed.")
-			return false
+	return data
+}
+
+func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude) error {
+	var template IncludedTemplate
+	err := yaml.Unmarshal([]byte(include.Contents), &template)
+
+	if err != nil {
+		return err
+	}
+
+	if len(template.Init) > 0 {
+		App.Workflow.Init += "\n" + template.Init
+	}
+
+	workflow.importPreconditionsFromIncludedTemplate(&template)
+	workflow.importTasksFromIncludedTemplate(&template)
+	workflow.copySettingsFromIncludedTemplate(&template)
+
+	return nil
+}
+
+func (workflow *StackupWorkflow) handleChecksumVerification(include *WorkflowInclude) bool {
+	if workflow.Settings.ChecksumVerification != nil && *workflow.Settings.ChecksumVerification {
+		include.ChecksumValidated, include.FoundChecksum, _ = include.ValidateChecksum(include.Contents)
+	}
+
+	include.ValidationState = ""
+
+	if workflow.Settings.ChecksumVerification != nil && *workflow.Settings.ChecksumVerification && include.IsRemoteUrl() {
+		if *include.VerifyChecksum == true || include.VerifyChecksum == nil {
+			if include.ChecksumValidated {
+				include.ValidationState = "verified"
+			}
+
+			if !include.ChecksumValidated && include.FoundChecksum != "" {
+				include.ValidationState = "verification failed"
+			}
+
+			if !include.ChecksumValidated && App.Workflow.Settings.ExitOnChecksumMismatch {
+				support.FailureMessageWithXMark("Exiting due to checksum mismatch.")
+				App.exitApp()
+				return false
+			}
 		}
 	}
+	return true
+}
+
+func (workflow *StackupWorkflow) handleDataNotCached(found bool, data *cache.CacheEntry, include *WorkflowInclude) error {
+	var err error = nil
 
 	if !found || data.IsExpired() {
 		if include.IsLocalFile() {
@@ -550,7 +648,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 			include.Contents = downloader.ReadS3FileContents(include.FullUrl(), include.AccessKey, include.SecretKey, include.Secure)
 		} else {
 			fmt.Printf("unknown include type: %s\n", include.DisplayName())
-			return false
+			return nil
 		}
 
 		include.Hash = checksums.CalculateSha256Hash(include.Contents)
@@ -569,65 +667,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) bool {
 		workflow.Cache.Set(include.DisplayName(), item, App.Workflow.Settings.Cache.TtlMinutes)
 	}
 
-	if workflow.Settings.ChecksumVerification != nil && *workflow.Settings.ChecksumVerification {
-		include.ChecksumValidated, include.FoundChecksum, _ = include.ValidateChecksum(include.Contents)
-	}
-
-	if err != nil {
-		fmt.Println(err)
-		return false
-	}
-
-	include.ValidationState = ""
-
-	if workflow.Settings.ChecksumVerification != nil && *workflow.Settings.ChecksumVerification {
-		if include.IsRemoteUrl() {
-			if *include.VerifyChecksum == true || include.VerifyChecksum == nil {
-				if include.ChecksumValidated {
-					include.ValidationState = "verified"
-				}
-
-				if !include.ChecksumValidated && include.FoundChecksum != "" {
-					include.ValidationState = "verification failed"
-				}
-
-				if !include.ChecksumValidated && App.Workflow.Settings.ExitOnChecksumMismatch {
-					support.FailureMessageWithXMark("Exiting due to checksum mismatch.")
-					App.exitApp()
-					return false
-				}
-			}
-		}
-	}
-
-	// if strings.HasPrefix(include.Contents, "template:") {
-	var template IncludedTemplate
-	err = yaml.Unmarshal([]byte(include.Contents), &template)
-
-	if err != nil {
-		fmt.Println(err)
-		return false
-	}
-
-	if len(template.Init) > 0 {
-		App.Workflow.Init += "\n" + template.Init
-	}
-
-	workflow.importPreconditionsFromIncludedTemplate(&template)
-	workflow.importTasksFromIncludedTemplate(&template)
-	workflow.copySettingsFromIncludedTemplate(&template)
-
-	cachedText := "fetched"
-	if include.FromCache {
-		cachedText = "cached"
-		if include.ValidationState != "" {
-			cachedText += ", " + cachedText
-		}
-	}
-
-	support.SuccessMessageWithCheck("remote include (" + include.ValidationState + cachedText + "): " + include.DisplayName())
-
-	return true
+	return err
 }
 
 func (*StackupWorkflow) importTasksFromIncludedTemplate(template *IncludedTemplate) {
