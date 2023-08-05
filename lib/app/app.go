@@ -223,7 +223,7 @@ func (a *Application) runServerTasks() {
 	}
 }
 
-func (a *Application) runPrecondition(c *Precondition) bool {
+func (a *Application) runPrecondition(c *WorkflowPrecondition) bool {
 	result := true
 
 	if c.Check != "" {
