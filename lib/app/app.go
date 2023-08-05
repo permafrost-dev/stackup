@@ -271,14 +271,45 @@ func (a *Application) createNewConfigFile() {
 		return
 	}
 
+	dependencyBin := "php"
+
+	if utils.IsFile("composer.json") {
+		dependencyBin = "php"
+	} else if utils.IsFile("package.json") {
+		dependencyBin = "node"
+	} else if utils.IsFile("requirements.txt") {
+		dependencyBin = "python"
+	}
+
 	filename := "stackup.yaml"
 	contents := `name: my stack
     description: application stack
     version: 1.0.0
 
+    settings:
+      anonymous-statistics: false
+      exit-on-checksum-mismatch: false
+      dotenv: ['.env', '.env.local']
+      checksum-verification: true
+      cache:
+        ttl-minutes: 15
+      domains:
+        allowed:
+          - '*.githubusercontent.com'
+          - '*.github.com'
+      gateway:
+        content-types:
+          blocked:
+          allowed:
+            - application/json
+            - text/*
+
+    includes:
+      - url: gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
+      - url: gh:permafrost-dev/stackup/main/templates/remote-includes/` + dependencyBin + `.yaml
+
+    # project type preconditions are loaded from included file above
     preconditions:
-      - name: dependencies are installed
-        check: binaryExists("php")
 
     startup:
       - task: start-containers
@@ -290,20 +321,10 @@ func (a *Application) createNewConfigFile() {
 
     scheduler:
 
+    # tasks are loaded from included files above
     tasks:
-      - name: spin up containers
-        id: start-containers
-        if: exists(getCwd() + "/docker-compose.yml")
-        command: docker-compose up -d
-        silent: true
-
-      - name: stop containers
-        id: stop-containers
-        if: exists(getCwd() + "/docker-compose.yml")
-        command: docker-compose down
-        silent: true
     `
-	ioutil.WriteFile(filename, []byte(contents), 0644)
+	os.WriteFile(filename, []byte(contents), 0644)
 }
 
 func (a *Application) checkForApplicationUpdates() {
