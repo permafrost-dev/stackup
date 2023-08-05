@@ -70,6 +70,7 @@ The `settings` section of the configuration file is used to configure the applic
 | `defaults.tasks.platforms` | default platforms for tasks | no |
 | `defaults.tasks.silent` | default silent setting for tasks | no |
 | `domains.allowed` | array of domain names that can be accessed (downloads/urls/includes), wildcards are supported. | no |
+| `domains.hosts` | array of host settings, such as headers, wildcards are supported. | no |
 | `dotenv`  | array of `.env` filenames to load  | no        |
 | `cache.ttl-minutes` | number of minutes to cache remote files | no |
 | `checksum-verification` | `boolean` value specifying if remote file checksums should be verified, defaults to `true` | no |
@@ -94,6 +95,17 @@ settings:
       - raw.githubusercontent.com
       - api.github.com
       - app.posthog.com # allow anonymous usage statistics to be sent
+    hosts:
+    - hostname: api.github.com
+      gateway: allow
+      headers:
+        - 'Authorization: token $GITHUB_TOKEN'
+        - 'Accept: application/vnd.github.v3+json'
+    - hostname: '*.githubusercontent.com'
+      gateway: allow
+      headers:
+        - 'Authorization: token $GITHUB_TOKEN'
+        - 'Accept: application/vnd.github.v3+json'
   defaults:
     tasks:
       silent: true
@@ -119,13 +131,29 @@ The `domains` section of the configuration file is used to specify a list of dom
 or including remote files.  Wildcards are supported, such as `*.github.com`.  
 If the `domains` section is not specified, default values of `raw.githubusercontent.com` and `api.github.com` are used.
 
-> The domain allow list is applied to all url access, including when `StackUp` checks to see if it is running the latest version.
+The `hosts` section of `domains` allows the configuration of headers to send with requests to specific hosts. Hostnames may be fully-qualified
+hostnames, or may contain wildcards.  For example, `*.githubusercontent.com` will match `raw.githubusercontent.com` and `gist.githubusercontent.com`.
+If the `gateway` field is set to `allow`, the hostname will be added to the list of allowed domains automatically.
+
+> The domain allow list is applied to all url access, including when `StackUp` checks to see if it is running the latest version,
+> or when sending anonymous opt-in analytics.
 
 ```yaml
 domains:
   allowed:
     - raw.githubusercontent.com
     - '*.github.com'
+  hosts:
+    - hostname: api.github.com
+      gateway: allow
+      headers:
+        - 'Authorization: token $GITHUB_TOKEN'
+        - 'Accept: application/vnd.github.v3+json'
+    - hostname: '*.githubusercontent.com'
+      gateway: allow
+      headers:
+        - 'Authorization: token $GITHUB_TOKEN'
+        - 'Accept: application/vnd.github.v3+json'
 ```
 
 ### Configuration: Environment Variables
