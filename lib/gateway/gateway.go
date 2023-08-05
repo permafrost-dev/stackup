@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	glob "github.com/ryanuber/go-glob"
 )
@@ -20,6 +21,7 @@ type Gateway struct {
 	AllowedDomains []string
 	DeniedDomains  []string
 	Middleware     []*GatewayUrlRequestMiddleware
+	DomainHeaders  *sync.Map
 }
 
 // New initializes the gateway with deny/allow lists
@@ -29,6 +31,7 @@ func New(deniedDomains, allowedDomains []string) *Gateway {
 		DeniedDomains:  deniedDomains,
 		AllowedDomains: allowedDomains,
 		Middleware:     []*GatewayUrlRequestMiddleware{},
+		DomainHeaders:  &sync.Map{},
 	}
 
 	result.Initialize()
@@ -54,6 +57,12 @@ func (g *Gateway) SetAllowedDomains(domains []string) {
 func (g *Gateway) SetDeniedDomains(domains []string) {
 	g.DeniedDomains = domains
 	g.normalizeDataArray(&g.DeniedDomains)
+}
+
+func (g *Gateway) SetDomainHeaders(domain string, headers []string) {
+	for _, header := range headers {
+		g.DomainHeaders.Store(domain, header)
+	}
 }
 
 func (g *Gateway) AddMiddleware(mw *GatewayUrlRequestMiddleware) {
@@ -128,11 +137,21 @@ func (g *Gateway) checkArrayForMatch(arr *[]string, s string) bool {
 func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 	err := g.runUrlRequestPipeline(urlStr)
 	if err != nil {
+		fmt.Printf("error: %v\n", err)
 		return "", err
 	}
 
 	// remove the header items that are empty strings:
-	var tempHeaders []string
+	var tempHeaders []string = []string{"User-Agent: stackup/1.0"}
+
+	g.DomainHeaders.Range(func(key, value any) bool {
+		parsed, _ := url.Parse(urlStr)
+		if glob.Glob(key.(string), parsed.Hostname()) {
+			tempHeaders = append(tempHeaders, value.(string))
+		}
+		return true
+	})
+
 	for _, header := range headers {
 		if strings.TrimSpace(header) != "" {
 			tempHeaders = append(tempHeaders, header)

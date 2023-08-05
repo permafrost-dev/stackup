@@ -48,7 +48,14 @@ type WorkflowSettings struct {
 }
 
 type WorkflowSettingsDomains struct {
-	Allowed []string `yaml:"allowed"`
+	Allowed []string                       `yaml:"allowed"`
+	Hosts   []WorkflowSettingsDomainsHosts `yaml:"hosts"`
+}
+
+type WorkflowSettingsDomainsHosts struct {
+	Hostname string   `yaml:"hostname"`
+	Gateway  *string  `yaml:"gateway"`
+	Headers  []string `yaml:"headers"`
 }
 
 type WorkflowSettingsCache struct {
@@ -180,6 +187,17 @@ func (workflow *StackupWorkflow) configureDefaultSettings() {
 		workflow.Settings.Domains.Allowed = []string{"raw.githubusercontent.com", "api.github.com"}
 	}
 
+	if len(workflow.Settings.Domains.Hosts) > 0 {
+		for _, host := range workflow.Settings.Domains.Hosts {
+			if host.Gateway != nil && *host.Gateway == "allow" {
+				workflow.Settings.Domains.Allowed = append(workflow.Settings.Domains.Allowed, host.Hostname)
+			}
+			if len(host.Headers) > 0 {
+				App.Gateway.SetDomainHeaders(host.Hostname, host.Headers)
+			}
+		}
+	}
+
 	App.Gateway.SetAllowedDomains(workflow.Settings.Domains.Allowed)
 
 	if workflow.Settings.Cache.TtlMinutes <= 0 {
@@ -211,6 +229,7 @@ func (workflow *StackupWorkflow) createMissingSettingsSection() {
 	if workflow.Settings == nil {
 		verifyChecksums := true
 		enableStats := false
+		gatewayAllow := "allowed"
 		workflow.Settings = &WorkflowSettings{
 			AnonymousStatistics:  &enableStats,
 			DotEnvFiles:          []string{".env"},
@@ -218,6 +237,10 @@ func (workflow *StackupWorkflow) createMissingSettingsSection() {
 			ChecksumVerification: &verifyChecksums,
 			Domains: &WorkflowSettingsDomains{
 				Allowed: []string{"raw.githubusercontent.com", "api.github.com"},
+				Hosts: []WorkflowSettingsDomainsHosts{
+					{Hostname: "raw.githubusercontent.com", Gateway: &gatewayAllow, Headers: nil},
+					{Hostname: "api.github.com", Gateway: &gatewayAllow, Headers: nil},
+				},
 			},
 			Defaults: &WorkflowSettingsDefaults{
 				Tasks: &WorkflowSettingsDefaultsTasks{
@@ -355,9 +378,9 @@ func (workflow *StackupWorkflow) handleDataNotCached(found bool, data *cache.Cac
 
 	if !found || data.IsExpired() {
 		if include.IsLocalFile() {
-			include.Contents, err = utils.GetFileContents(include.Filename())
+			include.Contents, err = App.Gateway.GetUrl(include.Filename())
 		} else if include.IsRemoteUrl() {
-			include.Contents, err = utils.GetUrlContentsEx(include.FullUrl(), include.Headers)
+			include.Contents, err = App.Gateway.GetUrl(include.FullUrl(), include.Headers...)
 		} else if include.IsS3Url() {
 			include.AccessKey = os.ExpandEnv(include.AccessKey)
 			include.SecretKey = os.ExpandEnv(include.SecretKey)

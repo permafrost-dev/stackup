@@ -57,28 +57,6 @@ func ParseS3Url(urlstr string) (*S3Url, error) {
 }
 
 func ReadS3FileContents(s3url string, accessKey string, secretKey string, secure bool) string {
-	// sess, _ := session.NewSession(&aws.Config{
-	// 	Region:      aws.String("us-west-2"),
-	// 	Credentials: credentials.NewStaticCredentials("AKID", "SECRET_KEY", "TOKEN"),
-	// })
-
-	// writer, err := os.Open(targetFile)
-	// if err != nil {
-	// 	return
-	// }
-	// defer writer.Close()
-
-	// downloader := s3manager.NewDownloader(sess)
-	// downloader.Download(writer,
-	// 	&s3.GetObjectInput{
-	// 		Bucket: &bucket,
-	// 		Key:    &key,
-	// 	})
-
-	// fmt.Printf("s3url: %s\n", s3url)
-	// fmt.Printf("accessKey: %s\n", accessKey)
-	// fmt.Printf("secretKey: %s\n", secretKey)
-
 	data, err := ParseS3Url(s3url)
 
 	s3Client, err := minio.New(data.Endpoint, &minio.Options{
