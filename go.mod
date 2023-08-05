@@ -51,6 +51,7 @@ require (
 	github.com/posthog/posthog-go v0.0.0-20230801140217-d607812dee69
 	github.com/rs/zerolog v1.30.0
 	github.com/ryanuber/go-glob v1.0.0
+	github.com/stoewer/go-strcase v1.3.0
 	go.etcd.io/bbolt v1.3.7
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )

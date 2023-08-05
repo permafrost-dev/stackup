@@ -1,7 +1,6 @@
 package projectinfo
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -51,8 +50,6 @@ func (p *Project) Name() string {
 	}
 
 	baseDir, err := findProjectBaseDir(cwd)
-
-	fmt.Printf("baseDir: %s\n", baseDir)
 
 	if err != nil {
 		if absCwd, err := filepath.Abs(cwd); err == nil {

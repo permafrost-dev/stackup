@@ -45,6 +45,14 @@ type WorkflowSettings struct {
 	Cache                  *WorkflowSettingsCache    `yaml:"cache"`
 	Domains                *WorkflowSettingsDomains  `yaml:"domains"`
 	AnonymousStatistics    *bool                     `yaml:"anonymous-stats"`
+	Gateway                *WorkflowSettingsGateway  `yaml:"gateway"`
+}
+type GatewayContentTypes struct {
+	Blocked []string `yaml:"blocked"`
+	Allowed []string `yaml:"allowed"`
+}
+type WorkflowSettingsGateway struct {
+	ContentTypes *GatewayContentTypes `yaml:"content-types"`
 }
 
 type WorkflowSettingsDomains struct {
@@ -200,6 +208,20 @@ func (workflow *StackupWorkflow) configureDefaultSettings() {
 
 	App.Gateway.SetAllowedDomains(workflow.Settings.Domains.Allowed)
 
+	if workflow.Settings.Gateway == nil {
+		workflow.Settings.Gateway = &WorkflowSettingsGateway{
+			ContentTypes: &GatewayContentTypes{
+				Blocked: []string{},
+				Allowed: []string{},
+			},
+		}
+	}
+
+	if workflow.Settings.Gateway != nil && workflow.Settings.Gateway.ContentTypes != nil {
+		App.Gateway.SetDomainContentTypes("*", workflow.Settings.Gateway.ContentTypes.Allowed)
+		App.Gateway.SetBlockedContentTypes("*", workflow.Settings.Gateway.ContentTypes.Blocked)
+	}
+
 	if workflow.Settings.Cache.TtlMinutes <= 0 {
 		workflow.Settings.Cache.TtlMinutes = 5
 	}
@@ -247,6 +269,12 @@ func (workflow *StackupWorkflow) createMissingSettingsSection() {
 					Silent:    false,
 					Path:      App.JsEngine.MakeStringEvaluatable("getCwd()"),
 					Platforms: []string{"windows", "linux", "darwin"},
+				},
+			},
+			Gateway: &WorkflowSettingsGateway{
+				ContentTypes: &GatewayContentTypes{
+					Blocked: []string{},
+					Allowed: []string{"*"},
 				},
 			},
 		}
@@ -390,6 +418,10 @@ func (workflow *StackupWorkflow) handleDataNotCached(found bool, data *cache.Cac
 			return nil
 		}
 
+		if err != nil {
+			return err
+		}
+
 		include.Hash = checksums.CalculateSha256Hash(include.Contents)
 		expires := carbon.Now().AddMinutes(App.Workflow.Settings.Cache.TtlMinutes)
 		now := carbon.Now()
@@ -451,8 +483,24 @@ func (workflow *StackupWorkflow) copySettingsFromIncludedTemplate(template *Incl
 		if template.Settings.Defaults != nil {
 			workflow.Settings.Defaults = template.Settings.Defaults
 		}
+		if workflow.Settings.Gateway != nil && workflow.Settings.Gateway.ContentTypes != nil {
+			for _, contentType := range workflow.Settings.Gateway.ContentTypes.Blocked {
+				workflow.Settings.Gateway.ContentTypes.Blocked = append(workflow.Settings.Gateway.ContentTypes.Blocked, contentType)
+			}
+			for _, contentType := range workflow.Settings.Gateway.ContentTypes.Allowed {
+				workflow.Settings.Gateway.ContentTypes.Allowed = append(workflow.Settings.Gateway.ContentTypes.Allowed, contentType)
+			}
+		}
+		if template.Settings.Gateway != nil {
+			workflow.Settings.Gateway = template.Settings.Gateway
+		}
 	}
 
 	workflow.Settings.Domains.Allowed = utils.GetUniqueStrings(workflow.Settings.Domains.Allowed)
 	App.Gateway.SetAllowedDomains(workflow.Settings.Domains.Allowed)
+
+	workflow.Settings.Gateway.ContentTypes.Allowed = utils.GetUniqueStrings(workflow.Settings.Gateway.ContentTypes.Allowed)
+	workflow.Settings.Gateway.ContentTypes.Blocked = utils.GetUniqueStrings(workflow.Settings.Gateway.ContentTypes.Blocked)
+	App.Gateway.SetDomainContentTypes("*", workflow.Settings.Gateway.ContentTypes.Allowed)
+	App.Gateway.SetBlockedContentTypes("*", workflow.Settings.Gateway.ContentTypes.Blocked)
 }

@@ -125,6 +125,31 @@ tasks:
     platforms: ['linux', 'darwin'] # overrides the default
 ```
 
+#### Configuration: Settings: Gateway
+
+The `gateway` field of the `settings` section of the configuration file is used to customize the behavior of the http request gateway when accessing remote files or urls.  Both `blocked` and `allowed` content types can be specified as exact strings or wildcards, but both fields are optional.
+
+The default value for `blocked` is to not block any content types, and the default value for `allowed` is to allow all content types.
+
+```yaml
+settings:
+  gateway:
+    content-types:
+      blocked:
+        - audio/*
+        - font/*
+        - image/*
+        - multipart/*
+        - video/*
+      allowed:
+        - application/json
+        - application/vnd.api+json
+        - application/vnd.github.*
+        - application/xml
+        - application/yaml
+        - text/*
+```
+
 #### Configuration: Settings: Domains
 
 The `domains` section of the configuration file is used to specify a list of domain names that can be accessed when downloading remote files

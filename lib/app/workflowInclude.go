@@ -62,7 +62,7 @@ func (include *WorkflowInclude) Process() {
 	}
 
 	if err = include.Workflow.handleDataNotCached(include.FromCache, data, include); err != nil {
-		fmt.Println(err)
+		support.FailureMessageWithXMark("remote include (rejected: " + err.Error() + "): " + include.DisplayName())
 		return
 	}
 
@@ -71,7 +71,7 @@ func (include *WorkflowInclude) Process() {
 	}
 
 	if err = include.Workflow.loadRemoteFileInclude(include); err != nil {
-		fmt.Println(err)
+		support.FailureMessageWithXMark("remote include (rejected: " + err.Error() + "): " + include.DisplayName())
 		return
 	}
 

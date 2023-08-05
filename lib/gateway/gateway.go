@@ -17,22 +17,32 @@ type GatewayUrlRequestMiddleware struct {
 	Handler func(g *Gateway, link string) error
 }
 
+type GatewayUrlResponseMiddleware struct {
+	Name    string
+	Handler func(g *Gateway, resp *http.Response) error
+}
 type Gateway struct {
-	Enabled        bool
-	AllowedDomains []string
-	DeniedDomains  []string
-	Middleware     []*GatewayUrlRequestMiddleware
-	DomainHeaders  *sync.Map
+	Enabled             bool
+	AllowedDomains      []string
+	DeniedDomains       []string
+	Middleware          []*GatewayUrlRequestMiddleware
+	PostMiddleware      []*GatewayUrlResponseMiddleware
+	DomainHeaders       *sync.Map
+	DomainContentTypes  *sync.Map
+	BlockedContentTypes *sync.Map
 }
 
 // New initializes the gateway with deny/allow lists
 func New(deniedDomains, allowedDomains []string) *Gateway {
 	result := Gateway{
-		Enabled:        true,
-		DeniedDomains:  deniedDomains,
-		AllowedDomains: allowedDomains,
-		Middleware:     []*GatewayUrlRequestMiddleware{},
-		DomainHeaders:  &sync.Map{},
+		Enabled:             true,
+		DeniedDomains:       deniedDomains,
+		AllowedDomains:      allowedDomains,
+		Middleware:          []*GatewayUrlRequestMiddleware{},
+		PostMiddleware:      []*GatewayUrlResponseMiddleware{},
+		DomainHeaders:       &sync.Map{},
+		DomainContentTypes:  &sync.Map{},
+		BlockedContentTypes: &sync.Map{},
 	}
 
 	result.Initialize()
@@ -46,6 +56,7 @@ func (g *Gateway) Initialize() {
 
 	g.AddMiddleware(&ValidateUrlMiddleware)
 	g.AddMiddleware(&VerifyFileTypeMiddleware)
+	g.AddPostMiddleware(&VerifyContentType)
 
 	g.Enable()
 }
@@ -61,13 +72,62 @@ func (g *Gateway) SetDeniedDomains(domains []string) {
 }
 
 func (g *Gateway) SetDomainHeaders(domain string, headers []string) {
-	for _, header := range headers {
-		g.DomainHeaders.Store(domain, header)
-	}
+	g.DomainHeaders.Store(domain, headers)
+}
+
+func (g *Gateway) GetDomainHeaders(domain string) []string {
+	result := []string{}
+
+	g.DomainHeaders.Range(func(key, value any) bool {
+		if glob.Glob(key.(string), domain) {
+			result = append(result, value.([]string)...)
+		}
+		return true
+	})
+
+	return result
+}
+
+func (g *Gateway) SetBlockedContentTypes(domain string, contentTypes []string) {
+	g.BlockedContentTypes.Store(domain, contentTypes)
+}
+
+func (g *Gateway) GetBlockedContentTypes(domain string) []string {
+	result := []string{}
+
+	g.BlockedContentTypes.Range(func(key, value any) bool {
+		if glob.Glob(key.(string), domain) {
+			result = append(result, value.([]string)...)
+		}
+		return true
+	})
+
+	return result
+}
+
+func (g *Gateway) SetDomainContentTypes(domain string, contentTypes []string) {
+	g.DomainContentTypes.Store(domain, contentTypes)
+}
+
+func (g *Gateway) GetDomainContentTypes(domain string) []string {
+	result := []string{}
+
+	g.DomainContentTypes.Range(func(key, value any) bool {
+		if glob.Glob(key.(string), domain) {
+			result = append(result, value.([]string)...)
+		}
+		return true
+	})
+
+	return result
 }
 
 func (g *Gateway) AddMiddleware(mw *GatewayUrlRequestMiddleware) {
 	g.Middleware = append(g.Middleware, mw)
+}
+
+func (g *Gateway) AddPostMiddleware(mw *GatewayUrlResponseMiddleware) {
+	g.PostMiddleware = append(g.PostMiddleware, mw)
 }
 
 // The `runUrlRequestPipeline` function is a method of the `Gateway` struct. It iterates over the
@@ -84,6 +144,16 @@ func (g *Gateway) runUrlRequestPipeline(link string) error {
 		}
 	}
 
+	return nil
+}
+
+func (g *Gateway) runResponsePipeline(resp *http.Response) error {
+	for _, mw := range g.PostMiddleware {
+		err := (*mw).Handler(g, resp)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -142,14 +212,15 @@ func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 		return "", err
 	}
 
-	// remove the header items that are empty strings:
 	var tempHeaders []string = []string{"User-Agent: stackup/1.0"}
 
 	g.DomainHeaders.Range(func(key, value any) bool {
 		parsed, _ := url.Parse(urlStr)
 		if glob.Glob(key.(string), parsed.Hostname()) {
-			header := os.ExpandEnv(value.(string))
-			tempHeaders = append(tempHeaders, header)
+			for _, header := range value.([]string) {
+				header := os.ExpandEnv(header)
+				tempHeaders = append(tempHeaders, header)
+			}
 		}
 		return true
 	})
@@ -179,6 +250,11 @@ func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
+
+	err = g.runResponsePipeline(resp)
+	if err != nil {
+		return "", err
+	}
 
 	if resp.StatusCode >= 400 {
 		return "", fmt.Errorf("HTTP error: %d", resp.StatusCode)
