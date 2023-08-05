@@ -52,7 +52,7 @@ func verifyFileTypeHandler(g *Gateway, link string) error {
 	}
 
 	allowedFileNames := []string{"checksums.txt", "checksums.sha256.txt", "checksums.sha512.txt", "sha256sum", "sha512sum"}
-	allowedExts := []string{".yaml", ".yml", ".txt", ".sha256", ".sha512"}
+	allowedExts := []string{".yaml", ".yml", ".txt", ".sha256", ".sha512", ".json", ".js"}
 
 	for _, name := range allowedFileNames {
 		if strings.EqualFold(baseName, name) {

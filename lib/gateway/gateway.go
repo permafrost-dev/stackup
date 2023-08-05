@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 
@@ -147,13 +148,15 @@ func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 	g.DomainHeaders.Range(func(key, value any) bool {
 		parsed, _ := url.Parse(urlStr)
 		if glob.Glob(key.(string), parsed.Hostname()) {
-			tempHeaders = append(tempHeaders, value.(string))
+			header := os.ExpandEnv(value.(string))
+			tempHeaders = append(tempHeaders, header)
 		}
 		return true
 	})
 
 	for _, header := range headers {
 		if strings.TrimSpace(header) != "" {
+			header = os.ExpandEnv(header)
 			tempHeaders = append(tempHeaders, header)
 		}
 	}
