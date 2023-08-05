@@ -8,17 +8,18 @@
 
 A single application to spin up your entire dev stack.
 
-## Feature Notes
+## Features
 
 `StackUp` offers many features and advanced functionality. Here are some of the highlights:
 
-- Define tasks and run them with automation
-- Scriptable tasks and preconditions using javascript.
+- Define tasks that run on startup, shutdown, or on a schedule.
+- Customize tasks and preconditions using javascript.
 - Run tasks on a cron schedule, i.e. running `php artisan schedule:run` once every minute.
-- Request cache to speed up remote file downloads.
-- Request gateway that acts as a firewall to prevent remote file access unless it's been explicitly allowed.
-- Share common configurations: include remote files from GitHub, S3, or any other URL.
-- Checksum validation of remotely included files.
+- Load shared configurations with remote file includes via http or S3.
+- Optional checksum validation of remotely included files.
+- Fast in-memory cache for skipping http requests when possible.
+- Http request gateway that prevents unwanted access to remote files, domains or content types.
+- Domain-specific http header configuration.
 
 ## About
 
