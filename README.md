@@ -43,6 +43,7 @@ Spin up your entire dev stack with one command.
     - [Integration: dotenv-vault](#integration-dotenv-vault)
     - [Integration: Telegram Notifications](#integration-telegram-notifications)
     - [Integration: Slack Notifications](#integration-slack-notifications)
+    - [Integration: Desktop Notifications](#integration-desktop-notifications)
   - [Scripting](#scripting)
     - [Available Functions](#available-functions)
     - [Script Classes](#script-classes)
@@ -519,6 +520,20 @@ notifications.Slack().Message("hello from stackup, test 123").Send()
 
 // send a notification to a specific chat id
 notifications.Slack().Message("hello from stackup, test 456").To($SLACK_CHANNEL_1).Send()
+```
+
+### Integration: Desktop Notifications
+
+`StackUp` includes an integration for displaying desktop notifications. To configure the integration, see the [Desktop Notifications](#configuration-settings-notifications-desktop) section of the [Configuration: Settings](#configuration-settings) documentation.
+
+Notifications are sent using javascript:
+
+```js
+// display a desktop notification
+notifications.Desktop().Message("hello from stackup").Send()
+
+// optionally provide a notification title
+notifications.Desktop().Message("hello from stackup", "some title").Send()
 ```
 
 ## Scripting
