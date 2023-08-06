@@ -14,14 +14,16 @@ init: |
   app.SuccessMessage("selected " + $containerEngineBinary + " as the container engine");
 
 preconditions:
-  - name: project has a docker-compose file
-    check: fs.Exists("docker-compose.yml")
+  # - name: project has a docker-compose file
+  #   check: fs.Exists("docker-compose.yml")
 
 tasks:
   - id: start-containers
     command: '{{ $containerEngineBinary + " up -d" }}'
+    if: exists("docker-compose.yml")
     silent: true
 
   - id: stop-containers
     command: '{{ $containerEngineBinary + " down" }}'
+    if: exists("docker-compose.yml")
     silent: true

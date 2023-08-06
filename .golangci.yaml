@@ -1,7 +1,7 @@
 # Options for analysis running.
 run:
   # Timeout for analysis, e.g. 30s, 5m. Default: 1m
-  timeout: 30s
+  timeout: 15s
   modules-download-mode: mod
 
   # Include test files or not. Default: true
@@ -15,6 +15,8 @@ run:
   skip-dirs:
     - .custom-hooks
     - .github
+    - .task
+    - .trunk
     - .vscode
     - assets
     - build
@@ -34,9 +36,11 @@ run:
 
   # Allow multiple parallel golangci-lint instances running; If false (default) - golangci-lint acquires file lock on start.
   allow-parallel-runners: true
-  concurrency: 8
+  concurrency: 4
+
 
 linters:
+  fast: true
   disable:
     - errcheck
     - gosimple
@@ -45,6 +49,7 @@ linters:
     - typecheck
     - unused
   enable:
+    - gocyclo
     - govet
     - maintidx
     - misspell
@@ -67,7 +72,11 @@ severity:
   default-severity: warning
   case-sensitive: false
 
+
 linters-settings:
+  gocyclo:
+    min-complexity: 20
+
   funlen:
     lines: 100
     statements: 80

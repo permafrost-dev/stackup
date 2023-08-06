@@ -6,20 +6,60 @@
 
 ---
 
-A single application to spin up your entire dev stack.
-
-## Features
+Spin up your entire dev stack with one command.  
 
 `StackUp` offers many features and advanced functionality. Here are some of the highlights:
 
 - Define tasks that run on startup, shutdown, or on a schedule.
 - Customize tasks and preconditions using javascript.
 - Run tasks on a cron schedule, i.e. running `php artisan schedule:run` once every minute.
-- Load shared configurations with remote file includes via http or S3.
-- Optional checksum validation of remotely included files.
-- Fast in-memory cache for skipping http requests when possible.
-- Http request gateway that prevents unwanted access to remote files, domains or content types.
-- Domain-specific http header configuration.
+- Load remote configurations via http or S3.
+- Fast in-memory cache skips http requests when possible.
+- Http request gateway prevents unwanted access to remote urls, domains and content types.
+- Send notifications with Telegram and Slack integrations.
+
+## Table of Contents
+
+- [StackUp](#stackup)
+  - [Table of Contents](#table-of-contents)
+  - [About](#about)
+  - [Running StackUp](#running-stackup)
+  - [Configuration](#configuration)
+    - [Configuration: Settings](#configuration-settings)
+      - [Configuration: Settings: Gateway](#configuration-settings-gateway)
+      - [Configuration: Settings: Domains](#configuration-settings-domains)
+      - [Configuration: Settings: Notifications](#configuration-settings-notifications)
+      - [Configuration: Settings: Notifications: Telegram](#configuration-settings-notifications-telegram)
+      - [Configuration: Settings: Notifications: Slack](#configuration-settings-notifications-slack)
+    - [Configuration: Environment Variables](#configuration-environment-variables)
+    - [Configuration: Includes](#configuration-includes)
+    - [Configuration: Preconditions](#configuration-preconditions)
+    - [Configuration: Tasks](#configuration-tasks)
+    - [Configuration: Startup \& Shutdown](#configuration-startup--shutdown)
+    - [Configuration: Servers](#configuration-servers)
+    - [Configuration: Scheduler](#configuration-scheduler)
+    - [Example Configurations](#example-configurations)
+  - [Integrations](#integrations)
+    - [Integration: dotenv-vault](#integration-dotenv-vault)
+    - [Integration: Telegram Notifications](#integration-telegram-notifications)
+    - [Integration: Slack Notifications](#integration-slack-notifications)
+  - [Scripting](#scripting)
+    - [Available Functions](#available-functions)
+    - [Script Classes](#script-classes)
+      - [`ComposerJson`](#composerjson)
+      - [`PackageJson`](#packagejson)
+      - [`RequirementsTxt`](#requirementstxt)
+      - [`SemVer`](#semver)
+    - [Environment Variables](#environment-variables)
+  - [Dynamic Tasks](#dynamic-tasks)
+    - [Initialization Script](#initialization-script)
+  - [Setup](#setup)
+  - [Building the project](#building-the-project)
+  - [Changelog](#changelog)
+  - [Contributing](#contributing)
+  - [Security Vulnerabilities](#security-vulnerabilities)
+  - [Credits](#credits)
+  - [License](#license)
 
 ## About
 
@@ -182,6 +222,45 @@ domains:
         - 'Accept: application/vnd.github.v3+json'
 ```
 
+#### Configuration: Settings: Notifications
+
+StackUp provides the ability to send notifications via several integrations.
+
+```yaml
+settings:
+  notifications:
+    # integration1 settings
+    # integration2 settings, etc.
+```
+
+#### Configuration: Settings: Notifications: Telegram
+
+To send notifications via Telegram, add a `telegram` section to the `notifications` section of the configuration file.  The `telegram` section should contain an `api-key` and a `chat-ids` field.  The `api-key` field should contain the Telegram bot token, and the `chat-ids` field should be an array of chat ids of the users or groups to send notifications to.  The chat ids may either be a string, number, or an environment variable that contains a chat id.
+
+```yaml
+settings:
+  notifications:
+    telegram:
+      api-key: $TELEGRAM_API_KEY
+      chat-ids: [$TELEGRAM_CHAT_ID1, $TELEGRAM_CHAT_ID2]
+```
+
+For more information on the Telegram integration, see the [Telegram Notifications](#integration-telegram-notifications) section of the [Integrations](#integrations) documentation.
+
+#### Configuration: Settings: Notifications: Slack
+
+To send notifications via Slack, add a `slack` section to the `notifications` section of the configuration file.  The `slack` section should contain `webhook-url` and `channel-ids` fields.  The `webhook-url` field should contain the Slack webhook url to send notifications to, and the `channel-ids` field should be an array of channel names to send notifications to.
+
+```yaml
+settings:
+  notifications:
+    slack:
+      webhook-url: $SLACK_WEBHOOK_URL
+      channel-ids: [$SLACK_CHANNEL_1, $SLACK_CHANNEL_2]
+```
+
+For more information about the Slack integration, see the [Slack Notifications](#integration-slack-notifications) section of the [Integrations](#integrations) documentation.
+
 ### Configuration: Environment Variables
 
 Environment variables can be defined in the optional `env` section of the configuration file.  These variables can be referenced in other sections of the configuration file using the `env()` function or by prefixing the variable name with `$` (e.g. `$MY_VAR`).
@@ -190,19 +269,6 @@ Environment variables can be defined in the optional `env` section of the config
 env:
   - MY_ENV_VAR_ONE=test1234
   - MY_ENV_VAR_TWO=1234test
-```
-
-#### Integration: dotenv-vault
-
-`StackUp` supports loading encrypted values from `.env.vault` files (see the [dotenv-vault website](https://vault.dotenv.org)).
-
-To load a `.env.vault` file, add an entry to the `env` section named `dotenv://vault`.  This item will cause the `.env.vault` file to
-be loaded into the environment, if it exists.  If it does not exist, no action is taken.
-
-```yaml
-env:
-  - MY_ENV_VAR_ONE=test1234
-  - dotenv://vault # loads .env.vault, if it exists
 ```
 
 ### Configuration: Includes
@@ -409,6 +475,51 @@ scheduler:
 See the [example configuration](./templates/stackup.dist.yaml) for a more complex example that brings up a Laravel-based backend and a Next.js frontend stack.
 
 Working on a standalone Laravel application? Check out the [example laravel configuration](./templates/stackup.laravel.yaml).
+
+## Integrations
+
+StackUp supports several integrations that provide additional functionality.
+
+### Integration: dotenv-vault
+
+`StackUp` includes an integration for `dotenv-vault` and loading encrypted values from `.env.vault` files (see the [dotenv-vault website](https://vault.dotenv.org)).
+
+To load a `.env.vault` file, add an entry to the `env` section named `dotenv://vault`.  This item will cause the `.env.vault` file to
+be loaded into the environment, if it exists.  If it does not exist, no action is taken.
+
+```yaml
+env:
+  - MY_ENV_VAR_ONE=test1234
+  - dotenv://vault # loads .env.vault, if it exists
+```
+
+### Integration: Telegram Notifications
+
+`StackUp` includes an integration for sending notifications via Telegram.  To configure the integration, see the [Telegram Notifications](#configuration-settings-notifications-telegram) section of the [Configuration: Settings](#configuration-settings) documentation.
+
+Notifications are sent using javascript:
+
+```js
+// send a notification to all configured chat ids
+notifications.Telegram().Message("hello from stackup, test 123").Send()
+
+// send a notification to a specific chat id
+notifications.Telegram().Message("hello from stackup, test 456").To($TELEGRAM_CHAT_ID_1).Send()
+```
+
+### Integration: Slack Notifications
+
+`StackUp` includes an integration for sending messages to Slack channels.  To configure the integration, see the [Slack Notifications](#configuration-settings-notifications-slack) section of the [Configuration: Settings](#configuration-settings) documentation.
+
+Notifications are sent using javascript:
+
+```js
+// send a notification to all configured chat ids
+notifications.Slack().Message("hello from stackup, test 123").Send()
+
+// send a notification to a specific chat id
+notifications.Slack().Message("hello from stackup, test 456").To($SLACK_CHANNEL_1).Send()
+```
 
 ## Scripting
 
