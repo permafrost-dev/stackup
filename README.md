@@ -6,18 +6,17 @@
 
 ---
 
-A single application to spin up your entire dev stack.
+Spin up your entire dev stack with one command.  
 
 `StackUp` offers many features and advanced functionality. Here are some of the highlights:
 
 - Define tasks that run on startup, shutdown, or on a schedule.
 - Customize tasks and preconditions using javascript.
 - Run tasks on a cron schedule, i.e. running `php artisan schedule:run` once every minute.
-- Load shared configurations with remote file includes via http or S3.
-- Optional checksum validation of remotely included files.
-- Fast in-memory cache for skipping http requests when possible.
-- Http request gateway that prevents unwanted access to remote files, domains or content types.
-- Domain-specific http header configuration.
+- Load remote configurations via http or S3.
+- Fast in-memory cache skips http requests when possible.
+- Http request gateway prevents unwanted access to remote urls, domains and content types.
+- Send notifications with Telegram and Slack integrations.
 
 ## Table of Contents
 
