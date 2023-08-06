@@ -30,13 +30,15 @@ func (e *JavaScriptEngine) Init() {
 
 	e.Vm = otto.New()
 
+	e.CreateEnvironmentVariables()
 	CreateJavascriptFunctions(e.Vm)
 	CreateScriptFsObject(e.Vm)
 	CreateScriptAppObject(e.Vm)
 	CreateScriptVarsObject(e.Vm)
 	CreateScriptDevObject(e.Vm)
 	CreateScriptNetObject(e.Vm)
-	e.CreateEnvironmentVariables()
+	CreateScripNotificationsObject(e.Vm)
+
 }
 
 func (e *JavaScriptEngine) CreateAppVariables() {

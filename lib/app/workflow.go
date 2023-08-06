@@ -38,14 +38,15 @@ type StackupWorkflow struct {
 	Cache         *cache.Cache
 }
 type WorkflowSettings struct {
-	Defaults               *WorkflowSettingsDefaults `yaml:"defaults"`
-	ExitOnChecksumMismatch bool                      `yaml:"exit-on-checksum-mismatch"`
-	ChecksumVerification   *bool                     `yaml:"checksum-verification"`
-	DotEnvFiles            []string                  `yaml:"dotenv"`
-	Cache                  *WorkflowSettingsCache    `yaml:"cache"`
-	Domains                *WorkflowSettingsDomains  `yaml:"domains"`
-	AnonymousStatistics    *bool                     `yaml:"anonymous-stats"`
-	Gateway                *WorkflowSettingsGateway  `yaml:"gateway"`
+	Defaults               *WorkflowSettingsDefaults      `yaml:"defaults"`
+	ExitOnChecksumMismatch bool                           `yaml:"exit-on-checksum-mismatch"`
+	ChecksumVerification   *bool                          `yaml:"checksum-verification"`
+	DotEnvFiles            []string                       `yaml:"dotenv"`
+	Cache                  *WorkflowSettingsCache         `yaml:"cache"`
+	Domains                *WorkflowSettingsDomains       `yaml:"domains"`
+	AnonymousStatistics    *bool                          `yaml:"anonymous-stats"`
+	Gateway                *WorkflowSettingsGateway       `yaml:"gateway"`
+	Notifications          *WorkflowSettingsNotifications `yaml:"notifications"`
 }
 type GatewayContentTypes struct {
 	Blocked []string `yaml:"blocked"`
@@ -77,6 +78,21 @@ type WorkflowSettingsDefaultsTasks struct {
 	Silent    bool     `yaml:"silent"`
 	Path      string   `yaml:"path"`
 	Platforms []string `yaml:"platforms"`
+}
+
+type WorkflowSettingsNotifications struct {
+	Telegram *WorkflowSettingsNotificationsTelegram `yaml:"telegram"`
+    Slack *WorkflowSettingsNotificationsSlack `yaml:"slack"`
+}
+
+type WorkflowSettingsNotificationsTelegram struct {
+	APIKey  string   `yaml:"api-key"`
+	ChatIds []string `yaml:"chat-ids"`
+}
+
+type WorkflowSettingsNotificationsSlack struct {
+	WebhookUrl  string   `yaml:"webhook-url"`
+	ChannelIds []string `yaml:"channel-ids"`
 }
 
 type StackupWorkflowState struct {
@@ -230,6 +246,53 @@ func (workflow *StackupWorkflow) configureDefaultSettings() {
 		workflow.Settings.DotEnvFiles = []string{".env"}
 	}
 
+	if workflow.Settings.Notifications == nil {
+		workflow.Settings.Notifications = &WorkflowSettingsNotifications{
+			Telegram: &WorkflowSettingsNotificationsTelegram{
+				APIKey:  "",
+				ChatIds: []string{},
+			},
+            Slack: &WorkflowSettingsNotificationsSlack{
+                WebhookUrl: "",
+                ChannelIds: []string{},
+            },
+		}
+	}
+
+	if workflow.Settings.Notifications.Telegram == nil {
+		workflow.Settings.Notifications.Telegram = &WorkflowSettingsNotificationsTelegram{
+			APIKey:  "",
+			ChatIds: []string{},
+		}
+	}
+
+    if workflow.Settings.Notifications.Slack == nil {
+        workflow.Settings.Notifications.Slack = &WorkflowSettingsNotificationsSlack{
+            WebhookUrl: "",
+            ChannelIds: []string{},
+        }
+    }
+
+    tempChannelIds := []string{}
+    for _, channelId := range workflow.Settings.Notifications.Slack.ChannelIds {
+        if strings.HasPrefix(channelId, "$") {
+            tempChannelIds = append(tempChannelIds, os.ExpandEnv(channelId))
+        } else {
+            tempChannelIds = append(tempChannelIds, channelId)
+        }
+    }
+    workflow.Settings.Notifications.Slack.ChannelIds = tempChannelIds
+
+	tempChatIds := []string{}
+	for _, chatID := range workflow.Settings.Notifications.Telegram.ChatIds {
+		if strings.HasPrefix(chatID, "$") {
+			tempChatIds = append(tempChatIds, os.ExpandEnv(chatID))
+		} else {
+			tempChatIds = append(tempChatIds, chatID)
+		}
+	}
+	workflow.Settings.Notifications.Telegram.ChatIds = tempChatIds
+
 	// copy the default settings into each task if appropriate
 	for _, task := range workflow.Tasks {
 		if task.Path == "" && len(workflow.Settings.Defaults.Tasks.Path) > 0 {
@@ -275,6 +338,12 @@ func (workflow *StackupWorkflow) createMissingSettingsSection() {
 				ContentTypes: &GatewayContentTypes{
 					Blocked: []string{},
 					Allowed: []string{"*"},
+				},
+			},
+			Notifications: &WorkflowSettingsNotifications{
+				Telegram: &WorkflowSettingsNotificationsTelegram{
+					APIKey:  "",
+					ChatIds: []string{},
 				},
 			},
 		}
