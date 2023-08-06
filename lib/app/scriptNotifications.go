@@ -11,6 +11,14 @@ type ScriptNotifications struct {
 	Vm          *otto.Otto
 	telegramObj *ScriptNotificationsTelegram
     slackObj *ScriptNotificationsSlack
+    desktopObj *DesktopNotification
+}
+
+type DesktopNotification struct {
+    state struct {
+        title string
+        message string
+    }
 }
 
 type ScriptNotificationsTelegram struct {
@@ -40,8 +48,39 @@ func CreateScripNotificationsObject(vm *otto.Otto) {
         slackObj: &ScriptNotificationsSlack{
             WebhookUrl: "",
         },
+        desktopObj: &DesktopNotification{},
 	}
 	vm.Set("notifications", obj)
+}
+
+func (dn *DesktopNotification) create() *DesktopNotification {
+    dn.resetState()
+
+    return dn
+}
+
+func (dn *DesktopNotification) Send() bool {
+    result := notifications.NewDesktopNotification().
+        Send(dn.state.title, dn.state.message)
+
+    dn.resetState()
+    return result == nil
+}
+
+func (dn *DesktopNotification) resetState() {
+    dn.state.title = ""
+    dn.state.message = ""
+}
+
+func (dn *DesktopNotification) Message(message string) *DesktopNotification {
+    dn.state.message = message
+    dn.state.title = "notification"
+
+    return dn
+}
+
+func (sn *ScriptNotifications) Desktop() *DesktopNotification {
+    return sn.desktopObj
 }
 
 func (sn *ScriptNotifications) Telegram() *ScriptNotificationsTelegram {

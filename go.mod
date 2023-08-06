@@ -18,6 +18,8 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible // indirect
+	github.com/go-toast/toast v0.0.0-20190211030409-01e6764cf0a4 // indirect
+	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -32,6 +34,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nikoksr/notify v0.41.0 // indirect
+	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/xid v1.5.0 // indirect
@@ -39,6 +42,7 @@ require (
 	github.com/slack-go/slack v0.12.2 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/stretchr/testify v1.8.4 // indirect
+	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
 	github.com/technoweenie/multipartstreamer v1.0.1 // indirect
 	golang.org/x/crypto v0.11.0 // indirect
 	golang.org/x/net v0.12.0 // indirect
@@ -55,6 +59,7 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/emirpasic/gods v1.18.1
+	github.com/gen2brain/beeep v0.0.0-20230602101333-f384c29b62dd
 	github.com/golang-module/carbon/v2 v2.2.3
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/minio/minio-go v6.0.14+incompatible
