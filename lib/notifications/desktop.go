@@ -5,14 +5,17 @@ import (
 )
 
 type DesktopNotification struct {
+    IconPath string
 }
 
-// NewDesktopNotification creates a new instance of the DesktopNotification
-// struct.
-func NewDesktopNotification() *DesktopNotification {
-	return &DesktopNotification{}
+func NewDesktopNotification(iconPath string) *DesktopNotification {
+	return &DesktopNotification{
+        IconPath: iconPath,
+    }
 }
 
-func (tn *DesktopNotification) Send(title, message string) error {
-    return beeep.Notify(title, message, "")
+func (dn *DesktopNotification) Send(title, message string) error {
+    beeep.DefaultDuration = 8
+
+    return beeep.Notify(title, message, dn.IconPath)
 }

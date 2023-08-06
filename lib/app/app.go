@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path"
 	"sync"
 	"syscall"
 
@@ -94,6 +95,7 @@ func (a *Application) init() {
 	a.Workflow = a.loadWorkflowFile(a.ConfigFilename)
 	a.JsEngine = CreateNewJavascriptEngine()
 	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
+    a.DownloadApplicationIcon()
 }
 
 func (a *Application) hookSignals() {
@@ -350,6 +352,26 @@ func (a *Application) handleFlagOptions() {
 		a.createNewConfigFile()
 		os.Exit(0)
 	}
+}
+
+func (a *Application) GetConfigurationPath() string {
+    pathname, _ := utils.EnsureConfigDirExists("stackup")
+
+    return pathname
+}
+
+func (a *Application) DownloadApplicationIcon() {
+    filename := a.GetApplicationIconPath()
+
+    if utils.FileExists(filename) && utils.IsFile(filename) {
+        return
+    }
+
+    utils.SaveUrlToFile("https://raw.githubusercontent.com/permafrost-dev/stackup/main/assets/stackup-app-512px.png", filename)
+}
+
+func (a *Application) GetApplicationIconPath() string {
+    return path.Join(a.GetConfigurationPath(), "/stackup-icon.png")
 }
 
 func (a *Application) Run() {

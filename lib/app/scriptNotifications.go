@@ -60,7 +60,7 @@ func (dn *DesktopNotification) create() *DesktopNotification {
 }
 
 func (dn *DesktopNotification) Send() bool {
-    result := notifications.NewDesktopNotification().
+    result := notifications.NewDesktopNotification(App.GetApplicationIconPath()).
         Send(dn.state.title, dn.state.message)
 
     dn.resetState()
@@ -72,9 +72,13 @@ func (dn *DesktopNotification) resetState() {
     dn.state.message = ""
 }
 
-func (dn *DesktopNotification) Message(message string) *DesktopNotification {
+func (dn *DesktopNotification) Message(message string, title ...string) *DesktopNotification {
     dn.state.message = message
     dn.state.title = "notification"
+
+    if len(title) > 0 {
+        dn.state.title = title[0]
+    }
 
     return dn
 }

@@ -213,6 +213,13 @@ func IsDir(filename string) bool {
 	return info.IsDir()
 }
 
+func FileExists(filename string) bool {
+    if _, err := os.Stat(filename); err == nil {
+        return true
+    }
+    return false
+}
+
 func MatchPattern(s string, pattern string) []string {
 	regex := regexp.MustCompile(pattern)
 	if !regex.MatchString(s) {
@@ -355,4 +362,22 @@ func GetUniqueStrings(items []string) []string {
 	}
 
 	return uniqueItems
+}
+
+func EnsureConfigDirExists(appName string) (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	// Append the directory name to the home directory
+	configDir := filepath.Join(homeDir, "."+appName)
+
+	// Ensure the directory exists
+	err = os.MkdirAll(configDir, 0744)
+	if err != nil {
+		return "", err
+	}
+
+	return configDir, nil
 }
