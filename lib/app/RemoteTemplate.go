@@ -6,8 +6,6 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"fmt"
-	"io"
-	"net/http"
 
 	"github.com/stackup-app/stackup/lib/utils"
 	"gopkg.in/yaml.v2"
@@ -48,20 +46,13 @@ func (index *RemoteTemplateIndex) GetTemplate(name string) *RemoteTemplate {
 }
 
 func (t *RemoteTemplate) GetContents() ([]byte, error) {
-	// Send an HTTP GET request to the location URL
-	resp, err := http.Get(t.Location)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+	body, err := utils.GetUrlContents(t.Location)
 
-	// Read the response body into a byte slice
-	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 
-	return body, nil
+	return []byte(body), nil
 }
 
 func (t *RemoteTemplate) ValidateChecksum(contents string) (bool, error) {
