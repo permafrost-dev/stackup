@@ -56,7 +56,7 @@ func (g *Gateway) Initialize() {
 
 	g.AddMiddleware(&ValidateUrlMiddleware)
 	g.AddMiddleware(&VerifyFileTypeMiddleware)
-	g.AddPostMiddleware(&VerifyContentType)
+	g.AddPostMiddleware(&VerifyContentTypeMIddleware)
 
 	g.Enable()
 }
@@ -195,7 +195,7 @@ func (g *Gateway) Disable() {
 	g.Enabled = false
 }
 
-func (g *Gateway) checkArrayForMatch(arr *[]string, s string) bool {
+func (g *Gateway) checkArrayForDomainMatch(arr *[]string, s string) bool {
 	for _, domain := range *arr {
 		if strings.EqualFold(s, domain) {
 			return true
