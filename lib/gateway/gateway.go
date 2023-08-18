@@ -51,24 +51,22 @@ func New(deniedDomains, allowedDomains []string) *Gateway {
 }
 
 func (g *Gateway) Initialize() {
-	g.normalizeDataArray(&g.DeniedDomains)
-	g.normalizeDataArray(&g.AllowedDomains)
+	g.DeniedDomains = g.normalizeDomainArray(g.DeniedDomains)
+	g.AllowedDomains = g.normalizeDomainArray(g.AllowedDomains)
 
 	g.AddMiddleware(&ValidateUrlMiddleware)
-	g.AddMiddleware(&VerifyFileTypeMiddleware)
+	//g.AddMiddleware(&VerifyFileTypeMiddleware)
 	g.AddPostMiddleware(&VerifyContentTypeMIddleware)
 
 	g.Enable()
 }
 
 func (g *Gateway) SetAllowedDomains(domains []string) {
-	g.AllowedDomains = domains
-	g.normalizeDataArray(&g.AllowedDomains)
+	g.AllowedDomains = g.normalizeDomainArray(domains)
 }
 
 func (g *Gateway) SetDeniedDomains(domains []string) {
-	g.DeniedDomains = domains
-	g.normalizeDataArray(&g.DeniedDomains)
+	g.DeniedDomains = g.normalizeDomainArray(domains)
 }
 
 func (g *Gateway) SetDomainHeaders(domain string, headers []string) {
@@ -166,25 +164,26 @@ func (g *Gateway) Allowed(link string) bool {
 	return g.runUrlRequestPipeline(link) == nil
 }
 
-// processes an array of domains and remove any empty strings and extract hostnames from URLs if
-// they are present, then copy the result back to the original array so we have an array of only
-// hostnames with or without wildcard characters.
-func (g *Gateway) normalizeDataArray(arr *[]string) {
-	tempDomains := []string{}
+// processes an array of domains and remove any empty strings and extracts hostnames from URLs if
+// they are present, then returns a new array without the removed items
+func (g *Gateway) normalizeDomainArray(arr []string) []string {
+	result := []string{}
 
-	for _, domain := range *arr {
+	for _, domain := range arr {
 		if len(strings.TrimSpace(domain)) == 0 {
 			continue
 		}
 		if strings.Contains(domain, "://") {
-			parsedUrl, _ := url.Parse(domain)
-			domain = parsedUrl.Host
+			parsedUrl, err := url.Parse(domain)
+			if err == nil {
+				domain = parsedUrl.Host
+			}
 		}
 
-		tempDomains = append(tempDomains, domain)
+		result = append(result, domain)
 	}
 
-	copy(*arr, tempDomains)
+	return result
 }
 
 func (g *Gateway) Enable() {
@@ -201,6 +200,10 @@ func (g *Gateway) checkArrayForDomainMatch(arr *[]string, s string) bool {
 			return true
 		}
 		if strings.Contains(domain, "*") && glob.Glob(domain, s) {
+			return true
+		}
+
+		if strings.EqualFold(strings.TrimPrefix(domain, "*."), s) {
 			return true
 		}
 	}
