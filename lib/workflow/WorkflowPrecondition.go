@@ -1,4 +1,4 @@
-package app
+package workflow
 
 type WorkflowPrecondition struct {
 	Name       string `yaml:"name"`
@@ -7,9 +7,12 @@ type WorkflowPrecondition struct {
 	FromRemote bool
 	Attempts   int
 	MaxRetries *int `yaml:"max-retries,omitempty"`
+    Workflow *StackupWorkflow
 }
 
-func (p *WorkflowPrecondition) Initialize() {
+func (p *WorkflowPrecondition) Initialize(workflow *StackupWorkflow) {
+    p.Workflow = workflow
+
 	p.Attempts = 0
 	if p.MaxRetries == nil {
 		p.MaxRetries = new(int)
@@ -20,10 +23,10 @@ func (p *WorkflowPrecondition) Initialize() {
 func (p *WorkflowPrecondition) HandleOnFailure() bool {
 	result := true
 
-	if App.JsEngine.IsEvaluatableScriptString(p.OnFail) {
-		App.JsEngine.Evaluate(p.OnFail)
+	if p.Workflow.JsEngine.IsEvaluatableScriptString(p.OnFail) {
+		p.Workflow.JsEngine.Evaluate(p.OnFail)
 	} else {
-		task := App.Workflow.FindTaskById(p.OnFail)
+		task := p.Workflow.FindTaskById(p.OnFail)
 		if task != nil {
 			task.Run(true)
 		}

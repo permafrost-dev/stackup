@@ -1,23 +1,40 @@
-package app
+package scripting
 
 import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/robertkrimen/otto"
+	"github.com/stackup-app/stackup/lib/gateway"
+	"github.com/stackup-app/stackup/lib/settings"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
-type EvaluateFunction func(script string) any
-
-type JavaScriptEngine struct {
-	Vm *otto.Otto
+type AppWorkflowContract interface {
+	FindTaskById(id string) *any
+	GetSettings() *settings.Settings
 }
 
-func CreateNewJavascriptEngine() *JavaScriptEngine {
-	result := JavaScriptEngine{}
+type JavaScriptEngine struct {
+	Vm                     *otto.Otto
+	AppVars                *sync.Map
+	AppGateway             *gateway.Gateway
+	Functions              *JavaScriptFunctions
+	GetWorkflowContract    func() interface{}
+	GetApplicationIconPath func() string
+}
+
+func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, getWorkflowContract func() interface{}, getAppIconFunc func() string) *JavaScriptEngine {
+	result := JavaScriptEngine{
+		AppVars:                vars,
+		AppGateway:             gateway,
+		GetApplicationIconPath: getAppIconFunc,
+		GetWorkflowContract:    getWorkflowContract,
+	}
+
 	result.Init()
 
 	return &result
@@ -29,20 +46,21 @@ func (e *JavaScriptEngine) Init() {
 	}
 
 	e.Vm = otto.New()
+	e.Functions = CreateJavascriptFunctions(e)
 
 	e.CreateEnvironmentVariables()
-	CreateJavascriptFunctions(e.Vm)
-	CreateScriptFsObject(e.Vm)
-	CreateScriptAppObject(e.Vm)
-	CreateScriptVarsObject(e.Vm)
-	CreateScriptDevObject(e.Vm)
-	CreateScriptNetObject(e.Vm)
-	CreateScripNotificationsObject(e.Vm)
+	CreateJavascriptFunctions(e)
+	CreateScriptFsObject(e)
+	CreateScriptAppObject(e)
+	CreateScriptVarsObject(e)
+	CreateScriptDevObject(e)
+	CreateScriptNetObject(e)
+	CreateScripNotificationsObject(e)
 
 }
 
-func (e *JavaScriptEngine) CreateAppVariables() {
-	App.Vars.Range(func(key, value any) bool {
+func (e *JavaScriptEngine) CreateAppVariables(vars *sync.Map) {
+	vars.Range(func(key, value any) bool {
 		e.Vm.Set("$"+(key.(string)), value)
 		return true
 	})

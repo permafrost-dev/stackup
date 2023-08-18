@@ -1,4 +1,4 @@
-package app
+package workflow
 
 import (
 	"fmt"
@@ -38,8 +38,8 @@ func (wi *WorkflowInclude) Initialize(workflow *StackupWorkflow) {
 
 	// expand environment variables in the include headers
 	for i, v := range wi.Headers {
-		if App.JsEngine.IsEvaluatableScriptString(v) {
-			wi.Headers[i] = App.JsEngine.Evaluate(v).(string)
+		if wi.Workflow.JsEngine.IsEvaluatableScriptString(v) {
+			wi.Headers[i] = wi.Workflow.JsEngine.Evaluate(v).(string)
 		}
 		wi.Headers[i] = os.ExpandEnv(v)
 	}
@@ -126,7 +126,7 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, string, erro
 	}
 
 	for _, url := range checksumUrls {
-		if !App.Gateway.Allowed(url) {
+		if !wi.Workflow.Gateway.Allowed(url) {
 			support.FailureMessageWithXMark("Access to " + url + " is not allowed.")
 			continue
 		}

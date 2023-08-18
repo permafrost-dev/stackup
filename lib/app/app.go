@@ -16,17 +16,19 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
 	"github.com/stackup-app/stackup/lib/gateway"
+	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/telemetry"
+	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/updater"
 	"github.com/stackup-app/stackup/lib/utils"
 	"github.com/stackup-app/stackup/lib/version"
+	"github.com/stackup-app/stackup/lib/workflow"
 	"gopkg.in/yaml.v2"
 )
 
 var App *Application
 
-type CommandCallback func(cmd *exec.Cmd)
 type AppFlags struct {
 	DisplayHelp    *bool
 	DisplayVersion *bool
@@ -35,38 +37,56 @@ type AppFlags struct {
 }
 
 type Application struct {
-	Workflow            *StackupWorkflow
-	JsEngine            *JavaScriptEngine
+	Workflow            *workflow.StackupWorkflow
+	JsEngine            *scripting.JavaScriptEngine
 	cronEngine          *cron.Cron
 	scheduledTaskMap    *sync.Map
 	ProcessMap          *sync.Map
 	Vars                *sync.Map
 	flags               AppFlags
-	CmdStartCallback    CommandCallback
-	KillCommandCallback CommandCallback
+	CmdStartCallback    types.CommandCallback
+	KillCommandCallback types.CommandCallback
 	ConfigFilename      string
 	Gateway             *gateway.Gateway
 	Analytics           *telemetry.Telemetry
 }
 
-func (a *Application) loadWorkflowFile(filename string) *StackupWorkflow {
-	var result StackupWorkflow
+func (a *Application) loadWorkflowFile(filename string) *workflow.StackupWorkflow {
+	var result workflow.StackupWorkflow
 
 	contents, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return &StackupWorkflow{}
+		return &workflow.StackupWorkflow{
+			CommandStartCb: a.CmdStartCallback,
+			ExitAppFunc:    a.exitApp,
+			Gateway:        a.Gateway,
+			JsEngine:       a.JsEngine,
+			ProcessMap:     a.ProcessMap,
+		}
 	}
 
 	err = yaml.Unmarshal(contents, &result)
 	if err != nil {
-		return &StackupWorkflow{}
+		return &workflow.StackupWorkflow{
+			CommandStartCb: a.CmdStartCallback,
+			ExitAppFunc:    a.exitApp,
+			Gateway:        a.Gateway,
+			JsEngine:       a.JsEngine,
+			ProcessMap:     a.ProcessMap,
+		}
 	}
 
-	result.State = &StackupWorkflowState{
+	result.State = &workflow.StackupWorkflowState{
 		CurrentTask: nil,
 		Stack:       linkedliststack.New(),
 		History:     linkedliststack.New(),
 	}
+
+	result.CommandStartCb = a.CmdStartCallback
+	result.ExitAppFunc = a.exitApp
+	result.Gateway = a.Gateway
+	result.JsEngine = a.JsEngine
+	result.ProcessMap = a.ProcessMap
 
 	return &result
 }
@@ -93,9 +113,9 @@ func (a *Application) init() {
 	a.Vars = &sync.Map{}
 
 	a.Workflow = a.loadWorkflowFile(a.ConfigFilename)
-	a.JsEngine = CreateNewJavascriptEngine()
+	a.JsEngine = scripting.CreateNewJavascriptEngine(a.Vars, a.Gateway, a.GetWorkflowContract, a.GetApplicationIconPath)
 	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
-    a.DownloadApplicationIcon()
+	a.DownloadApplicationIcon()
 }
 
 func (a *Application) hookSignals() {
@@ -189,7 +209,7 @@ func (a *Application) runStartupTasks() {
 			continue
 		}
 
-		App.Workflow.State.CurrentTask = task
+		a.Workflow.State.CurrentTask = task
 
 		//GetState().Stack.Push(task)
 		task.Run(true)
@@ -206,7 +226,7 @@ func (a *Application) runShutdownTasks() {
 			continue
 		}
 
-		App.Workflow.State.CurrentTask = task
+		a.Workflow.State.CurrentTask = task
 		task.Run(true)
 	}
 }
@@ -220,12 +240,12 @@ func (a *Application) runServerTasks() {
 			continue
 		}
 
-		App.Workflow.State.CurrentTask = task
+		a.Workflow.State.CurrentTask = task
 		task.Run(false)
 	}
 }
 
-func (a *Application) runPrecondition(c *WorkflowPrecondition) bool {
+func (a *Application) runPrecondition(c *workflow.WorkflowPrecondition) bool {
 	result := true
 
 	if c.Check != "" {
@@ -355,23 +375,27 @@ func (a *Application) handleFlagOptions() {
 }
 
 func (a *Application) GetConfigurationPath() string {
-    pathname, _ := utils.EnsureConfigDirExists("stackup")
+	pathname, _ := utils.EnsureConfigDirExists("stackup")
 
-    return pathname
+	return pathname
 }
 
 func (a *Application) DownloadApplicationIcon() {
-    filename := a.GetApplicationIconPath()
+	filename := a.GetApplicationIconPath()
 
-    if utils.FileExists(filename) && utils.IsFile(filename) {
-        return
-    }
+	if utils.FileExists(filename) && utils.IsFile(filename) {
+		return
+	}
 
-    utils.SaveUrlToFile("https://raw.githubusercontent.com/permafrost-dev/stackup/main/assets/stackup-app-512px.png", filename)
+	utils.SaveUrlToFile("https://raw.githubusercontent.com/permafrost-dev/stackup/main/assets/stackup-app-512px.png", filename)
+}
+
+func (a *Application) GetWorkflowContract() interface{} {
+	return a.Workflow
 }
 
 func (a *Application) GetApplicationIconPath() string {
-    return path.Join(a.GetConfigurationPath(), "/stackup-icon.png")
+	return path.Join(a.GetConfigurationPath(), "/stackup-icon.png")
 }
 
 func (a *Application) Run() {
@@ -391,7 +415,7 @@ func (a *Application) Run() {
 		godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
 	}
 	a.JsEngine.CreateEnvironmentVariables()
-	a.JsEngine.CreateAppVariables()
+	a.JsEngine.CreateAppVariables(a.Vars)
 
 	if !*a.flags.NoUpdateCheck {
 		a.checkForApplicationUpdates()

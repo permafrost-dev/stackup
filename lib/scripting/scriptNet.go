@@ -1,21 +1,23 @@
-package app
+package scripting
 
 import (
-	"github.com/robertkrimen/otto"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type ScriptNet struct {
+    engine *JavaScriptEngine
 }
 
-func CreateScriptNetObject(vm *otto.Otto) {
-	obj := &ScriptNet{}
-	vm.Set("net", obj)
+func CreateScriptNetObject(e *JavaScriptEngine) {
+	obj := &ScriptNet{
+        engine: e,
+    }
+	e.Vm.Set("net", obj)
 }
 
 func (net *ScriptNet) Fetch(url string) any {
-	if !App.Gateway.Allowed(url) {
+	if !net.engine.AppGateway.Allowed(url) {
 		support.FailureMessageWithXMark("fetch failed: access to " + url + " is not allowed.")
 		return ""
 	}
@@ -26,7 +28,7 @@ func (net *ScriptNet) Fetch(url string) any {
 }
 
 func (net *ScriptNet) FetchJson(url string) any {
-	if !App.Gateway.Allowed(url) {
+	if !net.engine.AppGateway.Allowed(url) {
 		support.FailureMessageWithXMark("fetchJson failed: access to " + url + " is not allowed.")
 		return interface{}(nil)
 	}
@@ -37,7 +39,7 @@ func (net *ScriptNet) FetchJson(url string) any {
 }
 
 func (net *ScriptNet) DownloadTo(url string, filename string) {
-	if !App.Gateway.Allowed(url) {
+	if !net.engine.AppGateway.Allowed(url) {
 		support.FailureMessageWithXMark("download failed: access to " + url + " is not allowed.")
 		return
 	}

@@ -1,7 +1,6 @@
-package app
+package scripting
 
 import (
-	"github.com/robertkrimen/otto"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/version"
 )
@@ -9,9 +8,9 @@ import (
 type ScriptApp struct {
 }
 
-func CreateScriptAppObject(vm *otto.Otto) {
+func CreateScriptAppObject(e *JavaScriptEngine) {
 	obj := &ScriptApp{}
-	vm.Set("app", obj)
+	e.Vm.Set("app", obj)
 }
 
 func (app *ScriptApp) StatusMessage(message string) {

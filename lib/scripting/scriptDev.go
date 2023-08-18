@@ -1,13 +1,11 @@
-package app
-
-import "github.com/robertkrimen/otto"
+package scripting
 
 type ScriptDev struct {
 }
 
-func CreateScriptDevObject(vm *otto.Otto) {
+func CreateScriptDevObject(e *JavaScriptEngine) {
 	obj := &ScriptDev{}
-	vm.Set("dev", obj)
+	e.Vm.Set("dev", obj)
 }
 
 func (dev *ScriptDev) ComposerJson(filename string) *Composer {

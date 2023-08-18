@@ -1,20 +1,18 @@
-package app
+package scripting
 
 import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-
-	"github.com/robertkrimen/otto"
 )
 
 type ScriptFs struct {
 }
 
-func CreateScriptFsObject(vm *otto.Otto) {
+func CreateScriptFsObject(e *JavaScriptEngine) {
 	obj := &ScriptFs{}
-	vm.Set("fs", obj)
+	e.Vm.Set("fs", obj)
 }
 
 func (fs *ScriptFs) ReadFile(filename string) (string, error) {
