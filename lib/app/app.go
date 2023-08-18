@@ -414,7 +414,7 @@ func (a *Application) Run() {
 		godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
 	}
 	a.JsEngine.CreateEnvironmentVariables()
-	a.JsEngine.CreateAppVariables(a.Vars)
+	a.JsEngine.CreateAppVariables()
 
 	if !*a.flags.NoUpdateCheck {
 		a.checkForApplicationUpdates()

@@ -58,8 +58,8 @@ func (e *JavaScriptEngine) Init() {
 
 }
 
-func (e *JavaScriptEngine) CreateAppVariables(vars *sync.Map) {
-	vars.Range(func(key, value any) bool {
+func (e *JavaScriptEngine) CreateAppVariables() {
+	e.AppVars.Range(func(key, value any) bool {
 		e.Vm.Set("$"+(key.(string)), value)
 		return true
 	})
@@ -73,7 +73,6 @@ func (e *JavaScriptEngine) CreateEnvironmentVariables() {
 }
 
 func (e *JavaScriptEngine) ToValue(value otto.Value) any {
-
 	if value.IsBoolean() {
 		v, _ := value.ToBoolean()
 		return v
