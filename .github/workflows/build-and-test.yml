@@ -35,7 +35,7 @@ jobs:
 
       - name: Run Tests with Coverage
         if: ${{success()}}
-        run: go test -cover -coverprofile=coverage.out -covermode=atomic -v ./.../lib/**
+        run: go test -cover -coverprofile=coverage.out -covermode=atomic -v ./lib/**
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
