@@ -10,14 +10,13 @@ on:
     types: [opened, edited]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     env:
       GO_VERSION: "~1.20"
       GO111MODULE: "on"
 
     steps:
-
       - name: Install Task
         uses: arduino/setup-task@v1
 
@@ -42,6 +41,7 @@ jobs:
         run: go test -cover -coverprofile coverage.out -covermode set -v ./lib/**
 
       - name: Upload coverage reports to Codecov
+        if: ${{success()}}
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
