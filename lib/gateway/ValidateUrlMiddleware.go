@@ -18,7 +18,7 @@ func validateUrlHandler(g *Gateway, link string) error {
 	}
 
 	if g.checkArrayForDomainMatch(&g.DeniedDomains, parsedUrl.Host) {
-		return errors.New("the url is in the denied list")
+		return errors.New("access to domain" + parsedUrl.Host + " is not allowed")
 	}
 
 	if g.checkArrayForDomainMatch(&g.AllowedDomains, parsedUrl.Host) {

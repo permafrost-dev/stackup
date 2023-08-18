@@ -55,7 +55,7 @@ func (g *Gateway) Initialize() {
 	g.AllowedDomains = g.normalizeDomainArray(g.AllowedDomains)
 
 	g.AddMiddleware(&ValidateUrlMiddleware)
-	//g.AddMiddleware(&VerifyFileTypeMiddleware)
+	g.AddMiddleware(&VerifyFileTypeMiddleware)
 	g.AddPostMiddleware(&VerifyContentTypeMIddleware)
 
 	g.Enable()
@@ -196,14 +196,10 @@ func (g *Gateway) Disable() {
 
 func (g *Gateway) checkArrayForDomainMatch(arr *[]string, s string) bool {
 	for _, domain := range *arr {
-		if strings.EqualFold(s, domain) {
+		if strings.EqualFold(s, domain) || strings.EqualFold(strings.TrimPrefix(domain, "*."), s) {
 			return true
 		}
-		if strings.Contains(domain, "*") && glob.Glob(domain, s) {
-			return true
-		}
-
-		if strings.EqualFold(strings.TrimPrefix(domain, "*."), s) {
+		if glob.Glob(domain, s) {
 			return true
 		}
 	}

@@ -24,18 +24,15 @@ func verifyFileTypeHandler(g *Gateway, link string) error {
 	baseName := path.Base(parsedUrl.Path)
 	fileExt := path.Ext(baseName)
 
-	if fileExt == "" {
+	if fileExt == "." || fileExt == "" {
 		return nil
 	}
 
-	allowedFileNames := []string{"checksums.txt", "checksums.sha256.txt", "checksums.sha512.txt", "sha256sum", "sha512sum"}
-	allowedExts := []string{".yaml", ".yml", ".txt", ".sha256", ".sha512", ".json", ".js"}
-
-	for _, name := range allowedFileNames {
-		if strings.EqualFold(baseName, name) {
-			return nil
-		}
+	if baseName == "." || baseName == "" {
+		return nil
 	}
+
+	allowedExts := []string{".yaml", ".yml", ".txt", ".sha256", ".sha512", ".json", ".js"}
 
 	for _, ext := range allowedExts {
 		if strings.EqualFold(fileExt, ext) {
