@@ -2,7 +2,7 @@ package scripting
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 
 	"github.com/stackup-app/stackup/lib/utils"
 )
@@ -25,7 +25,7 @@ func LoadPackageJson(filename string) (*PackageJSON, error) {
 		filename = filename + "/package.json"
 	}
 
-	contents, err := ioutil.ReadFile(filename)
+	contents, err := os.ReadFile(filename)
 	if err != nil {
 		return pkg, err
 	}

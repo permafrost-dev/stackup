@@ -2,7 +2,7 @@ package scripting
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 
 	"github.com/stackup-app/stackup/lib/utils"
 )
@@ -24,7 +24,7 @@ func LoadComposerJson(filename string) (*Composer, error) {
 		filename = filename + "/composer.json"
 	}
 
-	contents, err := ioutil.ReadFile(filename)
+	contents, err := os.ReadFile(filename)
 	if err != nil {
 		return &composer, err
 	}

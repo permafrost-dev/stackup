@@ -2,7 +2,6 @@ package scripting
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -16,7 +15,7 @@ func CreateScriptFsObject(e *JavaScriptEngine) {
 }
 
 func (fs *ScriptFs) ReadFile(filename string) (string, error) {
-	content, err := ioutil.ReadFile(filename)
+	content, err := os.ReadFile(filename)
 	if err != nil {
 		return "", err
 	}
@@ -25,7 +24,7 @@ func (fs *ScriptFs) ReadFile(filename string) (string, error) {
 }
 
 func (fs *ScriptFs) WriteFile(filename string, content string) error {
-	err := ioutil.WriteFile(filename, []byte(content), 0644)
+	err := os.WriteFile(filename, []byte(content), 0644)
 	if err != nil {
 		return err
 	}
@@ -42,7 +41,7 @@ func (fs *ScriptFs) ReadJSON(filename string) (interface{}, error) {
 	var data interface{}
 
 	// Read the contents of the file
-	content, err := ioutil.ReadFile(filename)
+	content, err := os.ReadFile(filename)
 	if err != nil {
 		return data, err
 	}
@@ -66,7 +65,7 @@ func (fs *ScriptFs) WriteJSON(filename string, data interface{}) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(filename, content, 0644)
+	err = os.WriteFile(filename, content, 0644)
 	if err != nil {
 		return err
 	}
@@ -99,7 +98,7 @@ func (fs *ScriptFs) IsFile(filename string) bool {
 func (fs *ScriptFs) GetFiles(directory string) ([]string, error) {
 	var files []string
 
-	fileInfos, err := ioutil.ReadDir(directory)
+	fileInfos, err := os.ReadDir(directory)
 	if err != nil {
 		return files, err
 	}

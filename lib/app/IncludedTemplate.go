@@ -6,7 +6,7 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/stackup-app/stackup/lib/utils"
@@ -56,7 +56,7 @@ func (t *RemoteTemplate) GetContents() ([]byte, error) {
 	defer resp.Body.Close()
 
 	// Read the response body into a byte slice
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

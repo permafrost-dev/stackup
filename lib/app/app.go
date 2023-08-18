@@ -3,7 +3,6 @@ package app
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -54,7 +53,7 @@ type Application struct {
 func (a *Application) loadWorkflowFile(filename string) *workflow.StackupWorkflow {
 	var result workflow.StackupWorkflow
 
-	contents, err := ioutil.ReadFile(filename)
+	contents, err := os.ReadFile(filename)
 	if err != nil {
 		return &workflow.StackupWorkflow{
 			CommandStartCb: a.CmdStartCallback,
