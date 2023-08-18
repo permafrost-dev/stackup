@@ -49,7 +49,6 @@ func (e *JavaScriptEngine) Init() {
 	e.Functions = CreateJavascriptFunctions(e)
 
 	e.CreateEnvironmentVariables()
-	CreateJavascriptFunctions(e)
 	CreateScriptFsObject(e)
 	CreateScriptAppObject(e)
 	CreateScriptVarsObject(e)
