@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	glob "github.com/ryanuber/go-glob"
+	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type GatewayUrlRequestMiddleware struct {
@@ -77,7 +77,7 @@ func (g *Gateway) GetDomainHeaders(domain string) []string {
 	result := []string{}
 
 	g.DomainHeaders.Range(func(key, value any) bool {
-		if glob.Glob(key.(string), domain) {
+		if utils.DomainGlobMatch(key.(string), domain) {
 			result = append(result, value.([]string)...)
 		}
 		return true
@@ -94,7 +94,7 @@ func (g *Gateway) GetBlockedContentTypes(domain string) []string {
 	result := []string{}
 
 	g.BlockedContentTypes.Range(func(key, value any) bool {
-		if glob.Glob(key.(string), domain) {
+		if utils.DomainGlobMatch(key.(string), domain) {
 			result = append(result, value.([]string)...)
 		}
 		return true
@@ -116,7 +116,7 @@ func (g *Gateway) GetDomainContentTypes(domain string) []string {
 	result := []string{}
 
 	g.DomainContentTypes.Range(func(key, value any) bool {
-		if glob.Glob(key.(string), domain) {
+		if utils.DomainGlobMatch(key.(string), domain) {
 			result = append(result, value.([]string)...)
 		}
 		return true
@@ -194,12 +194,12 @@ func (g *Gateway) Disable() {
 	g.Enabled = false
 }
 
-func (g *Gateway) checkArrayForDomainMatch(arr *[]string, s string) bool {
-	for _, domain := range *arr {
-		if strings.EqualFold(s, domain) || strings.EqualFold(strings.TrimPrefix(domain, "*."), s) {
+func (g *Gateway) checkArrayForDomainMatch(arr *[]string, domain string) bool {
+	for _, domainPattern := range *arr {
+		if strings.EqualFold(domain, domainPattern) || strings.EqualFold(strings.TrimPrefix(domainPattern, "*."), domain) {
 			return true
 		}
-		if glob.Glob(domain, s) {
+		if utils.DomainGlobMatch(domainPattern, domain) {
 			return true
 		}
 	}
@@ -220,7 +220,7 @@ func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 
 	g.DomainHeaders.Range(func(key, value any) bool {
 		parsed, _ := url.Parse(urlStr)
-		if glob.Glob(key.(string), parsed.Hostname()) {
+		if utils.DomainGlobMatch(key.(string), parsed.Hostname()) {
 			for _, header := range value.([]string) {
 				header := os.ExpandEnv(header)
 				tempHeaders = append(tempHeaders, header)

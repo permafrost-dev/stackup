@@ -18,6 +18,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gobwas/glob"
 )
 
 func BinaryExistsInPath(binary string) bool {
@@ -214,10 +216,10 @@ func IsDir(filename string) bool {
 }
 
 func FileExists(filename string) bool {
-    if _, err := os.Stat(filename); err == nil {
-        return true
-    }
-    return false
+	if _, err := os.Stat(filename); err == nil {
+		return true
+	}
+	return false
 }
 
 func MatchPattern(s string, pattern string) []string {
@@ -380,4 +382,10 @@ func EnsureConfigDirExists(appName string) (string, error) {
 	}
 
 	return configDir, nil
+}
+
+func DomainGlobMatch(pattern string, s string) bool {
+	return glob.
+		MustCompile(pattern, '.').
+		Match(s)
 }
