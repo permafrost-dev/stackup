@@ -56,7 +56,6 @@ func validateUrlHandler(g *Gateway, link string) error {
 		return err
 	}
 
-	// Check if URL is in the denied list
 	if g.checkArrayForMatch(&g.DeniedDomains, parsedUrl.Host) {
 		return errors.New("the url is in the denied list")
 	}

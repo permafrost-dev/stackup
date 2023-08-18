@@ -106,6 +106,11 @@ func (g *Gateway) GetBlockedContentTypes(domain string) []string {
 }
 
 func (g *Gateway) SetDomainContentTypes(domain string, contentTypes []string) {
+	if len(contentTypes) == 0 {
+		g.DomainContentTypes.Delete(domain)
+		return
+	}
+
 	g.DomainContentTypes.Store(domain, contentTypes)
 }
 
@@ -237,7 +242,6 @@ func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 		return "", err
 	}
 
-	// Add headers to the request
 	for _, header := range tempHeaders {
 		parts := strings.SplitN(header, ":", 2)
 		if len(parts) == 2 {
