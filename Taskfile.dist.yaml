@@ -9,12 +9,8 @@ vars:
   BUILD_OUTPUT_DIR: './dist'
   BINARY_FILENAME: 'stackup'
   DIST_TARGET_FILE: '{{.BUILD_OUTPUT_DIR}}/{{.BINARY_FILENAME}}'
-  GIT_COMMIT:
-    sh: git log -n 1 --format=%h
-  SRC_DIRS:
-    sh: find . -name "*.go" -printf '%h\n' | sort -u | egrep -v '^.$' | grep -v './tools' | sed ':a;N;$!ba;s/\n/ /g' | awk -F'|' '{ print $1 }'
   DOTENV_FILES:
-    sh: find . -name ".env*" -print | sort -u | grep -v './dist' | sed ':a;N;$!ba;s/\n/ /g' | awk -F'|' '{ print $1 }'
+    sh: find . -name ".env*" -print | sort -u | egrep -v '^./dist.*$' | tr '\n' ' '
 
 tasks:
 
@@ -29,6 +25,8 @@ tasks:
     preconditions:
       - task: prepare-dist-folder
       - task: mod
+    deps:
+      - task: update-version-file
     cmds:
       - task: build-stackup
       - task: copy-config-template-to-dist
@@ -47,6 +45,9 @@ tasks:
       - task: lint-stackup
 
   update-version-file:
+    preconditions:
+      # don't run this task in CI
+      - sh: '[ "$CI" == "" ]'
     cmds:
       - go run tools/generate-version-file.go
 
@@ -59,6 +60,9 @@ tasks:
 
   lint-stackup:
     desc: Runs golangci-lint
+    vars:
+      SRC_DIRS:
+        sh: find . -name "*.go" -printf '%h\n' | awk -F/ '{ print "./" $2 }' | sort -u | grep -v './tools' | tr '\n' ' '
     preconditions:
       - which golangci-lint
     cmds:
@@ -69,14 +73,14 @@ tasks:
     silent: true
     cmds:
       - mkdir -p {{.BUILD_OUTPUT_DIR}}
-    status:
-      - test -d {{.BUILD_OUTPUT_DIR}}
 
   build-stackup:
     desc: Builds stackup binary
+    vars:
+      GIT_COMMIT:
+        sh: git log -n 1 --format=%h
     deps:
       - task: prepare-dist-folder
-      - task: update-version-file
     sources:
       - '{{.ENTRY_FILENAME}}'
     generates:
@@ -94,6 +98,8 @@ tasks:
   bump-minor-version-and-tag:
     run: once
     desc: Bumps minor version and creates a new git tag
+    preconditions:
+      - which svu
     cmds:
       - echo "bumping version to $(svu minor)"
       - git tag $(svu minor)
