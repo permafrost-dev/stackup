@@ -317,13 +317,15 @@ func (a *Application) createNewConfigFile() {
       domains:
         allowed:
           - '*.githubusercontent.com'
-          - '*.github.com'
+        hosts:
+          - hostname: *.github.com
+            gateway: allow
+            headers:
+              - 'Accept: application/vnd.github.v3+json'
       gateway:
         content-types:
-          blocked:
           allowed:
-            - application/json
-            - text/*
+            - '*'
 
     includes:
       - url: gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
@@ -350,8 +352,7 @@ func (a *Application) createNewConfigFile() {
 
 func (a *Application) checkForApplicationUpdates() {
 	updateAvailable, release := updater.
-		New(a.Gateway).
-		IsLatestApplicationReleaseNewerThanCurrent(a.Workflow.Cache, version.APP_VERSION, "permafrost-dev/stackup")
+		New(a.Gateway).IsLatestApplicationReleaseNewerThanCurrent(a.Workflow.Cache, version.APP_VERSION, "permafrost-dev/stackup")
 
 	if updateAvailable {
 		support.WarningMessage(fmt.Sprintf("A new version of StackUp is available, released %s.", release.TimeSinceRelease()))
