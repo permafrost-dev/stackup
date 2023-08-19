@@ -295,16 +295,21 @@ Included files can be specified with either a relative or absolute pathname.  Re
 
 ```yaml
 includes:
+  # include a remote file from github
   - url: gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
     verify: false # optional, defaults to true
 
   - url: gh:permafrost-dev/stackup/main/templates/remote-includes/node.yaml
     headers:
-      - 'Authorization: token $GITHUB_TOKEN' # headers to send with the request, can be javascript if wrapped in double braces
+      # headers to send with the request, javascript must be wrapped in double braces
+      - 'Authorization: token $GITHUB_TOKEN'
+      - '{{ "X-Some-Header: " + getEnv("GITHUB_TOKEN") }}'
 
-  - file: python.yaml # includes a local file
+  # include a local file
+  - file: python.yaml
 
-  - url: s3:127.0.0.1:9000/stackup-includes/python.yaml # includes a file from a minio bucket
+  # include a remote file from a minio/s3 bucket
+  - url: s3:127.0.0.1:9000/stackup-includes/python.yaml
     access-key: $S3_KEY # access key loaded from `.env` or `env` section
     secret-key: $S3_SECRET # secret key env loaded from `.env` or `env` section
     secure: false # optional, defaults to true
