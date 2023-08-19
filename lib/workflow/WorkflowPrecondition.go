@@ -6,9 +6,9 @@ type WorkflowPrecondition struct {
 	Name       string `yaml:"name"`
 	Check      string `yaml:"check"`
 	OnFail     string `yaml:"on-fail"`
+	MaxRetries *int   `yaml:"max-retries,omitempty"`
 	FromRemote bool
 	Attempts   int
-	MaxRetries *int `yaml:"max-retries,omitempty"`
 	Workflow   *StackupWorkflow
 }
 
