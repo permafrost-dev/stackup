@@ -16,7 +16,7 @@ import (
 var POSTHOG_API_KEY_FOR_CLI = "V6yB20dWAVDZfG1yDOFkSQPeGachBJst3UPkVJJdkIS"
 
 type Telemetry struct {
-	isEnabled     bool
+	IsEnabled     bool
 	posthogClient posthog.Client
 }
 
@@ -42,9 +42,9 @@ func New(telemetryIsEnabled bool, gw *gateway.Gateway) *Telemetry {
 			},
 		)
 
-		return &Telemetry{isEnabled: telemetryIsEnabled, posthogClient: client}
+		return &Telemetry{IsEnabled: telemetryIsEnabled, posthogClient: client}
 	} else {
-		return &Telemetry{isEnabled: false}
+		return &Telemetry{IsEnabled: false}
 	}
 }
 
@@ -53,7 +53,7 @@ func (t *Telemetry) EventOnly(name string) {
 }
 
 func (t *Telemetry) Event(name string, properties map[string]interface{}) {
-	if !t.isEnabled {
+	if !t.IsEnabled {
 		return
 	}
 
@@ -79,7 +79,7 @@ func (t *Telemetry) CaptureEvent(eventName string, properties posthog.Properties
 		return
 	}
 
-	if t.isEnabled {
+	if t.IsEnabled {
 		t.posthogClient.Enqueue(posthog.Capture{
 			DistinctId: userIdentity,
 			Event:      eventName,
@@ -94,7 +94,7 @@ func (t *Telemetry) GetDistinctId() (string, error) {
 	var distinctId string
 	var outputErr error
 
-	machineId, err := machineid.ID()
+	machineId, err := machineid.ProtectedID("stackup")
 	if err != nil {
 		outputErr = err
 	}

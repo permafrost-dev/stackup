@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -57,32 +56,12 @@ func CreateCacheEntry(keyName string, value string, expiresAt *carbon.Carbon, ha
 }
 
 // The function creates and initializes a cache object.
-func CreateCache(name string) *Cache {
-	result := Cache{Name: name, Enabled: false}
+func CreateCache(name string, storagePath string) *Cache {
+	result := Cache{Name: name, Enabled: false, Path: storagePath}
 	result.Init()
 	result.Enabled = true
 
 	return &result
-}
-
-// The function ensures that a directory with a given name exists in the user's home directory and
-// returns the path to the directory.
-func ensureConfigDirExists(dirName string) (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	// Append the directory name to the home directory
-	configDir := filepath.Join(homeDir, dirName)
-
-	// Ensure the directory exists
-	err = os.MkdirAll(configDir, 0744)
-	if err != nil {
-		return "", err
-	}
-
-	return configDir, nil
 }
 
 func (ce *CacheEntry) IsExpired() bool {
@@ -109,7 +88,6 @@ func (c *Cache) Init() {
 		return
 	}
 
-	c.Path, _ = ensureConfigDirExists(".stackup")
 	c.Filename = filepath.Join(c.Path, "stackup.db")
 	if c.Name == "" {
 		c.Name = projectinfo.New().FsSafeName()

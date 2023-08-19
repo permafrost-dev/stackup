@@ -91,6 +91,7 @@ func (a *Application) loadWorkflowFile(filename string) *workflow.StackupWorkflo
 }
 
 func (a *Application) init() {
+	utils.EnsureConfigDirExists("stackup")
 	a.Gateway = gateway.New([]string{}, []string{}, []string{}, []string{})
 	a.ConfigFilename = support.FindExistingFile([]string{"stackup.dist.yaml", "stackup.yaml"}, "stackup.yaml")
 
@@ -405,11 +406,12 @@ func (a *Application) Run() {
 	a.init()
 	a.handleFlagOptions()
 
-	a.Analytics = telemetry.New(true, a.Gateway)
-	a.Workflow.Initialize()
+	a.Analytics = telemetry.New(false, a.Gateway)
+	a.Workflow.Initialize(a.GetConfigurationPath())
 	a.Gateway.Initialize(a.Workflow.Settings)
+	a.Analytics.IsEnabled = *a.Workflow.Settings.AnonymousStatistics
 
-	if *a.Workflow.Settings.AnonymousStatistics {
+	if a.Analytics.IsEnabled {
 		a.Analytics.EventOnly("app.start")
 	}
 

@@ -114,8 +114,8 @@ func (workflow *StackupWorkflow) TryLoadDotEnvVaultFile(value string) bool {
 	return true
 }
 
-func (workflow *StackupWorkflow) Initialize() {
-	workflow.Cache = cache.CreateCache("")
+func (workflow *StackupWorkflow) Initialize(configPath string) {
+	workflow.Cache = cache.CreateCache("", configPath)
 
 	// generate uuids for each task as the initial step, as other code below relies on a uuid existing
 	for _, task := range workflow.Tasks {
