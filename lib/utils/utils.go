@@ -385,7 +385,30 @@ func EnsureConfigDirExists(appName string) (string, error) {
 }
 
 func DomainGlobMatch(pattern string, s string) bool {
+	if pattern == "*" {
+		return len(s) > 0
+	}
+
 	return glob.
 		MustCompile(pattern, '.').
 		Match(s)
+}
+
+func GlobMatch(pattern string, s string, optional bool) bool {
+	if pattern == "*" {
+		return len(s) > 0
+	}
+
+	if !optional {
+		return glob.
+			MustCompile(pattern, '.').
+			Match(s)
+	}
+
+	match, err := glob.Compile(pattern)
+	if err != nil {
+		return false
+	}
+
+	return match.Match(s)
 }

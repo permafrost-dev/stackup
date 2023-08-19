@@ -41,6 +41,11 @@ type CacheEntry struct {
 }
 
 func CreateCacheEntry(keyName string, value string, expiresAt *carbon.Carbon, hash string, algorithm string, updatedAt *carbon.Carbon) *CacheEntry {
+	if updatedAt == nil {
+		temp := carbon.Now()
+		updatedAt = &temp
+	}
+
 	return &CacheEntry{
 		Key:       keyName,
 		Value:     value,
@@ -309,6 +314,10 @@ func (c *Cache) Has(key string) bool {
 	return found
 }
 
+func (c *Cache) HasUnexpired(key string) bool {
+	return c.Has(key) && !c.IsExpired(key)
+}
+
 // The `Remove` function in the `Cache` struct is used to remove a cache entry with a given key. It
 // calls the `Set` function with a `value` parameter of `nil` and a `ttlMinutes` parameter of `0`. This
 // effectively sets the cache entry to be empty and expired, effectively removing it from the cache.
@@ -324,4 +333,14 @@ func (c *Cache) Remove(key string) {
 	})
 
 	c.Db.Sync()
+}
+
+// builds a cache key using a prefix and name
+func (c *Cache) MakeCacheKey(prefix string, name string) string {
+	prefix = strings.TrimSuffix(prefix, ":")
+	if len(prefix) == 0 {
+		return name
+	}
+
+	return prefix + ":" + name
 }
