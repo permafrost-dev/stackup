@@ -63,8 +63,11 @@ func New(deniedDomains, allowedDomains, blockedFileExts, allowedFileExts []strin
 func (g *Gateway) setup() {
 	// we need the `validateUrl` middleware no matter what, so prepend it to the list of enabled middleware.
 	// this middleware is the core functionality of the http gateway's allow/block lists.
-	temp := []string{"validateUrl"}
-	g.EnabledMiddleware = append(temp, g.EnabledMiddleware...)
+	// temp := []string{"validateUrl"}
+	g.EnabledMiddleware = append(g.EnabledMiddleware, "validateUrl")
+	GatewayMiddleware.AddPreMiddleware(&ValidateUrlMiddleware)
+
+	// fmt.Printf("enabled middleware: %v\n", g.EnabledMiddleware)
 
 	for _, name := range g.EnabledMiddleware {
 		if !GatewayMiddleware.HasMiddleware(name) {
@@ -224,6 +227,7 @@ func (g *Gateway) runUrlRequestPipeline(link string) error {
 
 	for _, mw := range g.Middleware {
 		if err := (*mw).Handler(g, link); err != nil {
+			// fmt.Printf("error on mw: %v; %v\n", mw.Name, err)
 			return err
 		}
 	}

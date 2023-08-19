@@ -1,6 +1,8 @@
 package gateway
 
-import "strings"
+import (
+	"strings"
+)
 
 type GatewayMiddlewareStore struct {
 	PreMiddleware  []*GatewayUrlRequestMiddleware
