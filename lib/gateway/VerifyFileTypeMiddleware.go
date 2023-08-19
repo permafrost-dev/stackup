@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"errors"
-	"fmt"
 	"net/url"
 	"path"
 	"strings"
@@ -17,39 +16,24 @@ var VerifyFileTypeMiddleware = GatewayUrlRequestMiddleware{
 			return nil
 		}
 
-		allowedExts := []string{"*"}
-		blockedExts := []string{"*"}
-
-		if len(g.AllowedFileExts) > 0 {
-			allowedExts = g.AllowedFileExts
-		}
-
-		if len(g.BlockedFileExts) > 0 {
-			blockedExts = g.BlockedFileExts
-		}
-
-		fmt.Printf("Allowedexts: %v\n", allowedExts)
-		fmt.Printf("Blockedexts: %v\n", blockedExts)
-
 		parsedUrl, err := url.Parse(link)
 		if err != nil {
 			return err
 		}
 
-		baseName := path.Base(parsedUrl.Path)
-		fileExt := path.Ext(baseName)
+		fileExt := path.Ext(parsedUrl.Path)
 
 		if fileExt == "." || fileExt == "" {
 			return nil
 		}
 
-		for _, ext := range allowedExts {
+		for _, ext := range g.AllowedFileExts {
 			if utils.GlobMatch(ext, fileExt, false) || strings.EqualFold(fileExt, ext) {
 				return nil
 			}
 		}
 
-		for _, ext := range blockedExts {
+		for _, ext := range g.BlockedFileExts {
 			if utils.GlobMatch(ext, fileExt, false) || strings.EqualFold(fileExt, ext) {
 				return errors.New("access to file extension '" + fileExt + "' is blocked")
 			}

@@ -200,7 +200,7 @@ and all other domains are blocked.
 
 The `hosts` section of `domains` allows the configuration of headers to send with requests to specific hosts. Hostnames may be fully-qualified
 hostnames, or may contain wildcards.  For example, `*.githubusercontent.com` will match `raw.githubusercontent.com` and `gist.githubusercontent.com`.
-If the `gateway` field is set to `allow`, the hostname will be added to the list of allowed domains automatically.
+If the `gateway` field is set to `allow`, the hostname will be added to the list of allowed domains automatically, and defaults to `true`.
 
 > The domain allow list is applied to all url access, including when `StackUp` checks to see if it is running the latest version,
 > or when sending anonymous opt-in analytics.

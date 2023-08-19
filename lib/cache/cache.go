@@ -4,21 +4,24 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	carbon "github.com/golang-module/carbon/v2"
 	"github.com/stackup-app/stackup/lib/projectinfo"
+	"github.com/stackup-app/stackup/lib/utils"
 	bolt "go.etcd.io/bbolt"
 )
 
 type Cache struct {
-	Db       *bolt.DB
-	Enabled  bool
-	Name     string
-	Path     string
-	Filename string
+	Db         *bolt.DB
+	Enabled    bool
+	Name       string
+	Path       string
+	Filename   string
+	DefaultTtl int
 }
 
 type HashAlgorithmType byte
@@ -30,42 +33,35 @@ const (
 	HashAlgorithmSha512
 )
 
-type CacheEntry struct {
-	Key       string
-	Value     string
-	ExpiresAt string
-	Hash      string
-	Algorithm string
-	UpdatedAt string
+// creates a new Cache instance. `name` is used to determine the boltdb filename, and `storagePath` is
+// used as the path for the db file.  If `name` is empty, it defaults to the name of the current binary.
+func New(name string, storagePath string) *Cache {
+	if !utils.FileExists(storagePath) {
+		os.MkdirAll(storagePath, 0744)
+	}
+
+	return (&Cache{Name: name, Enabled: false, Path: storagePath, DefaultTtl: 60}).Init()
 }
 
-func CreateCacheEntry(keyName string, value string, expiresAt *carbon.Carbon, hash string, algorithm string, updatedAt *carbon.Carbon) *CacheEntry {
+func (c *Cache) CreateEntry(keyName string, value string, expiresAt *carbon.Carbon, hash string, algorithm string, updatedAt *carbon.Carbon) *CacheEntry {
 	if updatedAt == nil {
 		temp := carbon.Now()
 		updatedAt = &temp
+	}
+
+	if expiresAt == nil {
+		temp := carbon.Now().AddMinutes(c.DefaultTtl)
+		expiresAt = &temp
 	}
 
 	return &CacheEntry{
 		Key:       keyName,
 		Value:     value,
 		Algorithm: algorithm,
-		ExpiresAt: expiresAt.ToDateTimeString("America/New_York"),
+		ExpiresAt: expiresAt.ToDateTimeString(),
 		Hash:      hash,
-		UpdatedAt: updatedAt.ToDateTimeString("America/New_York"),
+		UpdatedAt: updatedAt.ToDateTimeString(),
 	}
-}
-
-// The function creates and initializes a cache object.
-func CreateCache(name string, storagePath string) *Cache {
-	result := Cache{Name: name, Enabled: false, Path: storagePath}
-	result.Init()
-	result.Enabled = true
-
-	return &result
-}
-
-func (ce *CacheEntry) IsExpired() bool {
-	return carbon.Parse(ce.ExpiresAt, "America/New_York").IsPast()
 }
 
 func (c *Cache) IsBaseKey(key string) bool {
@@ -83,21 +79,28 @@ func (c *Cache) GetBaseKey(key string) string {
 
 // The `Init` function in the `Cache` struct is used to initialize the cache by setting up the
 // necessary configurations and opening the database connection. Here's a breakdown of what it does:
-func (c *Cache) Init() {
+func (c *Cache) Init() *Cache {
 	if c.Db != nil {
-		return
+		return c
 	}
 
-	c.Filename = filepath.Join(c.Path, "stackup.db")
+	filename := "stackup.db"
+
+	if c.Name != "" {
+		cwd, _ := os.Getwd()
+		filename = projectinfo.New(os.Args[0], cwd).FsSafeName() + ".db"
+	}
+
+	c.Filename = filepath.Join(c.Path, filename)
 	if c.Name == "" {
-		c.Name = projectinfo.New().FsSafeName()
+		c.Name = strings.TrimSuffix(filename, ".db")
 	}
 
 	db, err := bolt.Open(c.Filename, 0644, bolt.DefaultOptions)
 	if err != nil {
 		c.Enabled = false
 		c.Db = nil
-		return
+		return c
 	}
 
 	c.Db = db
@@ -113,10 +116,13 @@ func (c *Cache) Init() {
 
 	c.Enabled = true
 	c.StartAutoPurge()
+	c.Enabled = true
+
+	return c
 }
 
 func (c *Cache) StartAutoPurge() {
-	interval, err := time.ParseDuration("15s")
+	interval, err := time.ParseDuration("60s")
 	if err != nil {
 		interval = time.Minute
 	}
@@ -135,16 +141,11 @@ func (c *Cache) StartAutoPurge() {
 // The `Get` function in the `Cache` struct is used to retrieve the value of a cache entry with a given
 // key. It takes a `key` parameter (string) and returns the corresponding value (string).
 func (c *Cache) Get(key string) (*CacheEntry, bool) {
-	result := CacheEntry{}
-
 	if !c.Has(key) {
 		return nil, false
 	}
 
-	// if c.IsExpired(key) {
-	// 	c.Remove(key)
-	// 	return nil, false
-	// }
+	result := CacheEntry{}
 
 	c.Db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(c.Name))
@@ -174,6 +175,7 @@ func (c *Cache) Get(key string) (*CacheEntry, bool) {
 func (c *Cache) purgeExpired() {
 
 	primaryKeys := []string{}
+	changedDb := false
 
 	c.Db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(c.Name))
@@ -191,13 +193,18 @@ func (c *Cache) purgeExpired() {
 
 		for _, key := range primaryKeys {
 			if c.IsExpired(key) {
-				fmt.Printf("Removing expired cache entry: %s\n", key)
 				b.Delete([]byte(key))
+				changedDb = true
 			}
 		}
 
 		return nil
 	})
+
+	// no changes were made, so there's no reason to sync the db to disk
+	if !changedDb {
+		return
+	}
 
 	c.Db.Sync()
 }
@@ -211,7 +218,7 @@ func (c *Cache) GetExpiresAt(key string) *carbon.Carbon {
 		return nil
 	}
 
-	result := carbon.Parse(value.ExpiresAt, "America/New_York")
+	result := carbon.Parse(value.ExpiresAt)
 	return &result
 }
 
@@ -222,7 +229,7 @@ func (c *Cache) GetUpdatedAt(key string) *carbon.Carbon {
 		return nil
 	}
 
-	result := carbon.Parse(value.UpdatedAt, "America/New_York")
+	result := carbon.Parse(value.UpdatedAt)
 	return &result
 }
 
@@ -234,8 +241,7 @@ func (c *Cache) IsExpired(key string) bool {
 		return true
 	}
 
-	result := carbon.Parse(item.ExpiresAt, "America/New_York")
-	return result.IsPast()
+	return carbon.Parse(item.ExpiresAt).IsPast()
 }
 
 // The `HashMatches` function in the `Cache` struct is used to check if the hash value stored in the
@@ -261,9 +267,10 @@ func (c *Cache) Set(key string, value *CacheEntry, ttlMinutes int) {
 
 		if err != nil {
 			fmt.Printf("Error: %s\n", err)
+		} else {
+			err = b.Put([]byte(key), code)
 		}
 
-		err = b.Put([]byte(key), code)
 		return err
 	})
 

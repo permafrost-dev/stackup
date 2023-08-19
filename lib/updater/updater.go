@@ -40,7 +40,7 @@ func (u *Updater) IsLatestApplicationReleaseNewerThanCurrent(c *cache.Cache, cur
 		expires := carbon.Now().AddHours(3)
 		c.Set(
 			cacheKey,
-			cache.CreateCacheEntry(cacheKey, releaseJson, &expires, "", "", nil),
+			c.CreateEntry(cacheKey, releaseJson, &expires, "", "", nil),
 			int(expires.DiffInMinutes(carbon.Now())),
 		)
 	}

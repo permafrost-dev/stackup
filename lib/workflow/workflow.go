@@ -115,7 +115,7 @@ func (workflow *StackupWorkflow) TryLoadDotEnvVaultFile(value string) bool {
 }
 
 func (workflow *StackupWorkflow) Initialize(configPath string) {
-	workflow.Cache = cache.CreateCache("", configPath)
+	workflow.Cache = cache.New("", configPath)
 
 	// generate uuids for each task as the initial step, as other code below relies on a uuid existing
 	for _, task := range workflow.Tasks {
@@ -154,6 +154,8 @@ func (workflow *StackupWorkflow) Initialize(configPath string) {
 	for _, task := range workflow.Tasks {
 		task.Initialize(workflow)
 	}
+
+	workflow.Cache.DefaultTtl = workflow.Settings.Cache.TtlMinutes
 }
 
 func (workflow *StackupWorkflow) configureDefaultSettings() {
@@ -194,6 +196,11 @@ func (workflow *StackupWorkflow) configureDefaultSettings() {
 				Blocked: []string{},
 				Allowed: []string{},
 			},
+			FileExtensions: &settings.WorkflowSettingsGatewayFileExtensions{
+				Allow: []string{},
+				Block: []string{},
+			},
+			Middleware: []string{},
 		}
 	}
 
@@ -203,7 +210,7 @@ func (workflow *StackupWorkflow) configureDefaultSettings() {
 	}
 
 	if workflow.Settings.Cache.TtlMinutes <= 0 {
-		workflow.Settings.Cache.TtlMinutes = 5
+		workflow.Settings.Cache.TtlMinutes = 15
 	}
 
 	if len(workflow.Settings.DotEnvFiles) == 0 {
@@ -278,11 +285,11 @@ func (workflow *StackupWorkflow) createMissingSettingsSection() {
 	if workflow.Settings == nil {
 		verifyChecksums := true
 		enableStats := false
-		gatewayAllow := "allowed"
+		gatewayAllow := "allow"
 		workflow.Settings = &settings.Settings{
 			AnonymousStatistics:  &enableStats,
 			DotEnvFiles:          []string{".env"},
-			Cache:                &settings.WorkflowSettingsCache{TtlMinutes: 5},
+			Cache:                &settings.WorkflowSettingsCache{TtlMinutes: 15},
 			ChecksumVerification: &verifyChecksums,
 			Domains: &settings.WorkflowSettingsDomains{
 				Allowed: []string{"raw.githubusercontent.com", "api.github.com"},
@@ -381,7 +388,7 @@ func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) 
 
 	if include.FromCache {
 		include.Hash = data.Hash
-		include.HashAlgorithm = data.Hash
+		include.HashAlgorithm = data.Algorithm
 		include.Contents = data.Value
 	}
 
@@ -457,15 +464,14 @@ func (workflow *StackupWorkflow) handleDataNotCached(found bool, data *cache.Cac
 
 		include.Hash = checksums.CalculateSha256Hash(include.Contents)
 		expires := carbon.Now().AddMinutes(workflow.Settings.Cache.TtlMinutes)
-		now := carbon.Now()
 
-		item := cache.CreateCacheEntry(
+		item := workflow.Cache.CreateEntry(
 			include.DisplayName(),
 			include.Contents,
 			&expires,
 			include.Hash,
 			include.HashAlgorithm,
-			&now,
+			nil,
 		)
 
 		workflow.Cache.Set(include.DisplayName(), item, workflow.Settings.Cache.TtlMinutes)

@@ -71,6 +71,8 @@ func (g *Gateway) Initialize(s *settings.Settings) {
 
 	g.DeniedDomains = g.normalizeDomainArray(g.DeniedDomains)
 	g.AllowedDomains = g.normalizeDomainArray(g.AllowedDomains)
+
+	g.SetDefaults()
 }
 
 func (g *Gateway) SetAllowedFileExts(exts []string) {

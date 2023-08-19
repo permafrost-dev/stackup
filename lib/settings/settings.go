@@ -18,6 +18,7 @@ type GatewayContentTypes struct {
 type WorkflowSettingsGateway struct {
 	ContentTypes   *GatewayContentTypes                   `yaml:"content-types"`
 	FileExtensions *WorkflowSettingsGatewayFileExtensions `yaml:"file-extensions"`
+	Middleware     []string                               `yaml:"middleware"`
 }
 
 type WorkflowSettingsGatewayFileExtensions struct {

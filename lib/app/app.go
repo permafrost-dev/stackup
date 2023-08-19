@@ -406,10 +406,9 @@ func (a *Application) Run() {
 	a.init()
 	a.handleFlagOptions()
 
-	a.Analytics = telemetry.New(false, a.Gateway)
 	a.Workflow.Initialize(a.GetConfigurationPath())
 	a.Gateway.Initialize(a.Workflow.Settings)
-	a.Analytics.IsEnabled = *a.Workflow.Settings.AnonymousStatistics
+	a.Analytics = telemetry.New(*a.Workflow.Settings.AnonymousStatistics, a.Gateway)
 
 	if a.Analytics.IsEnabled {
 		a.Analytics.EventOnly("app.start")

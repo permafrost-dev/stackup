@@ -131,7 +131,7 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, string, erro
 			continue
 		}
 
-		checksumContents, err := utils.GetUrlContents(url)
+		checksumContents, err := wi.Workflow.Gateway.GetUrl(url)
 		if err != nil {
 			continue
 		}
