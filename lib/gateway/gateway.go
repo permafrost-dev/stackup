@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/stackup-app/stackup/lib/settings"
+	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
@@ -28,11 +29,14 @@ type Gateway struct {
 	DeniedDomains       []string
 	AllowedFileExts     []string
 	BlockedFileExts     []string
+	EnabledMiddleware   []string
 	Middleware          []*GatewayUrlRequestMiddleware
 	PostMiddleware      []*GatewayUrlResponseMiddleware
 	DomainHeaders       *sync.Map
 	DomainContentTypes  *sync.Map
 	BlockedContentTypes *sync.Map
+	JsEngine            types.JavaScriptEngineContract
+	HttpClient          *http.Client
 }
 
 // New initializes the gateway with deny/allow lists
@@ -48,31 +52,53 @@ func New(deniedDomains, allowedDomains, blockedFileExts, allowedFileExts []strin
 		DomainHeaders:       &sync.Map{},
 		DomainContentTypes:  &sync.Map{},
 		BlockedContentTypes: &sync.Map{},
+		HttpClient:          http.DefaultClient,
 	}
 
-	result.setup()
+	result.Enable()
 
 	return &result
 }
 
 func (g *Gateway) setup() {
-	g.AddMiddleware(&ValidateUrlMiddleware)
-	g.AddMiddleware(&VerifyFileTypeMiddleware)
-	g.AddPostMiddleware(&VerifyContentTypeMIddleware)
+	// we need the `validateUrl` middleware no matter what, so prepend it to the list of enabled middleware.
+	// this middleware is the core functionality of the http gateway's allow/block lists.
+	temp := []string{"validateUrl"}
+	g.EnabledMiddleware = append(temp, g.EnabledMiddleware...)
+
+	for _, name := range g.EnabledMiddleware {
+		if !GatewayMiddleware.HasMiddleware(name) {
+			continue
+		}
+
+		g.AddPreMiddleware(GatewayMiddleware.GetPreMiddleware(name))
+		g.AddPostMiddleware(GatewayMiddleware.GetPostMiddleware(name))
+	}
 
 	g.Enable()
 }
 
-func (g *Gateway) Initialize(s *settings.Settings) {
+// Initializes the gateway using the specified settings, JavascriptEngine, and http client.  If `httpClient` is nil,
+// the `http.DefaultClient` is be used.
+func (g *Gateway) Initialize(s *settings.Settings, jsEngine types.JavaScriptEngineContract, httpClient *http.Client) {
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+
+	g.HttpClient = httpClient
+	g.JsEngine = jsEngine
 	g.SetAllowedDomains(s.Domains.Allowed)
 	g.SetDeniedDomains([]string{"*"})
 	g.SetAllowedFileExts(s.Gateway.FileExtensions.Allow)
 	g.SetBlockedFileExts(s.Gateway.FileExtensions.Block)
-
+	g.EnabledMiddleware = s.Gateway.Middleware
 	g.DeniedDomains = g.normalizeDomainArray(g.DeniedDomains)
 	g.AllowedDomains = g.normalizeDomainArray(g.AllowedDomains)
 
 	g.SetDefaults()
+
+	// `setup` must be called after the settings have been applied above
+	g.setup()
 }
 
 func (g *Gateway) SetAllowedFileExts(exts []string) {
@@ -156,11 +182,31 @@ func (g *Gateway) GetDomainContentTypes(domain string) []string {
 	return result
 }
 
-func (g *Gateway) AddMiddleware(mw *GatewayUrlRequestMiddleware) {
+func (g *Gateway) AddPreMiddleware(mw *GatewayUrlRequestMiddleware) {
+	if mw == nil {
+		return
+	}
+
+	for _, existingMw := range g.Middleware {
+		if strings.EqualFold(existingMw.Name, mw.Name) {
+			return
+		}
+	}
+
 	g.Middleware = append(g.Middleware, mw)
 }
 
 func (g *Gateway) AddPostMiddleware(mw *GatewayUrlResponseMiddleware) {
+	if mw == nil {
+		return
+	}
+
+	for _, existingMw := range g.PostMiddleware {
+		if strings.EqualFold(existingMw.Name, mw.Name) {
+			return
+		}
+	}
+
 	g.PostMiddleware = append(g.PostMiddleware, mw)
 }
 
@@ -246,63 +292,70 @@ func (g *Gateway) checkArrayForDomainMatch(arr *[]string, domain string) bool {
 	return false
 }
 
+func (g *Gateway) processHeaders(headers []string) []string {
+	result := []string{}
+
+	for _, header := range headers {
+		if strings.TrimSpace(header) == "" {
+			continue
+		}
+
+		if g.JsEngine.IsEvaluatableScriptString(header) {
+			header = g.JsEngine.GetEvaluatableScriptString(header)
+		}
+
+		result = append(result, os.ExpandEnv(header))
+	}
+
+	return result
+}
+
 // GetUrl returns the contents of a URL as a string, assuming it
 // is allowed by the gateway, otherwise it returns an error.
 func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
-	err := g.runUrlRequestPipeline(urlStr)
-	if err != nil {
+	if err := g.runUrlRequestPipeline(urlStr); err != nil {
 		fmt.Printf("error: %v\n", err)
 		return "", err
 	}
 
-	var tempHeaders []string = []string{"User-Agent: stackup/1.0"}
+	var allHeaders []string = []string{"User-Agent: stackup/1.0"}
 
 	g.DomainHeaders.Range(func(key, value any) bool {
 		parsed, _ := url.Parse(urlStr)
 		if utils.DomainGlobMatch(key.(string), parsed.Hostname()) {
-			for _, header := range value.([]string) {
-				header := os.ExpandEnv(header)
-				tempHeaders = append(tempHeaders, header)
-			}
+			allHeaders = append(allHeaders, g.processHeaders(value.([]string))...)
 		}
 		return true
 	})
 
-	for _, header := range headers {
-		if strings.TrimSpace(header) != "" {
-			header = os.ExpandEnv(header)
-			tempHeaders = append(tempHeaders, header)
-		}
-	}
+	allHeaders = append(allHeaders, g.processHeaders(headers)...)
 
 	req, err := http.NewRequest("GET", urlStr, nil)
 	if err != nil {
 		return "", err
 	}
 
-	for _, header := range tempHeaders {
+	for _, header := range allHeaders {
 		parts := strings.SplitN(header, ":", 2)
 		if len(parts) == 2 {
 			req.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
 		}
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := g.HttpClient.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 
-	err = g.runResponsePipeline(resp)
-	if err != nil {
+	if err = g.runResponsePipeline(resp); err != nil {
 		return "", err
 	}
 
 	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("HTTP error: %d", resp.StatusCode)
+		return "", fmt.Errorf("HTTP request failed: error %d (url: %s)", resp.StatusCode, urlStr)
 	}
 
-	// Read the response body into a byte slice
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err

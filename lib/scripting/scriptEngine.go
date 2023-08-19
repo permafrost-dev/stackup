@@ -10,6 +10,7 @@ import (
 	"github.com/stackup-app/stackup/lib/gateway"
 	"github.com/stackup-app/stackup/lib/settings"
 	"github.com/stackup-app/stackup/lib/support"
+	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
@@ -38,6 +39,14 @@ func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, getWork
 	result.Init()
 
 	return &result
+}
+
+func (e *JavaScriptEngine) toInterface() interface{} {
+	return e
+}
+
+func (e *JavaScriptEngine) AsContract() types.JavaScriptEngineContract {
+	return e.toInterface().(types.JavaScriptEngineContract)
 }
 
 func (e *JavaScriptEngine) Init() {
@@ -132,10 +141,6 @@ func (e *JavaScriptEngine) Evaluate(script string) any {
 			v2, _ := v.Value().Object().Get("Id")
 			return v2.String()
 		}
-
-		// v3, _ := v.Value().Export()
-		// return v3
-
 	}
 
 	if result.IsBoolean() {

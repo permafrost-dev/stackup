@@ -188,6 +188,10 @@ func (workflow *StackupWorkflow) configureDefaultSettings() {
 		}
 	}
 
+	if len(workflow.Settings.Gateway.Middleware) == 0 {
+		workflow.Settings.Gateway.Middleware = []string{"validateUrl", "verifyFileType", "validateContentType"}
+	}
+
 	workflow.Gateway.SetAllowedDomains(workflow.Settings.Domains.Allowed)
 
 	if workflow.Settings.Gateway == nil {

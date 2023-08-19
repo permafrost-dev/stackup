@@ -372,7 +372,7 @@ func (a *Application) Run() {
 	a.handleFlagOptions()
 
 	a.Workflow.Initialize(a.GetConfigurationPath())
-	a.Gateway.Initialize(a.Workflow.Settings)
+	a.Gateway.Initialize(a.Workflow.Settings, a.JsEngine.AsContract(), nil)
 	a.Analytics = telemetry.New(*a.Workflow.Settings.AnonymousStatistics, a.Gateway)
 
 	if a.Analytics.IsEnabled {
