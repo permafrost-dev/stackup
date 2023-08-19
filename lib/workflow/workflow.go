@@ -355,11 +355,11 @@ func (workflow *StackupWorkflow) RemoveTasks(uuidsToRemove []string) {
 }
 
 func (workflow *StackupWorkflow) ProcessIncludes() {
-	// initialize the includes
 	for _, inc := range workflow.Includes {
 		inc.Initialize(workflow)
 	}
 
+	// load the includes asynchronously
 	var wg sync.WaitGroup
 	for _, include := range workflow.Includes {
 		wg.Add(1)

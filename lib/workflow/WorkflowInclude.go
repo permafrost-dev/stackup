@@ -46,7 +46,7 @@ func (wi *WorkflowInclude) Initialize(workflow *StackupWorkflow) {
 
 	// set some default values
 	if wi.VerifyChecksum == nil {
-		boolValue := true //wi.ChecksumUrl != ""
+		boolValue := true
 		wi.VerifyChecksum = &boolValue
 	}
 	wi.ValidationState = "not validated"
@@ -126,11 +126,6 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, string, erro
 	}
 
 	for _, url := range checksumUrls {
-		if !wi.Workflow.Gateway.Allowed(url) {
-			support.FailureMessageWithXMark("Access to " + url + " is not allowed.")
-			continue
-		}
-
 		checksumContents, err := wi.Workflow.Gateway.GetUrl(url)
 		if err != nil {
 			continue
@@ -147,7 +142,7 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, string, erro
 		return false, "", fmt.Errorf("unable to find valid checksum file for %s", wi.DisplayUrl())
 	}
 
-	var hash string
+	hash := ""
 
 	switch wi.HashAlgorithm {
 	case "sha256":
@@ -161,13 +156,9 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, string, erro
 		return false, "", fmt.Errorf("unsupported algorithm: %s", wi.HashAlgorithm)
 	}
 
-	if !strings.EqualFold(hash, wi.FoundChecksum) {
-		wi.SetChecksumIsValid(false)
-		return false, "", nil
-	}
+	wi.SetChecksumIsValid(strings.EqualFold(hash, wi.FoundChecksum))
 
-	wi.SetChecksumIsValid(true)
-	return true, hash, nil
+	return *wi.ChecksumIsValid, hash, nil
 }
 
 func (wi *WorkflowInclude) IsLocalFile() bool {
