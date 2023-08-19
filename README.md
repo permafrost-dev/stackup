@@ -56,7 +56,6 @@ Spin up your entire dev stack with one command.
     - [Initialization Script](#initialization-script)
   - [Setup](#setup)
   - [Building the project](#building-the-project)
-  - [Changelog](#changelog)
   - [Contributing](#contributing)
   - [Security Vulnerabilities](#security-vulnerabilities)
   - [Credits](#credits)
@@ -548,8 +547,8 @@ Many of the fields in a `Task` can be defined using javascript. To specify an ex
 | `binaryExists()`| `name: string`   | returns true if the specified binary exists in `$PATH`, otherwise false       |
 | `env()`      | `name: string`      | returns the string value of environment variable `name                        |
 | `exists()`   | `filename: string`  | returns true if `filename` exists, false otherwise                          |
-| `fetch()`    | `url: string`       | returns the contents of the url `url` as a string                           |
-| `fetchJson()`| `url: string`       | returns the contents of the url `url` as a JSON object                      |
+| `fetch()`    | `url: string`       | returns the contents of the url `url` as a string; gateway rules apply      |
+| `fetchJson()`| `url: string`       | returns the contents of the url `url` as a JSON object; gateway rules apply |
 | `fileContains()`| `filename: string, search: string` | returns true if `filename` contains `search`, false otherwise |
 | `getCwd()`   | --                | returns the directory stackup was run from                                  |
 | `hasEnv()`   | `name: string`      | returns true if the specified environment variable exists, otherwise false  |
@@ -730,17 +729,13 @@ go mod tidy
 
 ## Building the project
 
-`stackup` uses [task](https://github.com/go-task/task) for running tasks, which is a tool similar to `make`. 
+`StackUp` uses [task](https://github.com/go-task/task) for running tasks, which is a tool similar to `make`. 
 
 ```bash
 task build
 ```
 
 ---
-
-## Changelog
-
-Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
 
 ## Contributing
 
