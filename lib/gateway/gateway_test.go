@@ -8,21 +8,21 @@ import (
 )
 
 func TestGatewayEnable(t *testing.T) {
-	g := gateway.New([]string{}, []string{})
+	g := gateway.New([]string{}, []string{}, []string{}, []string{})
 	g.Enabled = false
 	g.Enable()
 	assert.True(t, g.Enabled, "gateway should be enabled")
 }
 
 func TestGatewayDisable(t *testing.T) {
-	g := gateway.New([]string{}, []string{})
+	g := gateway.New([]string{}, []string{}, []string{}, []string{})
 	g.Enabled = true
 	g.Disable()
 	assert.False(t, g.Enabled, "gateway should be disabled")
 }
 
 func TestGatewayAllowed(t *testing.T) {
-	g := gateway.New([]string{}, []string{"*.example.com", "*.one.example.net", "api.**.com"})
+	g := gateway.New([]string{}, []string{"*.example.com", "*.one.example.net", "api.**.com"}, []string{}, []string{})
 	assert.True(t, g.Allowed("https://www.example.com"), "www.example.com should be allowed")
 	assert.True(t, g.Allowed("https://example.com"), "example.com should be allowed")
 	assert.False(t, g.Allowed("https://www.example.net"), "www.example.net should not be allowed")

@@ -17,13 +17,13 @@ func validateUrlHandler(g *Gateway, link string) error {
 		return err
 	}
 
-	if g.checkArrayForDomainMatch(&g.DeniedDomains, parsedUrl.Host) {
-		return errors.New("access to domain" + parsedUrl.Host + " is not allowed")
-	}
-
 	if g.checkArrayForDomainMatch(&g.AllowedDomains, parsedUrl.Host) {
 		return nil
 	}
 
-	return errors.New("url domain has not been explicitly allowed")
+	if g.checkArrayForDomainMatch(&g.DeniedDomains, parsedUrl.Host) {
+		return errors.New("access to domain" + parsedUrl.Host + " is blocked")
+	}
+
+	return errors.New("access to domain" + parsedUrl.Host + " has not been explicitly allowed")
 }

@@ -91,7 +91,7 @@ func (a *Application) loadWorkflowFile(filename string) *workflow.StackupWorkflo
 }
 
 func (a *Application) init() {
-	a.Gateway = gateway.New([]string{}, []string{})
+	a.Gateway = gateway.New([]string{}, []string{}, []string{}, []string{})
 	a.ConfigFilename = support.FindExistingFile([]string{"stackup.dist.yaml", "stackup.yaml"}, "stackup.yaml")
 
 	a.flags = AppFlags{
@@ -349,10 +349,12 @@ func (a *Application) createNewConfigFile() {
 }
 
 func (a *Application) checkForApplicationUpdates() {
-	updateAvailable, release := updater.IsLatestApplicationReleaseNewerThanCurrent(a.Workflow.Cache, version.APP_VERSION, "permafrost-dev/stackup")
+	updateAvailable, release := updater.
+		New(a.Gateway).
+		IsLatestApplicationReleaseNewerThanCurrent(a.Workflow.Cache, version.APP_VERSION, "permafrost-dev/stackup")
 
 	if updateAvailable {
-		support.WarningMessage(fmt.Sprintf("A new version of StackUp is available, released %s.", release.TimeSinceRelease))
+		support.WarningMessage(fmt.Sprintf("A new version of StackUp is available, released %s.", release.TimeSinceRelease()))
 	}
 }
 
@@ -404,7 +406,7 @@ func (a *Application) Run() {
 
 	a.Analytics = telemetry.New(true, a.Gateway)
 	a.Workflow.Initialize()
-	a.Gateway.SetAllowedDomains(a.Workflow.Settings.Domains.Allowed)
+	a.Gateway.Initialize(a.Workflow.Settings)
 
 	if *a.Workflow.Settings.AnonymousStatistics {
 		a.Analytics.EventOnly("app.start")

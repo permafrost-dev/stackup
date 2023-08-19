@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/stackup-app/stackup/lib/settings"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
@@ -25,6 +26,8 @@ type Gateway struct {
 	Enabled             bool
 	AllowedDomains      []string
 	DeniedDomains       []string
+	AllowedFileExts     []string
+	BlockedFileExts     []string
 	Middleware          []*GatewayUrlRequestMiddleware
 	PostMiddleware      []*GatewayUrlResponseMiddleware
 	DomainHeaders       *sync.Map
@@ -33,11 +36,13 @@ type Gateway struct {
 }
 
 // New initializes the gateway with deny/allow lists
-func New(deniedDomains, allowedDomains []string) *Gateway {
+func New(deniedDomains, allowedDomains, blockedFileExts, allowedFileExts []string) *Gateway {
 	result := Gateway{
 		Enabled:             true,
 		DeniedDomains:       deniedDomains,
 		AllowedDomains:      allowedDomains,
+		BlockedFileExts:     blockedFileExts,
+		AllowedFileExts:     allowedFileExts,
 		Middleware:          []*GatewayUrlRequestMiddleware{},
 		PostMiddleware:      []*GatewayUrlResponseMiddleware{},
 		DomainHeaders:       &sync.Map{},
@@ -45,20 +50,44 @@ func New(deniedDomains, allowedDomains []string) *Gateway {
 		BlockedContentTypes: &sync.Map{},
 	}
 
-	result.Initialize()
+	result.setup()
 
 	return &result
 }
 
-func (g *Gateway) Initialize() {
-	g.DeniedDomains = g.normalizeDomainArray(g.DeniedDomains)
-	g.AllowedDomains = g.normalizeDomainArray(g.AllowedDomains)
-
+func (g *Gateway) setup() {
 	g.AddMiddleware(&ValidateUrlMiddleware)
 	g.AddMiddleware(&VerifyFileTypeMiddleware)
 	g.AddPostMiddleware(&VerifyContentTypeMIddleware)
 
 	g.Enable()
+}
+
+func (g *Gateway) Initialize(s *settings.Settings) {
+	g.SetAllowedDomains(s.Domains.Allowed)
+	g.SetDeniedDomains([]string{"*"})
+	g.SetAllowedFileExts(s.Gateway.FileExtensions.Allow)
+	g.SetBlockedFileExts(s.Gateway.FileExtensions.Block)
+
+	g.DeniedDomains = g.normalizeDomainArray(g.DeniedDomains)
+	g.AllowedDomains = g.normalizeDomainArray(g.AllowedDomains)
+}
+
+func (g *Gateway) SetAllowedFileExts(exts []string) {
+	g.AllowedFileExts = exts
+}
+
+func (g *Gateway) SetBlockedFileExts(exts []string) {
+	g.BlockedFileExts = exts
+}
+
+func (g *Gateway) SetDefaults() {
+	if len(g.AllowedFileExts) == 0 {
+		g.AllowedFileExts = []string{"*"}
+	}
+	if len(g.BlockedFileExts) == 0 {
+		g.BlockedFileExts = []string{"*"}
+	}
 }
 
 func (g *Gateway) SetAllowedDomains(domains []string) {
@@ -133,16 +162,20 @@ func (g *Gateway) AddPostMiddleware(mw *GatewayUrlResponseMiddleware) {
 	g.PostMiddleware = append(g.PostMiddleware, mw)
 }
 
-// The `runUrlRequestPipeline` function is a method of the `Gateway` struct. It iterates over the
-// `Middleware` slice of the `Gateway` struct and executes each middleware function in order. Each
-// middleware function takes a `Gateway` instance and a URL `link` as parameters and returns an error.
-// If any middleware function returns an error, the `runUrlRequestPipeline` function immediately
-// returns that error. If all middleware functions are executed successfully, the function returns
-// `nil`.
+// The `runUrlRequestPipeline` method runs the middleware pipeline for a URL request, returning
+// an error if the request is not allowed AND the gateway is enabled, or nil if the request is
+// allowed/the gateway is disabled.
 func (g *Gateway) runUrlRequestPipeline(link string) error {
+	if !g.Enabled {
+		return nil
+	}
+
+	if !strings.Contains(link, "://") {
+		link = "https://" + link
+	}
+
 	for _, mw := range g.Middleware {
-		err := (*mw).Handler(g, link)
-		if err != nil {
+		if err := (*mw).Handler(g, link); err != nil {
 			return err
 		}
 	}
@@ -151,12 +184,16 @@ func (g *Gateway) runUrlRequestPipeline(link string) error {
 }
 
 func (g *Gateway) runResponsePipeline(resp *http.Response) error {
+	if !g.Enabled {
+		return nil
+	}
+
 	for _, mw := range g.PostMiddleware {
-		err := (*mw).Handler(g, resp)
-		if err != nil {
+		if err := (*mw).Handler(g, resp); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 

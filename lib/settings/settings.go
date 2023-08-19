@@ -16,7 +16,13 @@ type GatewayContentTypes struct {
 	Allowed []string `yaml:"allowed"`
 }
 type WorkflowSettingsGateway struct {
-	ContentTypes *GatewayContentTypes `yaml:"content-types"`
+	ContentTypes   *GatewayContentTypes                   `yaml:"content-types"`
+	FileExtensions *WorkflowSettingsGatewayFileExtensions `yaml:"file-extensions"`
+}
+
+type WorkflowSettingsGatewayFileExtensions struct {
+	Allow []string `yaml:"allow"`
+	Block []string `yaml:"block"`
 }
 
 type WorkflowSettingsDomains struct {
