@@ -319,7 +319,7 @@ func (a *Application) createNewConfigFile() {
         allowed:
           - '*.githubusercontent.com'
         hosts:
-          - hostname: *.github.com
+          - hostname: '*.github.com'
             gateway: allow
             headers:
               - 'Accept: application/vnd.github.v3+json'
