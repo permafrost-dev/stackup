@@ -561,7 +561,6 @@ Many of the fields in a `Task` can be defined using javascript. To specify an ex
 | `semver()` | `version: string` | returns a `SemVer` object based on the value of `version` |
 | `statusMessage()` | `message: string` | prints a status message to stdout, without a trailing new line |
 | `task()`     | `taskId: string`    | returns a `Task` object with the id `taskId`                                |
-| `workflow()` | --                | returns a `Workflow` object                                                 |
 | `app.FailureMessage()` | `message: string` | prints a failure message with an X to stdout with a trailing new line |
 | `app.StatusLine()` | `message: string` | prints a status message to stdout, with a trailing new line |
 | `app.StatusMessage()` | `message: string` | prints a status message to stdout, without a trailing new line |
