@@ -195,7 +195,8 @@ settings:
 
 The `domains` section of the configuration file is used to specify a list of domain names that can be accessed when downloading remote files
 or including remote files.  Wildcards are supported, such as `*.github.com`.  
-If the `domains` section is not specified, default values of `raw.githubusercontent.com` and `api.github.com` are used.
+If the `domains` section is not specified, default values of `raw.githubusercontent.com` and `api.github.com` are used for the allow list,
+and all other domains are blocked.
 
 The `hosts` section of `domains` allows the configuration of headers to send with requests to specific hosts. Hostnames may be fully-qualified
 hostnames, or may contain wildcards.  For example, `*.githubusercontent.com` will match `raw.githubusercontent.com` and `gist.githubusercontent.com`.
