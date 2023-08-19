@@ -66,6 +66,8 @@ func (a *Application) loadWorkflowFile(filename string) *workflow.StackupWorkflo
 
 	err = yaml.Unmarshal(contents, &result)
 	if err != nil {
+		fmt.Printf("error loading configuration file: %v", err)
+
 		return &workflow.StackupWorkflow{
 			CommandStartCb: a.CmdStartCallback,
 			ExitAppFunc:    a.exitApp,
@@ -200,7 +202,6 @@ func (a *Application) runEventLoop() {
 }
 
 func (a *Application) runStartupTasks() {
-
 	for _, def := range a.Workflow.Startup {
 		task := a.Workflow.FindTaskById(def.TaskId())
 
@@ -210,10 +211,7 @@ func (a *Application) runStartupTasks() {
 		}
 
 		a.Workflow.State.CurrentTask = task
-
-		//GetState().Stack.Push(task)
 		task.Run(true)
-		//GetState().Stack.Pop()
 	}
 }
 
@@ -245,42 +243,9 @@ func (a *Application) runServerTasks() {
 	}
 }
 
-func (a *Application) runPrecondition(c *workflow.WorkflowPrecondition) bool {
-	result := true
-
-	if c.Check != "" {
-		if (c.Attempts - 1) > *c.MaxRetries {
-			support.FailureMessageWithXMark(c.Name)
-			return false
-		}
-
-		c.Attempts++
-
-		result = a.JsEngine.Evaluate(c.Check).(bool)
-
-		if !result && len(c.OnFail) > 0 {
-			support.FailureMessageWithXMark(c.Name)
-			rerunCheck := c.HandleOnFailure()
-
-			if rerunCheck {
-				return a.runPrecondition(c)
-			}
-
-			return false
-		}
-
-		if !result {
-			support.FailureMessageWithXMark(c.Name)
-			return false
-		}
-	}
-
-	return result
-}
-
 func (a *Application) runPreconditions() {
 	for _, c := range a.Workflow.Preconditions {
-		if !a.runPrecondition(c) {
+		if !c.Run() {
 			os.Exit(1)
 		}
 		support.SuccessMessageWithCheck(c.Name)
