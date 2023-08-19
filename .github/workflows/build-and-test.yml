@@ -9,12 +9,13 @@ on:
   pull_request_target:
     types: [opened, edited]
 
+env:
+  GO_VERSION: "~1.20"
+  GO111MODULE: "on"
+
 jobs:
-  build-and-test:
+  test-build:
     runs-on: ubuntu-latest
-    env:
-      GO_VERSION: "~1.20"
-      GO111MODULE: "on"
 
     steps:
       - name: Install Task
@@ -24,7 +25,6 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: ./go.sum
 
       - name: Checkout code
         uses: actions/checkout@v3
@@ -36,9 +36,26 @@ jobs:
         id: build
         run: task build-stackup
 
+  run-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Task
+        uses: arduino/setup-task@v1
+
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download and tidy Go modules
+        run: task mod
+
       - name: Run Tests with Coverage
-        if: ${{success()}}
-        run: go test -cover -coverprofile coverage.out -covermode set -v ./lib/**
+        run: go test -cover -coverprofile coverage.out -v ./lib/**
 
       - name: Upload coverage reports to Codecov
         if: ${{success()}}
