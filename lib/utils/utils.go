@@ -412,3 +412,11 @@ func GlobMatch(pattern string, s string, optional bool) bool {
 
 	return match.Match(s)
 }
+
+func FsSafeName(name string) string {
+	result := strings.TrimSpace(name)
+	result = regexp.MustCompile(`[^\w\\-\\._]+`).ReplaceAllString(result, "-")
+	result = regexp.MustCompile(`-{2,}`).ReplaceAllString(result, "-")
+
+	return strings.Trim(result, "-")
+}

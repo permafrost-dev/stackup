@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -22,6 +21,7 @@ type Cache struct {
 	Path       string
 	Filename   string
 	DefaultTtl int
+	ticker     *time.Ticker
 }
 
 type HashAlgorithmType byte
@@ -43,6 +43,25 @@ func New(name string, storagePath string) *Cache {
 	return (&Cache{Name: name, Enabled: false, Path: storagePath, DefaultTtl: 60}).Init()
 }
 
+func (c *Cache) AutoPurgeInterval() time.Duration {
+	interval, err := time.ParseDuration("60s")
+	if err != nil {
+		return time.Minute
+	}
+
+	return interval
+}
+
+func (c *Cache) Cleanup(removeFile bool) {
+	if c.Db != nil {
+		c.Db.Close()
+	}
+
+	if removeFile && utils.FileExists(c.Filename) {
+		os.Remove(c.Filename)
+	}
+}
+
 func (c *Cache) CreateEntry(keyName string, value string, expiresAt *carbon.Carbon, hash string, algorithm string, updatedAt *carbon.Carbon) *CacheEntry {
 	if updatedAt == nil {
 		temp := carbon.Now()
@@ -58,23 +77,20 @@ func (c *Cache) CreateEntry(keyName string, value string, expiresAt *carbon.Carb
 		Key:       keyName,
 		Value:     value,
 		Algorithm: algorithm,
-		ExpiresAt: expiresAt.ToDateTimeString(),
 		Hash:      hash,
-		UpdatedAt: updatedAt.ToDateTimeString(),
+		ExpiresAt: expiresAt.ToIso8601String(),
+		UpdatedAt: updatedAt.ToIso8601String(),
 	}
-}
-
-func (c *Cache) IsBaseKey(key string) bool {
-	return !strings.HasSuffix(key, "_expires_at") &&
-		!strings.HasSuffix(key, "_hash") &&
-		!strings.HasSuffix(key, "_updated_at")
 }
 
 func (c *Cache) GetBaseKey(key string) string {
-	if c.IsBaseKey(key) {
-		return key
+	result := key
+	suffixes := []string{"_expires_at", "_hash", "_updated_at"}
+	for _, suffix := range suffixes {
+		result = strings.TrimSuffix(result, suffix)
 	}
-	return key
+
+	return result
 }
 
 // The `Init` function in the `Cache` struct is used to initialize the cache by setting up the
@@ -84,9 +100,9 @@ func (c *Cache) Init() *Cache {
 		return c
 	}
 
-	filename := "stackup.db"
+	filename := utils.FsSafeName(c.Name) + ".db"
 
-	if c.Name != "" {
+	if c.Name == "" || strings.TrimSuffix(filename, ".db") == "" {
 		cwd, _ := os.Getwd()
 		filename = projectinfo.New(os.Args[0], cwd).FsSafeName() + ".db"
 	}
@@ -116,22 +132,21 @@ func (c *Cache) Init() *Cache {
 
 	c.Enabled = true
 	c.StartAutoPurge()
-	c.Enabled = true
 
 	return c
 }
 
 func (c *Cache) StartAutoPurge() {
-	interval, err := time.ParseDuration("60s")
-	if err != nil {
-		interval = time.Minute
+	if c.ticker != nil {
+		return
 	}
 
-	ticker := time.NewTicker(interval)
+	c.ticker = time.NewTicker(c.AutoPurgeInterval())
+
 	go func() {
 		for {
 			select {
-			case <-ticker.C:
+			case <-c.ticker.C:
 				c.purgeExpired()
 			}
 		}
@@ -141,28 +156,20 @@ func (c *Cache) StartAutoPurge() {
 // The `Get` function in the `Cache` struct is used to retrieve the value of a cache entry with a given
 // key. It takes a `key` parameter (string) and returns the corresponding value (string).
 func (c *Cache) Get(key string) (*CacheEntry, bool) {
-	if !c.Has(key) {
-		return nil, false
-	}
-
-	result := CacheEntry{}
+	result := CacheEntry{Value: "", ExpiresAt: ""}
 
 	c.Db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(c.Name))
 		bytes := b.Get([]byte(key))
-		err := json.Unmarshal(bytes, &result)
-		if err != nil {
-			fmt.Println("error:", err)
-		}
+		json.Unmarshal(bytes, &result)
 		return nil
 	})
-
-	tempValue, _ := base64.StdEncoding.DecodeString(result.Value)
-	result.Value = string(tempValue)
 
 	if result.IsExpired() {
 		return nil, false
 	}
+
+	result.DecodeValue()
 
 	return &result, true
 }
@@ -173,9 +180,7 @@ func (c *Cache) Get(key string) (*CacheEntry, bool) {
 // function ensures that expired cache entries are automatically removed from the cache to free up
 // space and maintain cache integrity.
 func (c *Cache) purgeExpired() {
-
 	primaryKeys := []string{}
-	changedDb := false
 
 	c.Db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(c.Name))
@@ -188,49 +193,21 @@ func (c *Cache) purgeExpired() {
 		return nil
 	})
 
+	if len(primaryKeys) == 0 {
+		return
+	}
+
 	c.Db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(c.Name))
 
 		for _, key := range primaryKeys {
 			if c.IsExpired(key) {
 				b.Delete([]byte(key))
-				changedDb = true
 			}
 		}
 
 		return nil
 	})
-
-	// no changes were made, so there's no reason to sync the db to disk
-	if !changedDb {
-		return
-	}
-
-	c.Db.Sync()
-}
-
-// The `GetExpiresAt` function in the `Cache` struct is used to retrieve the expiration time of a cache
-// entry with a given key.
-func (c *Cache) GetExpiresAt(key string) *carbon.Carbon {
-	value, found := c.Get(c.GetBaseKey(key))
-
-	if !found {
-		return nil
-	}
-
-	result := carbon.Parse(value.ExpiresAt)
-	return &result
-}
-
-func (c *Cache) GetUpdatedAt(key string) *carbon.Carbon {
-	value, found := c.Get(c.GetBaseKey(key))
-
-	if !found {
-		return nil
-	}
-
-	result := carbon.Parse(value.UpdatedAt)
-	return &result
 }
 
 // The `IsExpired` function in the `Cache` struct is used to check if a cache entry with a given key
@@ -241,7 +218,7 @@ func (c *Cache) IsExpired(key string) bool {
 		return true
 	}
 
-	return carbon.Parse(item.ExpiresAt).IsPast()
+	return item.IsExpired()
 }
 
 // The `HashMatches` function in the `Cache` struct is used to check if the hash value stored in the
@@ -260,21 +237,17 @@ func (c *Cache) HashMatches(key string, hash string) bool {
 func (c *Cache) Set(key string, value *CacheEntry, ttlMinutes int) {
 	c.Db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(c.Name))
-		tempValue := *value
-		tempValue.Value = base64.StdEncoding.EncodeToString([]byte(value.Value))
+		value.EncodeValue()
 
-		code, err := json.Marshal(tempValue)
-
-		if err != nil {
-			fmt.Printf("Error: %s\n", err)
-		} else {
+		code, err := json.Marshal(value)
+		if err == nil {
 			err = b.Put([]byte(key), code)
 		}
 
+		value.DecodeValue()
+
 		return err
 	})
-
-	c.Db.Sync()
 }
 
 // The `Has` function in the `Cache` struct is used to check if a cache entry with a given key exists
@@ -316,8 +289,6 @@ func (c *Cache) Remove(key string) {
 		b.Delete([]byte(key))
 		return nil
 	})
-
-	c.Db.Sync()
 }
 
 // builds a cache key using a prefix and name
