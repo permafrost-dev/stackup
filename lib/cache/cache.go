@@ -221,17 +221,6 @@ func (c *Cache) IsExpired(key string) bool {
 	return item.IsExpired()
 }
 
-// The `HashMatches` function in the `Cache` struct is used to check if the hash value stored in the
-// cache for a given key matches a provided hash value.
-func (c *Cache) HashMatches(key string, hash string) bool {
-	item, found := c.Get(c.GetBaseKey(key))
-	if !found {
-		return true
-	}
-
-	return item.Hash == hash && hash != ""
-}
-
 // The `Set` function in the `Cache` struct is used to set a cache entry with a given key and value. It
 // takes three parameters: `key` (string), `value` (any), and `ttlMinutes` (int).
 func (c *Cache) Set(key string, value *CacheEntry, ttlMinutes int) {
