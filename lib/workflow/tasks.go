@@ -177,7 +177,7 @@ func (task *Task) Run(synchronous bool) {
 		command = task.Workflow.JsEngine.Evaluate(command).(string)
 	}
 
-	cmd, _ := utils.StartCommand(command, task.Path)
+	cmd := utils.StartCommand(command, task.Path, false)
 	task.Workflow.CommandStartCb(cmd)
 	cmd.Start()
 
