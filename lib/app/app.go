@@ -50,52 +50,59 @@ type Application struct {
 	Analytics           *telemetry.Telemetry
 }
 
-func (a *Application) loadWorkflowFile(filename string) *workflow.StackupWorkflow {
-	var result workflow.StackupWorkflow
+func NewApplication() *Application {
+	result := &Application{}
+	result.init()
+
+	return result
+}
+
+func (a *Application) GetWorkflow() *types.AppWorkflowContract {
+	var result interface{} = interface{}(a.Workflow)
+	var ptr types.AppWorkflowContract = result.(types.AppWorkflowContract)
+
+	return &ptr
+}
+
+func (a *Application) loadWorkflowFile(filename string, wf *workflow.StackupWorkflow) {
+	wf.CommandStartCb = a.CmdStartCallback
+	wf.ExitAppFunc = a.exitApp
+	wf.Gateway = a.Gateway
+	wf.JsEngine = a.JsEngine
+	wf.ProcessMap = a.ProcessMap
 
 	contents, err := os.ReadFile(filename)
 	if err != nil {
-		return &workflow.StackupWorkflow{
-			CommandStartCb: a.CmdStartCallback,
-			ExitAppFunc:    a.exitApp,
-			Gateway:        a.Gateway,
-			JsEngine:       a.JsEngine,
-			ProcessMap:     a.ProcessMap,
-		}
+		return
 	}
 
-	err = yaml.Unmarshal(contents, &result)
+	err = yaml.Unmarshal(contents, wf)
 	if err != nil {
 		fmt.Printf("error loading configuration file: %v", err)
-
-		return &workflow.StackupWorkflow{
-			CommandStartCb: a.CmdStartCallback,
-			ExitAppFunc:    a.exitApp,
-			Gateway:        a.Gateway,
-			JsEngine:       a.JsEngine,
-			ProcessMap:     a.ProcessMap,
-		}
+		return
 	}
 
-	result.State = &workflow.StackupWorkflowState{
+	for _, task := range wf.Tasks {
+		task.Workflow = a.Workflow //.(*types.AppWorkflowContract)
+	}
+
+	wf.State = workflow.StackupWorkflowState{
 		CurrentTask: nil,
 		Stack:       linkedliststack.New(),
 		History:     linkedliststack.New(),
 	}
-
-	result.CommandStartCb = a.CmdStartCallback
-	result.ExitAppFunc = a.exitApp
-	result.Gateway = a.Gateway
-	result.JsEngine = a.JsEngine
-	result.ProcessMap = a.ProcessMap
-
-	return &result
 }
 
 func (a *Application) init() {
-	utils.EnsureConfigDirExists("stackup")
-	a.Gateway = gateway.New([]string{}, []string{}, []string{}, []string{})
+	a.scheduledTaskMap = &sync.Map{}
+	a.ProcessMap = &sync.Map{}
+	a.Vars = &sync.Map{}
 	a.ConfigFilename = support.FindExistingFile([]string{"stackup.dist.yaml", "stackup.yaml"}, "stackup.yaml")
+
+	a.Workflow = &workflow.StackupWorkflow{}
+	a.Workflow.ConfigureDefaultSettings()
+
+	a.Gateway = gateway.New([]string{}, []string{}, []string{}, []string{})
 
 	a.flags = AppFlags{
 		DisplayHelp:    flag.Bool("help", false, "Display help"),
@@ -105,19 +112,25 @@ func (a *Application) init() {
 	}
 
 	flag.Parse()
-
 	if a.flags.ConfigFile != nil && *a.flags.ConfigFile != "" {
 		a.ConfigFilename = *a.flags.ConfigFile
 	}
 
-	a.scheduledTaskMap = &sync.Map{}
-	a.ProcessMap = &sync.Map{}
-	a.Vars = &sync.Map{}
+	a.loadWorkflowFile(a.ConfigFilename, a.Workflow)
+	a.JsEngine = scripting.CreateNewJavascriptEngine(a.Vars, a.Gateway, func() *types.AppWorkflowContract {
+		result := a.GetWorkflow()
+		return result
+	}, a.GetApplicationIconPath)
 
-	a.Workflow = a.loadWorkflowFile(a.ConfigFilename)
-	a.JsEngine = scripting.CreateNewJavascriptEngine(a.Vars, a.Gateway, a.GetWorkflowContract, a.GetApplicationIconPath)
 	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
-	a.DownloadApplicationIcon()
+
+	for _, task := range a.Workflow.Tasks {
+		// var temp interface{} = a.Workflow
+		// ref := temp.(types.AppWorkflowContract)
+		task.Workflow = a.Workflow
+
+		task.Initialize()
+	}
 }
 
 func (a *Application) hookSignals() {
@@ -163,9 +176,9 @@ func (a *Application) exitApp() {
 
 func (a *Application) createScheduledTasks() {
 	for _, def := range a.Workflow.Scheduler {
-		task := a.Workflow.FindTaskById(def.TaskId())
+		_, found := a.Workflow.FindTaskById(def.TaskId())
 
-		if task == nil {
+		if !found {
 			support.FailureMessageWithXMark("Task " + def.TaskId() + " not found.")
 			continue
 		}
@@ -174,8 +187,10 @@ func (a *Application) createScheduledTasks() {
 		taskId := def.TaskId()
 
 		a.cronEngine.AddFunc(cron, func() {
-			task := a.Workflow.FindTaskById(taskId)
-			task.Run(true)
+			task, found := a.Workflow.FindTaskById(taskId)
+			if found {
+				(*task).Run(true)
+			}
 		})
 
 		a.scheduledTaskMap.Store(def.TaskId(), &def)
@@ -203,49 +218,53 @@ func (a *Application) runEventLoop() {
 
 func (a *Application) runStartupTasks() {
 	for _, def := range a.Workflow.Startup {
-		task := a.Workflow.FindTaskById(def.TaskId())
+		task, found := a.Workflow.FindTaskById(def.TaskId())
 
-		if task == nil {
+		if !found {
 			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
 			continue
 		}
 
-		a.Workflow.State.CurrentTask = task
-		task.Run(true)
+		// a.Workflow.State.CurrentTask = task
+		(*task).Run(true)
 	}
 }
 
 func (a *Application) runShutdownTasks() {
 	for _, def := range a.Workflow.Shutdown {
-		task := a.Workflow.FindTaskById(def.TaskId())
+		task, found := a.Workflow.FindTaskById(def.TaskId())
 
-		if task == nil {
+		if !found {
 			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
 			continue
 		}
 
-		a.Workflow.State.CurrentTask = task
-		task.Run(true)
+		// a.Workflow.State.CurrentTask = task
+
+		(*task).Run(true)
 	}
 }
 
 func (a *Application) runServerTasks() {
 	for _, def := range a.Workflow.Servers {
-		task := a.Workflow.FindTaskById(def.TaskId())
+		task, found := a.Workflow.FindTaskById(def.TaskId())
 
-		if task == nil {
+		if !found {
 			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
 			continue
 		}
 
-		a.Workflow.State.CurrentTask = task
-		task.Run(false)
+		// a.Workflow.State.CurrentTask = task
+		(*task).Run(false)
 	}
 }
 
-func (a *Application) runPreconditions() {
+func (a Application) runPreconditions() {
 	for _, c := range a.Workflow.Preconditions {
+		c.Initialize(a.Workflow, a.JsEngine.AsContractPtr())
+		fmt.Printf("c: %v\n", c)
 		if !c.Run() {
+			support.FailureMessageWithXMark(c.Name)
 			os.Exit(1)
 		}
 		support.SuccessMessageWithCheck(c.Name)
@@ -358,8 +377,9 @@ func (a *Application) DownloadApplicationIcon() {
 	utils.SaveUrlToFile("https://raw.githubusercontent.com/permafrost-dev/stackup/main/assets/stackup-app-512px.png", filename)
 }
 
-func (a *Application) GetWorkflowContract() interface{} {
-	return a.Workflow
+func (a *Application) GetWorkflowContract() *types.AppWorkflowContract {
+	var result interface{} = a.Workflow
+	return result.(*types.AppWorkflowContract)
 }
 
 func (a *Application) GetApplicationIconPath() string {
@@ -367,33 +387,40 @@ func (a *Application) GetApplicationIconPath() string {
 }
 
 func (a *Application) Run() {
+	utils.EnsureConfigDirExists("stackup")
 	godotenv.Load()
-	a.init()
 	a.handleFlagOptions()
 
+	if len(a.Workflow.Settings.DotEnvFiles) > 0 {
+		godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
+	}
+
+	a.JsEngine.CreateEnvironmentVariables()
+	a.JsEngine.CreateAppVariables()
+
 	a.Workflow.Initialize(a.GetConfigurationPath())
-	a.Gateway.Initialize(a.Workflow.Settings, a.JsEngine.AsContract(), nil)
-	a.Analytics = telemetry.New(*a.Workflow.Settings.AnonymousStatistics, a.Gateway)
+
+	a.Gateway.Initialize(&a.Workflow.Settings, a.JsEngine.AsContract(), nil)
+	a.Analytics = telemetry.New(a.Workflow.Settings.AnonymousStatistics, a.Gateway)
+
+	a.Workflow.Prepare()
+	a.Workflow.ProcessIncludes()
 
 	if a.Analytics.IsEnabled {
 		a.Analytics.EventOnly("app.start")
 	}
 
-	if len(a.Workflow.Settings.DotEnvFiles) > 0 {
-		godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
-	}
-	a.JsEngine.CreateEnvironmentVariables()
-	a.JsEngine.CreateAppVariables()
+	// if !*a.flags.NoUpdateCheck {
+	// 	a.checkForApplicationUpdates()
+	// }
 
-	if !*a.flags.NoUpdateCheck {
-		a.checkForApplicationUpdates()
-	}
+	fmt.Printf("workflow: %v\n", a.Workflow)
 
 	a.hookSignals()
 	a.hookKeyboard()
 
 	support.StatusMessageLine("Running precondition checks...", true)
-	a.runPreconditions()
+	//a.runPreconditions()
 
 	support.StatusMessageLine("Running startup tasks...", true)
 	a.runStartupTasks()

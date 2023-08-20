@@ -1,37 +1,49 @@
 package workflow
 
-import "github.com/stackup-app/stackup/lib/support"
+import (
+	"fmt"
+
+	"github.com/stackup-app/stackup/lib/support"
+	"github.com/stackup-app/stackup/lib/types"
+)
 
 type WorkflowPrecondition struct {
 	Name       string `yaml:"name"`
 	Check      string `yaml:"check"`
-	OnFail     string `yaml:"on-fail"`
-	MaxRetries *int   `yaml:"max-retries,omitempty"`
+	OnFail     string `yaml:"on-fail,omitempty"`
+	MaxRetries int    `yaml:"max-retries,omitempty"`
 	FromRemote bool
 	Attempts   int
+	engine     *types.JavaScriptEngineContract
 	Workflow   *StackupWorkflow
 }
 
-func (p *WorkflowPrecondition) Initialize(workflow *StackupWorkflow) {
+func (p *WorkflowPrecondition) Initialize(workflow *StackupWorkflow, engine *types.JavaScriptEngineContract) {
 	p.Workflow = workflow
+	p.engine = engine
+
+	// var temp interface{} = workflow
+	// p.Workflow = temp.(*StackupWorkflow)
 
 	p.Attempts = 0
-	if p.MaxRetries == nil {
-		p.MaxRetries = new(int)
-		*p.MaxRetries = 0
-	}
+	p.MaxRetries = 99999999999
 }
 
 func (p *WorkflowPrecondition) HandleOnFailure() bool {
 	result := true
 
-	if p.Workflow.JsEngine.IsEvaluatableScriptString(p.OnFail) {
-		p.Workflow.JsEngine.Evaluate(p.OnFail)
-	} else {
-		task := p.Workflow.FindTaskById(p.OnFail)
-		if task != nil {
-			task.Run(true)
-		}
+	if p.OnFail == "" {
+		return result
+	}
+
+	if (*p.engine).IsEvaluatableScriptString(p.OnFail) {
+		return (*p.engine).Evaluate(p.OnFail).(bool)
+	}
+
+	task, found := (*p.Workflow).FindTaskById(p.OnFail)
+	fmt.Printf("task: %v\n", task)
+	if found {
+		(*task).Run(true)
 	}
 
 	return result
@@ -40,15 +52,17 @@ func (p *WorkflowPrecondition) HandleOnFailure() bool {
 func (wp *WorkflowPrecondition) Run() bool {
 	result := true
 
+	fmt.Printf("wp: %v\n", wp)
+
 	if wp.Check != "" {
-		if (wp.Attempts - 1) > *wp.MaxRetries {
+		if (wp.Attempts - 1) > wp.MaxRetries {
 			support.FailureMessageWithXMark(wp.Name)
 			return false
 		}
 
 		wp.Attempts++
 
-		result = wp.Workflow.JsEngine.Evaluate(wp.Check).(bool)
+		result = (*wp.engine).Evaluate(wp.Check).(bool)
 
 		if !result && len(wp.OnFail) > 0 {
 			support.FailureMessageWithXMark(wp.Name)
@@ -57,7 +71,7 @@ func (wp *WorkflowPrecondition) Run() bool {
 				return wp.Run()
 			}
 
-			return false
+			result = false
 		}
 
 		if !result {

@@ -8,35 +8,31 @@ import (
 
 	"github.com/robertkrimen/otto"
 	"github.com/stackup-app/stackup/lib/gateway"
-	"github.com/stackup-app/stackup/lib/settings"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
 )
-
-type AppWorkflowContract interface {
-	FindTaskById(id string) *any
-	GetSettings() *settings.Settings
-}
 
 type JavaScriptEngine struct {
 	Vm                     *otto.Otto
 	AppVars                *sync.Map
 	AppGateway             *gateway.Gateway
 	Functions              *JavaScriptFunctions
-	GetWorkflowContract    func() interface{}
+	GetWorkflowContract    *func() *types.AppWorkflowContract
 	GetApplicationIconPath func() string
+	types.JavaScriptEngineContract
 }
 
-func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, getWorkflowContract func() interface{}, getAppIconFunc func() string) *JavaScriptEngine {
+func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, getWorkflowContract func() *types.AppWorkflowContract, getAppIconFunc func() string) *JavaScriptEngine {
 	result := JavaScriptEngine{
+		Vm:                     otto.New(),
 		AppVars:                vars,
 		AppGateway:             gateway,
 		GetApplicationIconPath: getAppIconFunc,
-		GetWorkflowContract:    getWorkflowContract,
+		GetWorkflowContract:    &getWorkflowContract,
 	}
 
-	result.Init()
+	result.Init(getWorkflowContract())
 
 	return &result
 }
@@ -49,22 +45,24 @@ func (e *JavaScriptEngine) AsContract() types.JavaScriptEngineContract {
 	return e.toInterface().(types.JavaScriptEngineContract)
 }
 
-func (e *JavaScriptEngine) Init() {
-	if e.Vm != nil {
-		return
-	}
+func (e *JavaScriptEngine) AsContractPtr() *types.JavaScriptEngineContract {
+	var result types.JavaScriptEngineContract = e.AsContract()
+	return &result
+}
+
+func (e *JavaScriptEngine) Init(workflow *types.AppWorkflowContract) {
+	fmt.Printf("Init()\n")
 
 	e.Vm = otto.New()
 	e.Functions = CreateJavascriptFunctions(e)
-
+	e.Functions.Init()
 	e.CreateEnvironmentVariables()
 	CreateScriptFsObject(e)
 	CreateScriptAppObject(e)
 	CreateScriptVarsObject(e)
 	CreateScriptDevObject(e)
 	CreateScriptNetObject(e)
-	CreateScripNotificationsObject(e)
-
+	CreateScripNotificationsObject(workflow, e)
 }
 
 func (e *JavaScriptEngine) CreateAppVariables() {
@@ -129,6 +127,8 @@ func (e *JavaScriptEngine) Evaluate(script string) any {
 	if e.IsEvaluatableScriptString(tempScript) {
 		tempScript = e.GetEvaluatableScriptString(tempScript)
 	}
+
+	fmt.Printf("Vm: %v\n", e)
 
 	result, err := e.Vm.Run(tempScript)
 

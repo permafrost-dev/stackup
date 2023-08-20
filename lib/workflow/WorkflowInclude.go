@@ -33,7 +33,7 @@ type WorkflowInclude struct {
 	Workflow          *StackupWorkflow
 }
 
-func (wi *WorkflowInclude) Initialize(workflow *StackupWorkflow) {
+func (wi WorkflowInclude) Initialize(workflow *StackupWorkflow) {
 	wi.Workflow = workflow
 
 	// expand environment variables in the include headers
@@ -53,24 +53,38 @@ func (wi *WorkflowInclude) Initialize(workflow *StackupWorkflow) {
 	wi.ChecksumIsValid = nil
 }
 
-func (include *WorkflowInclude) Process() {
+func (include *WorkflowInclude) Process(wf *StackupWorkflow) {
+
+	// include.Initialize(wf)
+
 	var err error = nil
-	data := include.Workflow.tryLoadingCachedData(include)
-
-	if !include.Workflow.hasRemoteDomainAccess(include) {
+	fmt.Printf("include: %v\n", include)
+	if include == nil {
 		return
 	}
+	data := wf.tryLoadingCachedData(include)
+	fmt.Printf("data: %v\n", data)
+	found := data != nil
 
-	if err = include.Workflow.handleDataNotCached(include.FromCache, data, include); err != nil {
-		support.FailureMessageWithXMark("remote include (rejected: " + err.Error() + "): " + include.DisplayName())
-		return
+	// found := false
+	//data := nil
+
+	// if !wf.hasRemoteDomainAccess(include) {
+	// 	return
+	// }
+
+	if found {
+		if err = wf.handleDataNotCached(found, nil, include); err != nil {
+			support.FailureMessageWithXMark("remote include (rejected: " + err.Error() + "): " + include.DisplayName())
+			return
+		}
 	}
 
-	if !include.Workflow.handleChecksumVerification(include) {
-		return
-	}
+	// if !wf.handleChecksumVerification(include) {
+	// 	return
+	// }
 
-	if err = include.Workflow.loadRemoteFileInclude(include); err != nil {
+	if err = wf.loadRemoteFileInclude(include); err != nil {
 		support.FailureMessageWithXMark("remote include (rejected: " + err.Error() + "): " + include.DisplayName())
 		return
 	}
@@ -111,7 +125,7 @@ func (wi *WorkflowInclude) getChecksumFromContents(contents string) string {
 }
 
 func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, string, error) {
-	if wi.VerifyChecksum != nil && *wi.VerifyChecksum == false {
+	if !*wi.VerifyChecksum {
 		return true, "", nil
 	}
 
@@ -211,7 +225,7 @@ func (wi *WorkflowInclude) DisplayUrl() string {
 	return displayUrl
 }
 
-func (wi *WorkflowInclude) DisplayName() string {
+func (wi WorkflowInclude) DisplayName() string {
 	if wi.IsRemoteUrl() {
 		return wi.DisplayUrl()
 	}

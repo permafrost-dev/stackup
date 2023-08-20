@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type ScriptFs struct {
@@ -25,11 +27,8 @@ func (fs *ScriptFs) ReadFile(filename string) (string, error) {
 
 func (fs *ScriptFs) WriteFile(filename string, content string) error {
 	err := os.WriteFile(filename, []byte(content), 0644)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
 
 func (fs *ScriptFs) ReadJSON(filename string) (interface{}, error) {
@@ -40,18 +39,14 @@ func (fs *ScriptFs) ReadJSON(filename string) (interface{}, error) {
 
 	var data interface{}
 
-	// Read the contents of the file
 	content, err := os.ReadFile(filename)
 	if err != nil {
 		return data, err
 	}
 
 	err = json.Unmarshal(content, &data)
-	if err != nil {
-		return data, err
-	}
 
-	return data, nil
+	return data, err
 }
 
 func (fs *ScriptFs) WriteJSON(filename string, data interface{}) error {
@@ -74,25 +69,15 @@ func (fs *ScriptFs) WriteJSON(filename string, data interface{}) error {
 }
 
 func (fs *ScriptFs) Exists(filename string) bool {
-	_, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-
-	return true
+	return utils.FileExists(filename)
 }
 
 func (fs *ScriptFs) IsDirectory(filename string) bool {
-	fileInfo, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-
-	return fileInfo.IsDir()
+	return utils.IsDir(filename)
 }
 
 func (fs *ScriptFs) IsFile(filename string) bool {
-	return !fs.IsDirectory(filename)
+	return utils.IsFile(filename)
 }
 
 func (fs *ScriptFs) GetFiles(directory string) ([]string, error) {

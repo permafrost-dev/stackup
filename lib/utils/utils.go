@@ -281,3 +281,11 @@ func FsSafeName(name string) string {
 
 	return strings.Trim(result, "-")
 }
+
+func ReverseArray[T any](items []T) []T {
+	length := len(items)
+	for i := 0; i < length/2; i++ {
+		items[i], items[length-i-1] = items[length-i-1], items[i]
+	}
+	return items
+}

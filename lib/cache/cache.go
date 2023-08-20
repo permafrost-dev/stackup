@@ -40,7 +40,10 @@ func New(name string, storagePath string) *Cache {
 		os.MkdirAll(storagePath, 0744)
 	}
 
-	return (&Cache{Name: name, Enabled: false, Path: storagePath, DefaultTtl: 60}).Init()
+	result := Cache{Name: name, Enabled: false, Path: storagePath, DefaultTtl: 60}
+	result.Init()
+
+	return &result
 }
 
 func (c *Cache) AutoPurgeInterval() time.Duration {
@@ -156,22 +159,24 @@ func (c *Cache) StartAutoPurge() {
 // The `Get` function in the `Cache` struct is used to retrieve the value of a cache entry with a given
 // key. It takes a `key` parameter (string) and returns the corresponding value (string).
 func (c *Cache) Get(key string) (*CacheEntry, bool) {
-	result := CacheEntry{Value: "", ExpiresAt: ""}
+	result := &CacheEntry{Value: "", ExpiresAt: ""}
 
 	c.Db.View(func(tx *bolt.Tx) error {
+		fmt.Printf("tx: %v\n", tx)
 		b := tx.Bucket([]byte(c.Name))
 		bytes := b.Get([]byte(key))
 		json.Unmarshal(bytes, &result)
+
 		return nil
 	})
 
-	if result.IsExpired() {
-		return nil, false
-	}
+	// if result.IsExpired() {
+	// 	return nil, false
+	// }
 
-	result.DecodeValue()
+	// result.DecodeValue()
 
-	return &result, true
+	return result, true
 }
 
 // The `purgeExpired` function in the `Cache` struct is used to remove any cache entries that have
@@ -244,7 +249,7 @@ func (c *Cache) Set(key string, value *CacheEntry, ttlMinutes int) {
 // given key and checks if the value is not empty (`c.Get(key) != ""`) and if the cache entry is not
 // expired (`!c.IsExpired(key)`). If both conditions are true, it returns `true`, indicating that the
 // cache entry exists and is valid. Otherwise, it returns `false`.
-func (c *Cache) Has(key string) bool {
+func (c Cache) Has(key string) bool {
 	found := false
 
 	c.Db.View(func(tx *bolt.Tx) error {

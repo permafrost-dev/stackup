@@ -1,6 +1,7 @@
 package scripting
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/robertkrimen/otto"
 	"github.com/stackup-app/stackup/lib/semver"
 	"github.com/stackup-app/stackup/lib/support"
+	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
@@ -17,15 +19,16 @@ type JavaScriptFunctions struct {
 }
 
 func CreateJavascriptFunctions(e *JavaScriptEngine) *JavaScriptFunctions {
+	fmt.Printf("CreateJavascriptFunctions()\n")
+
 	result := &JavaScriptFunctions{
 		Engine: e,
 	}
-	result.init()
 
 	return result
 }
 
-func (jsf *JavaScriptFunctions) init() {
+func (jsf *JavaScriptFunctions) Init() {
 	jsf.Engine.Vm.Set("binaryExists", jsf.createBinaryExists)
 	jsf.Engine.Vm.Set("composerJson", jsf.createComposerJsonFunction)
 	jsf.Engine.Vm.Set("env", jsf.createJavascriptFunctionEnv)
@@ -171,8 +174,8 @@ func (jsf *JavaScriptFunctions) createTaskFunction(call otto.FunctionCall) otto.
 		temp, _ := jsf.Engine.AppVars.Load(taskName[1:])
 		taskName = temp.(string)
 	}
-
-	task := jsf.Engine.GetWorkflowContract().(AppWorkflowContract).FindTaskById(taskName)
+	temp := (*jsf.Engine.GetWorkflowContract)()
+	task, _ := (*temp).FindTaskById(taskName)
 
 	return getResult(call, task)
 }
@@ -196,12 +199,14 @@ func (jsf *JavaScriptFunctions) createSelectTaskWhen(call otto.FunctionCall) ott
 	conditional, _ := call.Argument(0).ToBoolean()
 	trueTaskName := call.Argument(1).String()
 	falseTaskName := call.Argument(2).String()
-	var task *any
+	var task *types.AppWorkflowTaskContract
 
 	if conditional {
-		task = jsf.Engine.GetWorkflowContract().(AppWorkflowContract).FindTaskById(trueTaskName)
+		temp := (*jsf.Engine.GetWorkflowContract)()
+		task, _ = (*temp).FindTaskById(trueTaskName)
 	} else {
-		task = jsf.Engine.GetWorkflowContract().(AppWorkflowContract).FindTaskById(falseTaskName)
+		temp := (*jsf.Engine.GetWorkflowContract)()
+		task, _ = (*temp).FindTaskById(falseTaskName)
 	}
 
 	return getResult(call, task)

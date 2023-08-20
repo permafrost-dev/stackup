@@ -1,15 +1,15 @@
 package settings
 
 type Settings struct {
-	Defaults               *WorkflowSettingsDefaults      `yaml:"defaults"`
-	ExitOnChecksumMismatch bool                           `yaml:"exit-on-checksum-mismatch"`
-	ChecksumVerification   *bool                          `yaml:"checksum-verification"`
-	DotEnvFiles            []string                       `yaml:"dotenv"`
-	Cache                  *WorkflowSettingsCache         `yaml:"cache"`
-	Domains                *WorkflowSettingsDomains       `yaml:"domains"`
-	AnonymousStatistics    *bool                          `yaml:"anonymous-stats"`
-	Gateway                *WorkflowSettingsGateway       `yaml:"gateway"`
-	Notifications          *WorkflowSettingsNotifications `yaml:"notifications"`
+	Defaults               WorkflowSettingsDefaults      `yaml:"defaults"`
+	ExitOnChecksumMismatch bool                          `yaml:"exit-on-checksum-mismatch"`
+	ChecksumVerification   bool                          `yaml:"checksum-verification"`
+	DotEnvFiles            []string                      `yaml:"dotenv"`
+	Cache                  WorkflowSettingsCache         `yaml:"cache"`
+	Domains                WorkflowSettingsDomains       `yaml:"domains"`
+	AnonymousStatistics    bool                          `yaml:"anonymous-stats"`
+	Gateway                WorkflowSettingsGateway       `yaml:"gateway"`
+	Notifications          WorkflowSettingsNotifications `yaml:"notifications"`
 }
 type GatewayContentTypes struct {
 	Blocked []string `yaml:"blocked"`
@@ -27,13 +27,14 @@ type WorkflowSettingsGatewayFileExtensions struct {
 }
 
 type WorkflowSettingsDomains struct {
-	Allowed []string                       `yaml:"allowed"`
-	Hosts   []WorkflowSettingsDomainsHosts `yaml:"hosts"`
+	Allowed []string                      `yaml:"allowed"`
+	Blocked []string                      `yaml:"blocked"`
+	Hosts   []WorkflowSettingsDomainsHost `yaml:"hosts"`
 }
 
-type WorkflowSettingsDomainsHosts struct {
+type WorkflowSettingsDomainsHost struct {
 	Hostname string   `yaml:"hostname"`
-	Gateway  *string  `yaml:"gateway"`
+	Gateway  string   `yaml:"gateway"`
 	Headers  []string `yaml:"headers"`
 }
 
@@ -41,7 +42,7 @@ type WorkflowSettingsCache struct {
 	TtlMinutes int `yaml:"ttl-minutes"`
 }
 type WorkflowSettingsDefaults struct {
-	Tasks *WorkflowSettingsDefaultsTasks `yaml:"tasks"`
+	Tasks WorkflowSettingsDefaultsTasks `yaml:"tasks"`
 }
 
 type WorkflowSettingsDefaultsTasks struct {
@@ -51,8 +52,8 @@ type WorkflowSettingsDefaultsTasks struct {
 }
 
 type WorkflowSettingsNotifications struct {
-	Telegram *WorkflowSettingsNotificationsTelegram `yaml:"telegram"`
-	Slack    *WorkflowSettingsNotificationsSlack    `yaml:"slack"`
+	Telegram WorkflowSettingsNotificationsTelegram `yaml:"telegram"`
+	Slack    WorkflowSettingsNotificationsSlack    `yaml:"slack"`
 }
 
 type WorkflowSettingsNotificationsTelegram struct {

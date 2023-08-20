@@ -1,10 +1,12 @@
 package workflow
 
 import (
+	"fmt"
 	"runtime"
 	"strings"
 
 	"github.com/stackup-app/stackup/lib/support"
+	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
@@ -21,7 +23,8 @@ type Task struct {
 	RunCount   int
 	Uuid       string
 	FromRemote bool
-	Workflow   *StackupWorkflow
+	Workflow   *StackupWorkflow //*types.AppWorkflowContract
+	types.AppWorkflowTaskContract
 }
 
 type TaskReference struct {
@@ -33,6 +36,16 @@ type ScheduledTask struct {
 	Task     string `yaml:"task"`
 	Cron     string `yaml:"cron"`
 	Workflow *StackupWorkflow
+}
+
+func (task Task) engine() types.JavaScriptEngineContract {
+	if task.Workflow == nil {
+		panic("task.Workflow is nil")
+	}
+
+	engine := (*task.Workflow).GetJsEngine()
+
+	return *engine
 }
 
 func (task *Task) CanRunOnCurrentPlatform() bool {
@@ -54,35 +67,41 @@ func (task *Task) CanRunConditionally() bool {
 		return true
 	}
 
-	result := (task.Workflow.JsEngine.Evaluate(task.If)).(bool)
+	jse := (*task.Workflow).GetJsEngine()
+	result := (*jse).Evaluate(task.If).(bool)
 
 	return result
 }
 
-func (task *Task) Initialize(workflow *StackupWorkflow) {
-	task.Workflow = workflow
+func (task Task) Initialize() {
+	// var result interface{} = workflow
+	// ptr := result.(StackupWorkflow)
+	//task.Workflow = interface{}(workflow).(*StackupWorkflow)
+
 	task.RunCount = 0
 
 	if task.MaxRuns <= 0 {
 		task.MaxRuns = 999999999
 	}
 
+	engine := *(*task.Workflow).GetJsEngine()
+
 	if len(task.Path) == 0 {
-		task.Path = task.Workflow.JsEngine.MakeStringEvaluatable("getCwd()")
+		task.Path = engine.MakeStringEvaluatable("getCwd()")
 	}
 
-	task.If = task.Workflow.JsEngine.MakeStringEvaluatable(task.If)
+	task.If = engine.MakeStringEvaluatable(task.If)
 
-	if task.Workflow.JsEngine.IsEvaluatableScriptString(task.Name) {
-		task.Name = task.Workflow.JsEngine.Evaluate(task.Name).(string)
+	if engine.IsEvaluatableScriptString(task.Name) {
+		task.Name = engine.Evaluate(task.Name).(string)
 	}
 }
 
 func (task *Task) runWithStatusMessagesSync(runningSilently bool) {
 	command := task.Command
 
-	if task.Workflow.JsEngine.IsEvaluatableScriptString(command) {
-		command = task.Workflow.JsEngine.Evaluate(command).(string)
+	if task.engine().IsEvaluatableScriptString(command) {
+		command = task.engine().Evaluate(command).(string)
 	}
 
 	cmd, err := utils.RunCommandInPath(command, task.Path, runningSilently)
@@ -105,7 +124,7 @@ func (task *Task) runWithStatusMessagesSync(runningSilently bool) {
 	}
 }
 
-func (task *Task) GetDisplayName() string {
+func (task Task) GetDisplayName() string {
 	if len(task.Include) > 0 {
 		return strings.Replace(task.Include, "https://", "", -1)
 	}
@@ -121,13 +140,13 @@ func (task *Task) GetDisplayName() string {
 	return task.Uuid
 }
 
-func (task *Task) Run(synchronous bool) {
-	task.Workflow.State.History.Push(task)
-	task.Workflow.State.CurrentTask = task
+func (task Task) Run(synchronous bool) {
+	// task.Workflow.State.History.Push(task)
+	// task.Workflow.State.CurrentTask = &task
 
-	defer func() {
-		task.Workflow.State.CurrentTask = nil
-	}()
+	// defer func() {
+	// 	task.Workflow.State.CurrentTask = nil
+	// }()
 
 	if task.RunCount >= task.MaxRuns && task.MaxRuns > 0 {
 		support.SkippedMessageWithSymbol(task.GetDisplayName())
@@ -138,11 +157,11 @@ func (task *Task) Run(synchronous bool) {
 
 	// allow the path property to be an environment variable reference without wrapping it in `{{ }}`
 	if utils.MatchesPattern(task.Path, "^\\$[\\w_]+$") {
-		task.Path = task.Workflow.JsEngine.MakeStringEvaluatable(task.Path)
+		task.Path = task.engine().MakeStringEvaluatable(task.Path)
 	}
 
-	if task.Workflow.JsEngine.IsEvaluatableScriptString(task.Path) {
-		tempCwd := task.Workflow.JsEngine.Evaluate(task.Path)
+	if task.engine().IsEvaluatableScriptString(task.Path) {
+		tempCwd := task.engine().Evaluate(task.Path)
 		task.Path = tempCwd.(string)
 	}
 
@@ -166,24 +185,26 @@ func (task *Task) Run(synchronous bool) {
 		return
 	}
 
-	if task.Workflow.JsEngine.IsEvaluatableScriptString(command) {
-		command = task.Workflow.JsEngine.Evaluate(command).(string)
+	if task.engine().IsEvaluatableScriptString(command) {
+		command = task.engine().Evaluate(command).(string)
 	}
 
 	cmd := utils.StartCommand(command, task.Path, false)
-	task.Workflow.CommandStartCb(cmd)
+	(task.Workflow).CommandStartCb(cmd)
 	cmd.Start()
 
 	support.PrintCheckMarkLine()
 
-	task.Workflow.ProcessMap.Store(task.Uuid, cmd)
+	(task.Workflow).ProcessMap.Store(task.Uuid, cmd)
 }
 
-func (tr *TaskReference) Initialize(workflow *StackupWorkflow) {
+func (tr TaskReference) Initialize(workflow *StackupWorkflow) {
 	tr.Workflow = workflow
 }
 
-func (tr *TaskReference) TaskId() string {
+func (tr TaskReference) TaskId() string {
+	fmt.Printf("tr: %v\n", tr)
+
 	if tr.Workflow.JsEngine.IsEvaluatableScriptString(tr.Task) {
 		return tr.Workflow.JsEngine.Evaluate(tr.Task).(string)
 	}
