@@ -33,10 +33,10 @@ type StackupWorkflow struct {
 	Preconditions  []*WorkflowPrecondition `yaml:"preconditions"`
 	Tasks          []*Task                 `yaml:"tasks"`
 	TaskList       *lla.List
-	Startup        []TaskReference    `yaml:"startup"`
-	Shutdown       []TaskReference    `yaml:"shutdown"`
-	Servers        []TaskReference    `yaml:"servers"`
-	Scheduler      []ScheduledTask    `yaml:"scheduler"`
+	Startup        []*TaskReference   `yaml:"startup"`
+	Shutdown       []*TaskReference   `yaml:"shutdown"`
+	Servers        []*TaskReference   `yaml:"servers"`
+	Scheduler      []*ScheduledTask   `yaml:"scheduler"`
 	Includes       []*WorkflowInclude `yaml:"includes"`
 	State          *StackupWorkflowState
 	Cache          *cache.Cache
@@ -114,6 +114,16 @@ func (workflow *StackupWorkflow) TryLoadDotEnvVaultFile(value string) bool {
 	return true
 }
 
+func (workflow *StackupWorkflow) GetAllTaskReferences() []*TaskReference {
+	refs := []*TaskReference{}
+
+	refs = append(refs, workflow.Startup...)
+	refs = append(refs, workflow.Shutdown...)
+	refs = append(refs, workflow.Servers...)
+
+	return refs
+}
+
 func (workflow *StackupWorkflow) Initialize(configPath string) {
 	workflow.Cache = cache.New("", configPath)
 
@@ -122,15 +132,7 @@ func (workflow *StackupWorkflow) Initialize(configPath string) {
 		task.Uuid = utils.GenerateTaskUuid()
 	}
 
-	for _, tr := range workflow.Startup {
-		tr.Initialize(workflow)
-	}
-
-	for _, tr := range workflow.Shutdown {
-		tr.Initialize(workflow)
-	}
-
-	for _, tr := range workflow.Servers {
+	for _, tr := range workflow.GetAllTaskReferences() {
 		tr.Initialize(workflow)
 	}
 
@@ -140,12 +142,9 @@ func (workflow *StackupWorkflow) Initialize(configPath string) {
 
 	workflow.processEnvSection()
 	workflow.createMissingSettingsSection()
-	workflow.configureDefaultSettings()
+	workflow.ConfigureDefaultSettings()
 	workflow.ProcessIncludes()
-
-	if len(workflow.Init) > 0 {
-		workflow.JsEngine.Evaluate(workflow.Init)
-	}
+	workflow.JsEngine.Evaluate(workflow.Init)
 
 	for _, pc := range workflow.Preconditions {
 		pc.Initialize(workflow)
@@ -158,7 +157,7 @@ func (workflow *StackupWorkflow) Initialize(configPath string) {
 	workflow.Cache.DefaultTtl = workflow.Settings.Cache.TtlMinutes
 }
 
-func (workflow *StackupWorkflow) configureDefaultSettings() {
+func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
 	if workflow.Settings.ChecksumVerification == nil {
 		verifyChecksums := true
 		workflow.Settings.ChecksumVerification = &verifyChecksums
@@ -376,14 +375,16 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 }
 
 func (workflow *StackupWorkflow) hasRemoteDomainAccess(include *WorkflowInclude) bool {
-	if include.IsS3Url() || include.IsRemoteUrl() {
-		if !workflow.Gateway.Allowed(include.FullUrl()) {
-			support.FailureMessageWithXMark("remote include (rejected): domain " + include.Domain() + " access denied.")
-			return false
-		}
+	if !include.IsS3Url() && !include.IsRemoteUrl() {
+		return true
 	}
 
-	return true
+	if workflow.Gateway.Allowed(include.FullUrl()) {
+		return true
+	}
+
+	support.FailureMessageWithXMark("remote include (rejected): domain " + include.Domain() + " access denied.")
+	return false
 }
 
 func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) *cache.CacheEntry {

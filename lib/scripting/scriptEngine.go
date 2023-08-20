@@ -122,6 +122,10 @@ func (e *JavaScriptEngine) ToValue(value otto.Value) any {
 func (e *JavaScriptEngine) Evaluate(script string) any {
 	tempScript := strings.TrimSpace(script)
 
+	if len(tempScript) == 0 {
+		return nil
+	}
+
 	if e.IsEvaluatableScriptString(tempScript) {
 		tempScript = e.GetEvaluatableScriptString(tempScript)
 	}

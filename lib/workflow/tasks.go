@@ -40,16 +40,13 @@ func (task *Task) CanRunOnCurrentPlatform() bool {
 		return true
 	}
 
-	foundPlatform := false
-
 	for _, name := range task.Platforms {
 		if strings.EqualFold(runtime.GOOS, name) {
-			foundPlatform = true
-			break
+			return true
 		}
 	}
 
-	return foundPlatform
+	return false
 }
 
 func (task *Task) CanRunConditionally() bool {
@@ -57,13 +54,9 @@ func (task *Task) CanRunConditionally() bool {
 		return true
 	}
 
-	result := task.Workflow.JsEngine.Evaluate(task.If)
+	result := (task.Workflow.JsEngine.Evaluate(task.If)).(bool)
 
-	if result.(bool) {
-		return true
-	}
-
-	return false
+	return result
 }
 
 func (task *Task) Initialize(workflow *StackupWorkflow) {
