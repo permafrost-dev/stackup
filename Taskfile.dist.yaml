@@ -45,11 +45,13 @@ tasks:
       - task: lint-stackup
 
   update-version-file:
-    preconditions:
+    # status:
       # don't run this task in CI
-      - sh: '[ "$CI" == "" ]'
+      # - '[ "$CI" == "" ]'
     cmds:
+      - printf "running update-version-file"
       - go run tools/generate-version-file.go
+      - printf "ran update-version-file"
 
   lint-dotenv:
     desc: Lints all dotenv files
