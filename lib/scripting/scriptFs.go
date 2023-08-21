@@ -11,7 +11,7 @@ import (
 type ScriptFs struct {
 }
 
-func CreateScriptFsObject(e *JavaScriptEngine) {
+func (e *JavaScriptEngine) CreateScriptFsObject() {
 	obj := &ScriptFs{}
 	e.Vm.Set("fs", obj)
 }

@@ -41,13 +41,13 @@ type Gateway struct {
 }
 
 // New initializes the gateway with deny/allow lists
-func New(deniedDomains, allowedDomains, blockedFileExts, allowedFileExts []string) *Gateway {
+func New() *Gateway {
 	result := Gateway{
 		Enabled:             true,
-		DeniedDomains:       deniedDomains,
-		AllowedDomains:      allowedDomains,
-		BlockedFileExts:     blockedFileExts,
-		AllowedFileExts:     allowedFileExts,
+		DeniedDomains:       []string{},
+		AllowedDomains:      []string{},
+		BlockedFileExts:     []string{},
+		AllowedFileExts:     []string{},
 		Middleware:          []*GatewayUrlRequestMiddleware{},
 		PostMiddleware:      []*GatewayUrlResponseMiddleware{},
 		DomainHeaders:       &sync.Map{},
@@ -187,8 +187,8 @@ func (g *Gateway) GetBlockedContentTypes(domain string) []string {
 }
 
 func (g *Gateway) SetDomainContentTypes(domain string, contentTypes []string) {
-	fmt.Printf("setting content types for domain %s: %v\n", domain, contentTypes)
-	fmt.Printf("DomainContentTypes: %v\n", g)
+	// fmt.Printf("setting content types for domain %s: %v\n", domain, contentTypes)
+	// fmt.Printf("DomainContentTypes: %v\n", g)
 
 	if len(contentTypes) == 0 {
 		g.DomainContentTypes.Delete(domain)
@@ -252,8 +252,6 @@ func (g *Gateway) runUrlRequestPipeline(link string) error {
 	}
 
 	for _, mw := range g.Middleware {
-		fmt.Printf("running middleware: %v\n", mw.Name)
-
 		if err := (*mw).Handler(g, link); err != nil {
 			fmt.Printf("error on mw: %v; %v\n", mw.Name, err)
 			return err
@@ -345,8 +343,6 @@ func (g *Gateway) processHeaders(headers []string) []string {
 // GetUrl returns the contents of a URL as a string, assuming it
 // is allowed by the gateway, otherwise it returns an error.
 func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
-	fmt.Printf("g = %v\n", g)
-
 	if err := g.runUrlRequestPipeline(urlStr); err != nil {
 		fmt.Printf("error: %v\n", err)
 		return "", err

@@ -2,6 +2,7 @@ package types
 
 import (
 	"os/exec"
+	"sync"
 
 	"github.com/stackup-app/stackup/lib/settings"
 )
@@ -13,6 +14,7 @@ type JavaScriptEngineContract interface {
 	GetEvaluatableScriptString(s string) string
 	MakeStringEvaluatable(script string) string
 	Evaluate(script string) any
+	CreateAppVariables(vars *sync.Map)
 }
 
 type AppWorkflowTaskContract interface {
@@ -23,7 +25,28 @@ type AppWorkflowTaskContract interface {
 }
 
 type AppWorkflowContract interface {
-	FindTaskById(id string) (*AppWorkflowTaskContract, bool)
+	FindTaskById(id string) (any, bool)
 	GetSettings() *settings.Settings
 	GetJsEngine() *JavaScriptEngineContract
+}
+
+type AppWorkflowContractPtr *AppWorkflowContract
+
+type ScriptExtensionContract interface {
+	Install()
+	GetName() string
+}
+
+type ScriptExtension struct {
+	Name string
+}
+
+func CreateNewExtension(name string) *ScriptExtension {
+	return &ScriptExtension{
+		Name: name,
+	}
+}
+
+func (se *ScriptExtension) IsExtensionInstalled(name string) bool {
+	return false
 }

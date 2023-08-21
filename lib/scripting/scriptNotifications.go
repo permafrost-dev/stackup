@@ -1,7 +1,6 @@
 package scripting
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/stackup-app/stackup/lib/notifications"
@@ -11,7 +10,7 @@ import (
 
 type ScriptNotifications struct {
 	engine                 *JavaScriptEngine
-	settings               *func() *settings.Settings
+	settings               *settings.Settings
 	telegramObj            *ScriptNotificationsTelegram
 	slackObj               *ScriptNotificationsSlack
 	desktopObj             *DesktopNotification
@@ -50,11 +49,11 @@ func CreateScripNotificationsObject(wf *types.AppWorkflowContract, e *JavaScript
 	// wc := e.GetWorkflowContract()
 	// fmt.Printf("wc: %v\n", (*wc).GetSettings())
 
-	ptr := (*wf).GetSettings
+	ptr := (*wf)
 
 	obj := &ScriptNotifications{
 		engine:   e,
-		settings: &ptr,
+		settings: (ptr).GetSettings(),
 		telegramObj: &ScriptNotificationsTelegram{
 			APIToken: "",
 		},
@@ -67,8 +66,6 @@ func CreateScripNotificationsObject(wf *types.AppWorkflowContract, e *JavaScript
 	obj.desktopObj.sn = obj
 	obj.telegramObj.sn = obj
 	obj.slackObj.sn = obj
-
-	fmt.Printf("settings: %v\n", (*wf).GetSettings())
 
 	e.Vm.Set("notifications", obj)
 }
@@ -141,15 +138,17 @@ func (sns *ScriptNotificationsSlack) To(channelIds ...string) *ScriptNotificatio
 }
 
 func (sns *ScriptNotificationsSlack) Send() bool {
-	temp := (*(sns.sn.engine.GetWorkflowContract))()
-	sns.To((*temp).GetSettings().Notifications.Slack.ChannelIds...)
-	webhookUrl := sns.sn.engine.Evaluate((*temp).GetSettings().Notifications.Slack.WebhookUrl).(string)
+	return false
+	// temp := (*sns.sn.engine).toInterface()
 
-	result := notifications.NewSlackNotification(webhookUrl, sns.state.channelIds...).
-		Send(sns.state.title, sns.state.message)
+	// sns.To(temp.(JavaScriptEngine).GetWorkflowContract()).GetSettings().Notifications.Slack.ChannelIds...)
+	// webhookUrl := sns.sn.engine.Evaluate((*temp).GetSettings().Notifications.Slack.WebhookUrl).(string)
 
-	sns.resetState()
-	return result == nil
+	// result := notifications.NewSlackNotification(webhookUrl, sns.state.channelIds...).
+	// 	Send(sns.state.title, sns.state.message)
+
+	// sns.resetState()
+	// return result == nil
 }
 
 func (sns *ScriptNotificationsSlack) resetState() {

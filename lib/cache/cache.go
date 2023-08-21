@@ -162,7 +162,6 @@ func (c *Cache) Get(key string) (*CacheEntry, bool) {
 	result := &CacheEntry{Value: "", ExpiresAt: ""}
 
 	c.Db.View(func(tx *bolt.Tx) error {
-		fmt.Printf("tx: %v\n", tx)
 		b := tx.Bucket([]byte(c.Name))
 		bytes := b.Get([]byte(key))
 		json.Unmarshal(bytes, &result)

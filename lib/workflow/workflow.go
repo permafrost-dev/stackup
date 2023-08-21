@@ -2,7 +2,6 @@ package workflow
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -15,7 +14,6 @@ import (
 	"github.com/stackup-app/stackup/lib/checksums"
 	"github.com/stackup-app/stackup/lib/downloader"
 	"github.com/stackup-app/stackup/lib/gateway"
-	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/settings"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/types"
@@ -24,28 +22,42 @@ import (
 )
 
 type StackupWorkflow struct {
-	Name           string                 `yaml:"name"`
-	Description    string                 `yaml:"description"`
-	Version        string                 `yaml:"version"`
-	Settings       settings.Settings      `yaml:"settings"`
-	Env            []string               `yaml:"env"`
-	Init           string                 `yaml:"init"`
-	Preconditions  []WorkflowPrecondition `yaml:"preconditions"`
-	Tasks          []*Task                `yaml:"tasks"`
-	TaskList       lla.List
-	Startup        []TaskReference   `yaml:"startup"`
-	Shutdown       []TaskReference   `yaml:"shutdown"`
-	Servers        []TaskReference   `yaml:"servers"`
-	Scheduler      []ScheduledTask   `yaml:"scheduler"`
+	Name           string                  `yaml:"name"`
+	Description    string                  `yaml:"description"`
+	Version        string                  `yaml:"version"`
+	Settings       *settings.Settings      `yaml:"settings"`
+	Env            []string                `yaml:"env"`
+	Init           string                  `yaml:"init"`
+	Preconditions  []*WorkflowPrecondition `yaml:"preconditions"`
+	Tasks          []*Task                 `yaml:"tasks"`
+	TaskList       *lla.List
+	Startup        []*TaskReference  `yaml:"startup"`
+	Shutdown       []*TaskReference  `yaml:"shutdown"`
+	Servers        []*TaskReference  `yaml:"servers"`
+	Scheduler      []*ScheduledTask  `yaml:"scheduler"`
 	Includes       []WorkflowInclude `yaml:"includes"`
 	State          StackupWorkflowState
 	Cache          *cache.Cache
-	JsEngine       *scripting.JavaScriptEngine
+	JsEngine       types.JavaScriptEngineContract
 	Gateway        *gateway.Gateway
 	ProcessMap     *sync.Map
 	CommandStartCb types.CommandCallback
 	ExitAppFunc    func()
 	types.AppWorkflowContract
+}
+
+func CreateWorkflow(gw *gateway.Gateway) *StackupWorkflow {
+	return &StackupWorkflow{
+		Settings:      &settings.Settings{},
+		Preconditions: []*WorkflowPrecondition{},
+		Tasks:         []*Task{},
+		TaskList:      lla.New(),
+		State:         StackupWorkflowState{},
+		Includes:      []WorkflowInclude{},
+		Cache:         cache.New("project", ""),
+		Gateway:       gw,
+		ProcessMap:    &sync.Map{},
+	}
 }
 
 type StackupWorkflowState struct {
@@ -54,21 +66,14 @@ type StackupWorkflowState struct {
 	History     *lls.Stack
 }
 
-// func (workflow *StackupWorkflow) GetJsEngine() *types.JavaScriptEngineContract {
-// 	var ref interface{} = workflow.JsEngine
-// 	result := ref.(types.JavaScriptEngineContract)
+func (workflow StackupWorkflow) FindTaskById(id string) (any, bool) {
+	if len(id) == 0 {
+		return nil, false
+	}
 
-// 	return &result
-// }
-
-func (workflow StackupWorkflow) FindTaskById(id string) (*types.AppWorkflowTaskContract, bool) {
 	for _, task := range workflow.Tasks {
-		if strings.EqualFold(task.Id, id) && len(task.Id) > 0 {
-			fmt.Printf("found task: " + id)
-			var temp interface{} = interface{}(*task)
-
-			ref := temp.(types.AppWorkflowTaskContract)
-			return &ref, true
+		if strings.EqualFold(task.Id, id) {
+			return task, true
 		}
 	}
 
@@ -85,90 +90,55 @@ func (workflow *StackupWorkflow) FindTaskByUuid(uuid string) *Task {
 	return nil
 }
 
-func (workflow *StackupWorkflow) TaskIdToUuid(id string) (string, bool) {
-	var found bool
-	var task interface{}
-
-	task, found = workflow.FindTaskById(id)
-	result := ""
-
-	if found {
-		result = task.(Task).Uuid
+func (workflow *StackupWorkflow) TryLoadDotEnvVaultFile(value string) {
+	if !strings.EqualFold(value, "dotenv://vault") {
+		return
 	}
 
-	return result, found
-}
-
-func (workflow *StackupWorkflow) TryLoadDotEnvVaultFile(value string) bool {
 	if !utils.IsFile(utils.WorkingDir(".env.vault")) {
-		return false
-	}
-
-	parsedUrl, err := url.Parse(value)
-	if err != nil || parsedUrl.Scheme != "dotenv" || parsedUrl.Hostname() != "vault" {
-		return false
+		return
 	}
 
 	vars, err := godotenvvault.Read()
 	if err != nil {
-		return false
+		return
 	}
 
-	for key, value := range vars {
-		os.Setenv(key, value)
+	for k, v := range vars {
+		os.Setenv(k, v)
 	}
-
-	return true
 }
 
-func (workflow *StackupWorkflow) GetAllTaskReferences() []*TaskReference {
-	refs := []*TaskReference{}
-
-	appendPtrs := func(arr []TaskReference) {
-		for _, ref := range arr {
-			refs = append(refs, &ref)
-		}
-	}
-
-	appendPtrs(workflow.Startup)
-	appendPtrs(workflow.Shutdown)
-	appendPtrs(workflow.Servers)
+func (workflow *StackupWorkflow) GetAllTaskReferences() []*TaskReferenceContract {
+	refs := []*TaskReferenceContract{}
+	refs = utils.CastAndCombineArrays(refs, workflow.Startup)
+	refs = utils.CastAndCombineArrays(refs, workflow.Shutdown)
+	refs = utils.CastAndCombineArrays(refs, workflow.Servers)
+	refs = utils.CastAndCombineArrays(refs, workflow.Scheduler)
 
 	return refs
 }
 
-func (workflow *StackupWorkflow) Prepare() {
-	workflow.ProcessIncludes()
-	//workflow.JsEngine.Evaluate(workflow.Init)
-}
-
 func (workflow *StackupWorkflow) Initialize(configPath string) {
 	workflow.Cache = cache.New("", configPath)
-	workflow.Settings = settings.Settings{}
+	workflow.Settings = &settings.Settings{}
 
 	// generate uuids for each task as the initial step, as other code below relies on a uuid existing
 	for _, task := range workflow.Tasks {
-		fmt.Printf("task found: %v\n", task)
 		task.Uuid = utils.GenerateTaskUuid()
 	}
 
 	for _, tr := range workflow.GetAllTaskReferences() {
-		tr.Initialize(workflow)
-	}
-
-	for _, st := range workflow.Scheduler {
-		st.Initialize(workflow)
+		(*tr).Initialize(workflow)
 	}
 
 	for _, pc := range workflow.Preconditions {
 		pc.Workflow = workflow
 	}
 
-	// workflow.processEnvSection()
+	workflow.processEnvSection()
 
 	for _, task := range workflow.Tasks {
-		// var temp interface{} = workflow
-		// ref := temp.(types.AppWorkflowContract)
 		task.Workflow = workflow
 		task.Initialize()
 	}
@@ -228,7 +198,7 @@ func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
 func (workflow *StackupWorkflow) processEnvSection() {
 	if len(workflow.Env) > 0 {
 		for _, def := range workflow.Env {
-			if strings.Contains(def, "://") {
+			if strings.EqualFold(def, "dotenv://vault") {
 				workflow.TryLoadDotEnvVaultFile(def)
 				continue
 			}
@@ -241,35 +211,29 @@ func (workflow *StackupWorkflow) processEnvSection() {
 	}
 }
 
+// ProcessIncludes loads the includes and processes all included files in the workflow asynchronously,
+// so the order in which they loading is not guaranteed.
 func (workflow *StackupWorkflow) ProcessIncludes() {
 	for _, inc := range workflow.Includes {
 		inc.Initialize(workflow)
 	}
 
 	// load the includes asynchronously
-	// var wg sync.WaitGroup
+	var wg sync.WaitGroup
 	for _, include := range workflow.Includes {
-		// fmt.Printf("include: %v\n", include)
-		// include.Process(workflow)
-		// wg.Add(1)
-		// wf := workflow
-		// go func(inc *WorkflowInclude) {
-		// 	defer wg.Done()
-		include.Process(workflow)
-		// }(include)
+		wg.Add(1)
+		go func(inc WorkflowInclude) {
+			defer wg.Done()
+			inc.Process(workflow)
+		}(include)
 	}
-	// wg.Wait()
+	wg.Wait()
 }
 
 func (workflow *StackupWorkflow) hasRemoteDomainAccess(include *WorkflowInclude) bool {
 	if !include.IsS3Url() && !include.IsRemoteUrl() {
 		return true
 	}
-
-	if workflow == nil || workflow.Gateway == nil {
-		return true
-	}
-
 	if workflow.Gateway.Allowed(include.FullUrl()) {
 		return true
 	}
@@ -279,16 +243,12 @@ func (workflow *StackupWorkflow) hasRemoteDomainAccess(include *WorkflowInclude)
 }
 
 func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) *cache.CacheEntry {
-	fmt.Printf("tryLoadingCachedData %v\n", include)
+	if !workflow.Cache.Has(include.Url) {
+		return nil
+	}
 
-	// if !workflow.Cache.Has(include.Url) {
-	// 	return nil
-	// }
-
-	fmt.Printf("cache==%v", workflow.Cache)
-
-	data, found := workflow.Cache.Get(include.DisplayUrl())
-	include.FromCache = found
+	var data *cache.CacheEntry
+	data, include.FromCache = workflow.Cache.Get(include.DisplayUrl())
 
 	if include.FromCache {
 		include.Hash = data.Hash
@@ -300,10 +260,15 @@ func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) 
 }
 
 func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude) error {
-	var template IncludedTemplate
-	err := yaml.Unmarshal([]byte(include.Contents), &template)
+	var remoteYaml string
+	var err error
+	var template StackupWorkflow
 
-	if err != nil {
+	if remoteYaml, err = workflow.Gateway.GetUrl(include.FullUrl()); err != nil {
+		return err
+	}
+
+	if err = yaml.Unmarshal([]byte(remoteYaml), &template); err != nil {
 		return err
 	}
 
@@ -311,24 +276,10 @@ func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude)
 		workflow.Init += "\n" + template.Init
 	}
 
+	workflow.initializeAllTemplateTaskReferences(&template)
 	workflow.importPreconditionsFromIncludedTemplate(&template)
 	workflow.importTasksFromIncludedTemplate(&template)
-	// workflow.copySettingsFromIncludedTemplate(&template)
-
-	// fmt.Printf("template: %v\n", template)
-	// fmt.Printf("workflow: %v\n", workflow)
-
-	for _, task := range template.Tasks {
-		var temp interface{} = task
-		var ref Task = temp.(Task)
-
-		newTask := ref
-		newTask.FromRemote = true
-		newTask.Uuid = utils.GenerateTaskUuid()
-		workflow.Tasks = append(workflow.Tasks, &newTask)
-
-		fmt.Printf("imported task %s\n", &newTask.Name)
-	}
+	//workflow.copySettingsFromIncludedTemplate(&template)
 
 	return nil
 }
@@ -404,31 +355,37 @@ func (workflow StackupWorkflow) handleDataNotCached(found bool, data *cache.Cach
 	return err
 }
 
-func (workflow *StackupWorkflow) importTasksFromIncludedTemplate(template *IncludedTemplate) {
+func (workflow *StackupWorkflow) importTasksFromIncludedTemplate(template *StackupWorkflow) {
 	for _, t := range template.Tasks {
 		t.FromRemote = true
 		t.Uuid = utils.GenerateTaskUuid()
 		workflow.Tasks = append(workflow.Tasks, t)
-		fmt.Printf("imported task %s\n", t.Name)
+	}
+}
+
+func (workflow *StackupWorkflow) initializeAllTemplateTaskReferences(template *StackupWorkflow) {
+	for _, tr := range template.GetAllTaskReferences() {
+		(*tr).Initialize(workflow)
 	}
 }
 
 // prepend the included preconditions; we reverse the order of the preconditions in the included file,
 // then reverse the existing preconditions, append them, then reverse the workflow preconditions again
 // to achieve the correct order.
-func (workflow *StackupWorkflow) importPreconditionsFromIncludedTemplate(template *IncludedTemplate) {
+func (workflow *StackupWorkflow) importPreconditionsFromIncludedTemplate(template *StackupWorkflow) {
 	workflow.Preconditions = utils.ReverseArray(workflow.Preconditions)
 	template.Preconditions = utils.ReverseArray(template.Preconditions)
 
 	for _, p := range template.Preconditions {
 		p.FromRemote = true
-		workflow.Preconditions = append(workflow.Preconditions, *p)
+		workflow.Preconditions = append(workflow.Preconditions, p)
+		// fmt.Printf("imported precondition %s\n", p.Name)
 	}
 
 	workflow.Preconditions = utils.ReverseArray(workflow.Preconditions)
 }
 
-func (workflow *StackupWorkflow) copySettingsFromIncludedTemplate(template *IncludedTemplate) {
+func (workflow *StackupWorkflow) copySettingsFromIncludedTemplate(template *StackupWorkflow) {
 	workflow.Settings.ChecksumVerification = template.Settings.ChecksumVerification
 	workflow.Settings.AnonymousStatistics = template.Settings.AnonymousStatistics
 
@@ -462,7 +419,7 @@ func (workflow *StackupWorkflow) copySettingsFromIncludedTemplate(template *Incl
 }
 
 func (workflow StackupWorkflow) GetSettings() *settings.Settings {
-	return &workflow.Settings
+	return workflow.Settings
 }
 
 func (workflow StackupWorkflow) GetJsEngine() *types.JavaScriptEngineContract {

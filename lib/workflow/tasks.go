@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"fmt"
 	"runtime"
 	"strings"
 
@@ -24,25 +23,28 @@ type Task struct {
 	Uuid       string
 	FromRemote bool
 	Workflow   *StackupWorkflow //*types.AppWorkflowContract
-	types.AppWorkflowTaskContract
+	// types.AppWorkflowTaskContract
+}
+
+type TaskReferenceContract interface {
+	TaskId() string
+	Initialize(wf *StackupWorkflow)
 }
 
 type TaskReference struct {
 	Task     string `yaml:"task"`
 	Workflow *StackupWorkflow
+	TaskReferenceContract
 }
 
 type ScheduledTask struct {
 	Task     string `yaml:"task"`
 	Cron     string `yaml:"cron"`
 	Workflow *StackupWorkflow
+	TaskReferenceContract
 }
 
-func (task Task) engine() types.JavaScriptEngineContract {
-	if task.Workflow == nil {
-		panic("task.Workflow is nil")
-	}
-
+func (task *Task) engine() types.JavaScriptEngineContract {
 	engine := (*task.Workflow).GetJsEngine()
 
 	return *engine
@@ -73,11 +75,7 @@ func (task *Task) CanRunConditionally() bool {
 	return result
 }
 
-func (task Task) Initialize() {
-	// var result interface{} = workflow
-	// ptr := result.(StackupWorkflow)
-	//task.Workflow = interface{}(workflow).(*StackupWorkflow)
-
+func (task *Task) Initialize() {
 	task.RunCount = 0
 
 	if task.MaxRuns <= 0 {
@@ -140,7 +138,7 @@ func (task Task) GetDisplayName() string {
 	return task.Uuid
 }
 
-func (task Task) Run(synchronous bool) {
+func (task *Task) Run(synchronous bool) {
 	// task.Workflow.State.History.Push(task)
 	// task.Workflow.State.CurrentTask = &task
 
@@ -190,21 +188,19 @@ func (task Task) Run(synchronous bool) {
 	}
 
 	cmd := utils.StartCommand(command, task.Path, false)
-	(task.Workflow).CommandStartCb(cmd)
+	task.Workflow.CommandStartCb(cmd)
 	cmd.Start()
 
 	support.PrintCheckMarkLine()
 
-	(task.Workflow).ProcessMap.Store(task.Uuid, cmd)
+	task.Workflow.ProcessMap.Store(task.Uuid, cmd)
 }
 
-func (tr TaskReference) Initialize(workflow *StackupWorkflow) {
+func (tr *TaskReference) Initialize(workflow *StackupWorkflow) {
 	tr.Workflow = workflow
 }
 
-func (tr TaskReference) TaskId() string {
-	fmt.Printf("tr: %v\n", tr)
-
+func (tr *TaskReference) TaskId() string {
 	if tr.Workflow.JsEngine.IsEvaluatableScriptString(tr.Task) {
 		return tr.Workflow.JsEngine.Evaluate(tr.Task).(string)
 	}

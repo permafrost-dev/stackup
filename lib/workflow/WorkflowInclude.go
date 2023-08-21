@@ -54,20 +54,13 @@ func (wi WorkflowInclude) Initialize(workflow *StackupWorkflow) {
 }
 
 func (include *WorkflowInclude) Process(wf *StackupWorkflow) {
-
-	// include.Initialize(wf)
-
 	var err error = nil
-	fmt.Printf("include: %v\n", include)
 	if include == nil {
 		return
 	}
-	data := wf.tryLoadingCachedData(include)
-	fmt.Printf("data: %v\n", data)
-	found := data != nil
 
-	// found := false
-	//data := nil
+	data := wf.tryLoadingCachedData(include)
+	found := data != nil
 
 	// if !wf.hasRemoteDomainAccess(include) {
 	// 	return

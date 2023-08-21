@@ -2,7 +2,6 @@ package scripting
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 
@@ -18,23 +17,47 @@ type JavaScriptEngine struct {
 	AppVars                *sync.Map
 	AppGateway             *gateway.Gateway
 	Functions              *JavaScriptFunctions
-	GetWorkflowContract    *func() *types.AppWorkflowContract
+	GetWorkflowContract    *types.AppWorkflowContract
 	GetApplicationIconPath func() string
+	Registry               *sync.Map
+	InstalledExtensions    *sync.Map
 	types.JavaScriptEngineContract
 }
 
-func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, getWorkflowContract func() *types.AppWorkflowContract, getAppIconFunc func() string) *JavaScriptEngine {
-	result := JavaScriptEngine{
+func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, wf types.AppWorkflowContract, getAppIconFunc func() string) *JavaScriptEngine {
+	result := &JavaScriptEngine{
 		Vm:                     otto.New(),
 		AppVars:                vars,
 		AppGateway:             gateway,
 		GetApplicationIconPath: getAppIconFunc,
-		GetWorkflowContract:    &getWorkflowContract,
+		Registry:               &sync.Map{},
+		InstalledExtensions:    &sync.Map{},
 	}
 
-	result.Init(getWorkflowContract())
+	result.Init(&wf)
 
-	return &result
+	return result
+}
+
+func (e *JavaScriptEngine) RegisterExtension(name string, value types.ScriptExtensionContract) {
+	e.Registry.Store(name, value)
+}
+
+func (e *JavaScriptEngine) IsExtensionInstalled(name string) bool {
+	_, ok := e.InstalledExtensions.Load(name)
+	return ok
+}
+
+func (e *JavaScriptEngine) InstallRegistry() {
+	e.Registry.Range(func(key, value any) bool {
+		k := key.(string)
+		v := value.(types.ScriptExtensionContract)
+		if !e.IsExtensionInstalled(k) {
+			e.InstalledExtensions.Store(k, v)
+			v.Install()
+		}
+		return true
+	})
 }
 
 func (e *JavaScriptEngine) toInterface() interface{} {
@@ -51,13 +74,9 @@ func (e *JavaScriptEngine) AsContractPtr() *types.JavaScriptEngineContract {
 }
 
 func (e *JavaScriptEngine) Init(workflow *types.AppWorkflowContract) {
-	fmt.Printf("Init()\n")
-
 	e.Vm = otto.New()
-	e.Functions = CreateJavascriptFunctions(e)
-	e.Functions.Init()
-	e.CreateEnvironmentVariables()
-	CreateScriptFsObject(e)
+	e.CreateJavascriptFunctions()
+	e.CreateScriptFsObject()
 	CreateScriptAppObject(e)
 	CreateScriptVarsObject(e)
 	CreateScriptDevObject(e)
@@ -65,15 +84,15 @@ func (e *JavaScriptEngine) Init(workflow *types.AppWorkflowContract) {
 	CreateScripNotificationsObject(workflow, e)
 }
 
-func (e *JavaScriptEngine) CreateAppVariables() {
-	e.AppVars.Range(func(key, value any) bool {
+func (e *JavaScriptEngine) CreateAppVariables(vars *sync.Map) {
+	vars.Range(func(key, value any) bool {
 		e.Vm.Set("$"+(key.(string)), value)
 		return true
 	})
 }
 
-func (e *JavaScriptEngine) CreateEnvironmentVariables() {
-	for _, env := range os.Environ() {
+func (e *JavaScriptEngine) CreateEnvironmentVariables(vars []string) {
+	for _, env := range vars {
 		parts := strings.Split(env, "=")
 		e.Vm.Set("$"+parts[0], parts[1])
 	}
@@ -127,8 +146,6 @@ func (e *JavaScriptEngine) Evaluate(script string) any {
 	if e.IsEvaluatableScriptString(tempScript) {
 		tempScript = e.GetEvaluatableScriptString(tempScript)
 	}
-
-	fmt.Printf("Vm: %v\n", e)
 
 	result, err := e.Vm.Run(tempScript)
 

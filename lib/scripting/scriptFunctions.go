@@ -1,7 +1,6 @@
 package scripting
 
 import (
-	"fmt"
 	"os"
 	"runtime"
 	"strings"
@@ -10,7 +9,6 @@ import (
 	"github.com/robertkrimen/otto"
 	"github.com/stackup-app/stackup/lib/semver"
 	"github.com/stackup-app/stackup/lib/support"
-	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
@@ -18,17 +16,12 @@ type JavaScriptFunctions struct {
 	Engine *JavaScriptEngine
 }
 
-func CreateJavascriptFunctions(e *JavaScriptEngine) *JavaScriptFunctions {
-	fmt.Printf("CreateJavascriptFunctions()\n")
-
-	result := &JavaScriptFunctions{
-		Engine: e,
-	}
-
-	return result
+func (e *JavaScriptEngine) CreateJavascriptFunctions() {
+	jsf := JavaScriptFunctions{Engine: e}
+	jsf.Register()
 }
 
-func (jsf *JavaScriptFunctions) Init() {
+func (jsf *JavaScriptFunctions) Register() {
 	jsf.Engine.Vm.Set("binaryExists", jsf.createBinaryExists)
 	jsf.Engine.Vm.Set("composerJson", jsf.createComposerJsonFunction)
 	jsf.Engine.Vm.Set("env", jsf.createJavascriptFunctionEnv)
@@ -174,8 +167,7 @@ func (jsf *JavaScriptFunctions) createTaskFunction(call otto.FunctionCall) otto.
 		temp, _ := jsf.Engine.AppVars.Load(taskName[1:])
 		taskName = temp.(string)
 	}
-	temp := (*jsf.Engine.GetWorkflowContract)()
-	task, _ := (*temp).FindTaskById(taskName)
+	task, _ := (*jsf.Engine.GetWorkflowContract).FindTaskById(taskName)
 
 	return getResult(call, task)
 }
@@ -199,17 +191,19 @@ func (jsf *JavaScriptFunctions) createSelectTaskWhen(call otto.FunctionCall) ott
 	conditional, _ := call.Argument(0).ToBoolean()
 	trueTaskName := call.Argument(1).String()
 	falseTaskName := call.Argument(2).String()
-	var task *types.AppWorkflowTaskContract
+	//var task *types.AppWorkflowTaskContract
+	//var wf *types.AppWorkflowContract = jsf.Engine.GetWorkflowContract
+	temp := (*jsf.Engine.GetWorkflowContract)
+
+	var t any
 
 	if conditional {
-		temp := (*jsf.Engine.GetWorkflowContract)()
-		task, _ = (*temp).FindTaskById(trueTaskName)
+		t, _ = temp.FindTaskById(trueTaskName)
 	} else {
-		temp := (*jsf.Engine.GetWorkflowContract)()
-		task, _ = (*temp).FindTaskById(falseTaskName)
+		t, _ = temp.FindTaskById(falseTaskName)
 	}
 
-	return getResult(call, task)
+	return getResult(call, t)
 }
 
 func (jsf *JavaScriptFunctions) createGetCurrentWorkingDirectory(call otto.FunctionCall) otto.Value {

@@ -13,4 +13,7 @@ type IncludedTemplate struct {
 	Init          string                  `yaml:"init"`
 	Tasks         []*Task                 `yaml:"tasks"`
 	Preconditions []*WorkflowPrecondition `yaml:"preconditions"`
+	Startup       []*TaskReference        `yaml:"startup"`
+	Shutdown      []*TaskReference        `yaml:"shutdown"`
+	Servers       []*TaskReference        `yaml:"servers"`
 }

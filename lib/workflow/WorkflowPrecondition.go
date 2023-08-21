@@ -18,9 +18,9 @@ type WorkflowPrecondition struct {
 	Workflow   *StackupWorkflow
 }
 
-func (p *WorkflowPrecondition) Initialize(workflow *StackupWorkflow, engine *types.JavaScriptEngineContract) {
+func (p *WorkflowPrecondition) Initialize(workflow *StackupWorkflow, engine types.JavaScriptEngineContract) {
 	p.Workflow = workflow
-	p.engine = engine
+	p.engine = &engine
 
 	// var temp interface{} = workflow
 	// p.Workflow = temp.(*StackupWorkflow)
@@ -43,7 +43,7 @@ func (p *WorkflowPrecondition) HandleOnFailure() bool {
 	task, found := (*p.Workflow).FindTaskById(p.OnFail)
 	fmt.Printf("task: %v\n", task)
 	if found {
-		(*task).Run(true)
+		task.(types.AppWorkflowTaskContract).Run(true)
 	}
 
 	return result
@@ -51,8 +51,6 @@ func (p *WorkflowPrecondition) HandleOnFailure() bool {
 
 func (wp *WorkflowPrecondition) Run() bool {
 	result := true
-
-	fmt.Printf("wp: %v\n", wp)
 
 	if wp.Check != "" {
 		if (wp.Attempts - 1) > wp.MaxRetries {
@@ -82,3 +80,21 @@ func (wp *WorkflowPrecondition) Run() bool {
 
 	return result
 }
+
+// func (pc *WorkflowPrecondition) UnmarshalYAML(node *yaml.Node) error {
+// 	// switch node.Kind {
+// 	// case yaml.ScalarNode:
+// 	//     if node.Kind == yaml.Kind(reflect.String) {
+// 	//         value := ""
+// 	//         vers := Version{Semver: semver.ParseSemverString(value), Original: value}
+// 	//         if err := node.Decode(&value); err != nil {
+// 	//             return err
+// 	//         }
+// 	//         node.Value = &vers
+// 	//         if scripting.IsScriptString(value) {
+// 	//             node.SetString(scripting.GetScriptFromString(value))
+// 	//         }
+// 	//     }
+// 	// }
+// 	return nil
+// }
