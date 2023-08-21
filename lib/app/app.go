@@ -14,6 +14,7 @@ import (
 	"github.com/emirpasic/gods/stacks/linkedliststack"
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
+	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/gateway"
 	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/support"
@@ -207,49 +208,31 @@ func (a *Application) runEventLoop() {
 	}
 }
 
-func (a *Application) runStartupTasks() {
-	for _, def := range a.Workflow.Startup {
-		task, found := a.Workflow.FindTaskById(def.TaskId())
-
+func (a *Application) runTaskReferences(refs []*workflow.TaskReferenceContract) {
+	for _, def := range refs {
+		task, found := a.Workflow.FindTaskById((*def).TaskId())
 		if !found {
-			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
+			support.SkippedMessageWithSymbol("Task " + (*def).TaskId() + " not found.")
 			continue
 		}
 
-		// a.Workflow.State.CurrentTask = task
 		task.(*workflow.Task).Run(true)
 	}
+}
+
+func (a *Application) runStartupTasks() {
+	arr := []*workflow.TaskReferenceContract{}
+	a.runTaskReferences(utils.CastAndCombineArrays(arr, a.Workflow.Startup))
 }
 
 func (a *Application) runShutdownTasks() {
-	for _, def := range a.Workflow.Shutdown {
-		task, found := a.Workflow.FindTaskById(def.TaskId())
-
-		if !found {
-			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
-			continue
-		}
-
-		// a.Workflow.State.CurrentTask = task
-
-		task.(*workflow.Task).Run(true)
-	}
+	arr := []*workflow.TaskReferenceContract{}
+	a.runTaskReferences(utils.CastAndCombineArrays(arr, a.Workflow.Shutdown))
 }
 
 func (a *Application) runServerTasks() {
-	for _, def := range a.Workflow.Servers {
-		task, found := a.Workflow.FindTaskById(def.TaskId())
-
-		if !found {
-			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
-			continue
-		}
-
-		task, _ = a.Workflow.FindTaskById(def.TaskId())
-
-		// a.Workflow.State.CurrentTask = task
-		task.(*workflow.Task).Run(false)
-	}
+	arr := []*workflow.TaskReferenceContract{}
+	a.runTaskReferences(utils.CastAndCombineArrays(arr, a.Workflow.Servers))
 }
 
 func (a Application) runPreconditions() {
@@ -269,7 +252,7 @@ func (a *Application) createNewConfigFile() {
 		return
 	}
 
-	dependencyBin := "php"
+	var dependencyBin string = "php"
 
 	if utils.IsFile("composer.json") {
 		dependencyBin = "php"
@@ -280,56 +263,13 @@ func (a *Application) createNewConfigFile() {
 	}
 
 	filename := "stackup.yaml"
-	contents := `name: my stack
-    description: application stack
-    version: 1.0.0
-
-    settings:
-      anonymous-statistics: false
-      exit-on-checksum-mismatch: false
-      dotenv: ['.env', '.env.local']
-      checksum-verification: true
-      cache:
-        ttl-minutes: 15
-      domains:
-        allowed:
-          - '*.githubusercontent.com'
-        hosts:
-          - hostname: '*.github.com'
-            gateway: allow
-            headers:
-              - 'Accept: application/vnd.github.v3+json'
-      gateway:
-        content-types:
-          allowed:
-            - '*'
-
-    includes:
-      - url: gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
-      - url: gh:permafrost-dev/stackup/main/templates/remote-includes/` + dependencyBin + `.yaml
-
-    # project type preconditions are loaded from included file above
-    preconditions:
-
-    startup:
-      - task: start-containers
-
-    shutdown:
-      - task: stop-containers
-
-    servers:
-
-    scheduler:
-
-    # tasks are loaded from included files above
-    tasks:
-    `
+	contents := fmt.Sprintf(consts.INIT_CONFIG_FILE_CONTENTS, dependencyBin)
 	os.WriteFile(filename, []byte(contents), 0644)
 }
 
 func (a *Application) checkForApplicationUpdates() {
 	updateAvailable, release := updater.
-		New(a.Gateway).IsLatestApplicationReleaseNewerThanCurrent(a.Workflow.Cache, version.APP_VERSION, "permafrost-dev/stackup")
+		New(a.Gateway).IsLatestApplicationReleaseNewerThanCurrent(a.Workflow.Cache, version.APP_VERSION, consts.APP_REPOSITORY)
 
 	if updateAvailable {
 		support.WarningMessage(fmt.Sprintf("A new version of StackUp is available, released %s.", release.TimeSinceRelease()))
@@ -354,7 +294,7 @@ func (a *Application) handleFlagOptions() {
 }
 
 func (a *Application) GetConfigurationPath() string {
-	pathname, _ := utils.EnsureConfigDirExists("stackup")
+	pathname, _ := utils.EnsureConfigDirExists(consts.APP_CONFIG_PATH_BASE_NAME)
 
 	return pathname
 }
@@ -362,11 +302,11 @@ func (a *Application) GetConfigurationPath() string {
 func (a *Application) DownloadApplicationIcon() {
 	filename := a.GetApplicationIconPath()
 
-	if utils.FileExists(filename) && utils.IsFile(filename) {
+	if utils.IsFile(filename) {
 		return
 	}
 
-	utils.SaveUrlToFile("https://raw.githubusercontent.com/permafrost-dev/stackup/main/assets/stackup-app-512px.png", filename)
+	utils.SaveUrlToFile("https://raw.githubusercontent.com/"+consts.APP_REPOSITORY+"/main/assets/stackup-app-512px.png", filename)
 }
 
 func (a Application) GetWorkflowContract() *types.AppWorkflowContract {
@@ -379,7 +319,7 @@ func (a *Application) GetApplicationIconPath() string {
 }
 
 func (a *Application) Run() {
-	utils.EnsureConfigDirExists("stackup")
+	utils.EnsureConfigDirExists(consts.APP_CONFIG_PATH_BASE_NAME)
 	godotenv.Load()
 	a.handleFlagOptions()
 

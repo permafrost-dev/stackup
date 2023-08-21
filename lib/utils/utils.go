@@ -307,3 +307,19 @@ func CastAndCombineArrays[T interface{}, R any](items []*T, toAppend []R) []*T {
 
 	return result
 }
+
+func CastArrayItems[T interface{}, R any](items []*T, toAppend []R) []*T {
+	result := []*T{}
+	casted := []*T{}
+
+	for _, item := range toAppend {
+		var temp interface{} = item
+		var castedItem T = (temp).(T)
+		casted = append(casted, &castedItem)
+	}
+
+	result = append(result, items...)
+	result = append(result, casted...)
+
+	return result
+}

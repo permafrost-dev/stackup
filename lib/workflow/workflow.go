@@ -12,6 +12,7 @@ import (
 	"github.com/golang-module/carbon/v2"
 	"github.com/stackup-app/stackup/lib/cache"
 	"github.com/stackup-app/stackup/lib/checksums"
+	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/downloader"
 	"github.com/stackup-app/stackup/lib/gateway"
 	"github.com/stackup-app/stackup/lib/settings"
@@ -64,6 +65,28 @@ type StackupWorkflowState struct {
 	CurrentTask *Task
 	Stack       *lls.Stack
 	History     *lls.Stack
+}
+
+type CleanupCallback = func()
+
+// sets the current task, and pushes the previous task onto the stack if it was still running.
+// returns a cleanup function callback that restores the state to its previous value.
+func (ws *StackupWorkflowState) SetCurrent(task *Task) CleanupCallback {
+	if ws.CurrentTask != nil {
+		ws.Stack.Push(ws.CurrentTask)
+	}
+
+	ws.History.Push(task.Uuid)
+	ws.CurrentTask = task
+
+	return func() {
+		ws.CurrentTask = nil
+
+		value, ok := ws.Stack.Pop()
+		if ok {
+			ws.CurrentTask = value.(*Task)
+		}
+	}
 }
 
 func (workflow StackupWorkflow) FindTaskById(id string) (any, bool) {
@@ -128,6 +151,7 @@ func (workflow *StackupWorkflow) Initialize(configPath string) {
 		task.Uuid = utils.GenerateTaskUuid()
 	}
 
+	// init the server, scheduler, and startup/shutdown items
 	for _, tr := range workflow.GetAllTaskReferences() {
 		(*tr).Initialize(workflow)
 	}
@@ -147,11 +171,11 @@ func (workflow *StackupWorkflow) Initialize(configPath string) {
 }
 
 func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
-	workflow.Settings.Defaults.Tasks.Path = workflow.JsEngine.MakeStringEvaluatable("getCwd()")
-	workflow.Settings.Defaults.Tasks.Platforms = []string{"windows", "linux", "darwin"}
+	workflow.Settings.Defaults.Tasks.Path = workflow.JsEngine.MakeStringEvaluatable(consts.DEFAULT_CWD_SETTING)
+	workflow.Settings.Defaults.Tasks.Platforms = consts.ALL_PLATFORMS
 
 	workflow.Settings.ChecksumVerification = true
-	workflow.Settings.Domains.Allowed = []string{"raw.githubusercontent.com", "api.github.com"}
+	workflow.Settings.Domains.Allowed = consts.DEFAULT_ALLOWED_DOMAINS
 	workflow.Settings.Gateway.Middleware = []string{"validateUrl", "verifyFileType", "validateContentType"}
 
 	workflow.Settings.Cache.TtlMinutes = 15
@@ -243,32 +267,102 @@ func (workflow *StackupWorkflow) hasRemoteDomainAccess(include *WorkflowInclude)
 }
 
 func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) *cache.CacheEntry {
-	if !workflow.Cache.Has(include.Url) {
+	if !workflow.Cache.Has(include.Identifier()) {
 		return nil
 	}
 
 	var data *cache.CacheEntry
-	data, include.FromCache = workflow.Cache.Get(include.DisplayUrl())
+	data, include.FromCache = workflow.Cache.Get(include.Identifier())
 
 	if include.FromCache {
 		include.Hash = data.Hash
 		include.HashAlgorithm = data.Algorithm
 		include.Contents = data.Value
+		include.DecodeContents()
 	}
 
 	return data
 }
 
 func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude) error {
-	var remoteYaml string
 	var err error
 	var template StackupWorkflow
 
-	if remoteYaml, err = workflow.Gateway.GetUrl(include.FullUrl()); err != nil {
+	if include.Contents, err = workflow.Gateway.GetUrl(include.FullUrl()); err != nil {
 		return err
 	}
 
-	if err = yaml.Unmarshal([]byte(remoteYaml), &template); err != nil {
+	if err = yaml.Unmarshal([]byte(include.Contents), &template); err != nil {
+		return err
+	}
+
+	if len(template.Init) > 0 {
+		workflow.Init += "\n" + template.Init
+	}
+
+	workflow.cacheFetchedRemoteInclude(include)
+
+	workflow.initializeAllTemplateTaskReferences(&template)
+	workflow.importPreconditionsFromIncludedTemplate(&template)
+	workflow.importTasksFromIncludedTemplate(&template)
+	//workflow.copySettingsFromIncludedTemplate(&template)
+
+	return nil
+}
+
+func (workflow *StackupWorkflow) cacheFetchedRemoteInclude(include *WorkflowInclude) *cache.CacheEntry {
+	include.Hash = checksums.CalculateSha256Hash(include.Contents)
+	expires := carbon.Now().AddMinutes(workflow.Settings.Cache.TtlMinutes)
+
+	item := workflow.Cache.CreateEntry(
+		include.DisplayName(),
+		include.Contents,
+		&expires,
+		include.Hash,
+		include.HashAlgorithm,
+		nil,
+	)
+
+	workflow.Cache.Set(include.Identifier(), item, workflow.Settings.Cache.TtlMinutes)
+
+	return item
+}
+
+func (workflow *StackupWorkflow) handleChecksumVerification(include *WorkflowInclude) bool {
+	if !include.IsRemoteUrl() {
+		return true
+	}
+
+	if !include.VerifyChecksum {
+		return true
+	}
+
+	include.ValidationState = ""
+	_, include.FoundChecksum, _ = include.ValidateChecksum(include.Contents)
+
+	if include.ChecksumValidated {
+		include.ValidationState = "verified"
+	}
+
+	if !include.ChecksumValidated && include.FoundChecksum != "" {
+		include.ValidationState = "verification failed"
+	}
+
+	if !include.ChecksumValidated && workflow.Settings.ExitOnChecksumMismatch {
+		support.FailureMessageWithXMark("Exiting due to checksum mismatch.")
+		workflow.ExitAppFunc()
+		return false
+	}
+
+	return true
+}
+
+func (workflow *StackupWorkflow) handleDataWasCached(data *cache.CacheEntry, include *WorkflowInclude) error {
+	var template StackupWorkflow
+	var err error
+
+	if err = yaml.Unmarshal([]byte(include.Contents), &template); err != nil {
+		support.FailureMessageWithXMark("cache include (failed: " + err.Error() + "): " + include.DisplayName())
 		return err
 	}
 
@@ -279,80 +373,50 @@ func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude)
 	workflow.initializeAllTemplateTaskReferences(&template)
 	workflow.importPreconditionsFromIncludedTemplate(&template)
 	workflow.importTasksFromIncludedTemplate(&template)
-	//workflow.copySettingsFromIncludedTemplate(&template)
 
 	return nil
 }
 
-func (workflow *StackupWorkflow) handleChecksumVerification(include *WorkflowInclude) bool {
-	if !include.IsRemoteUrl() || !workflow.Settings.ChecksumVerification {
-		return true
-	}
-
-	_, include.FoundChecksum, _ = include.ValidateChecksum(include.Contents)
-
-	include.ValidationState = ""
-
-	if *include.VerifyChecksum == true || include.VerifyChecksum == nil {
-		if include.ChecksumValidated {
-			include.ValidationState = "verified"
-		}
-
-		if !include.ChecksumValidated && include.FoundChecksum != "" {
-			include.ValidationState = "verification failed"
-		}
-
-		if !include.ChecksumValidated && workflow.Settings.ExitOnChecksumMismatch {
-			support.FailureMessageWithXMark("Exiting due to checksum mismatch.")
-			workflow.ExitAppFunc()
-			return false
-		}
-	}
-	return true
-}
-
-func (workflow StackupWorkflow) handleDataNotCached(found bool, data *cache.CacheEntry, include *WorkflowInclude) error {
+func (workflow StackupWorkflow) handleDataNotCached(data *cache.CacheEntry, include *WorkflowInclude) (*cache.CacheEntry, error) {
 	var err error = nil
 
-	if data == nil {
-		return nil
+	// if data != nil && !data.IsExpired() {
+	// 	return nil
+	// }
+
+	if include.IsLocalFile() {
+		b, _ := os.ReadFile(include.Filename())
+		include.Contents = string(b)
+	} else if include.IsRemoteUrl() {
+		include.Contents, err = workflow.Gateway.GetUrl(include.FullUrl(), include.Headers...)
+	} else if include.IsS3Url() {
+		include.AccessKey = os.ExpandEnv(include.AccessKey)
+		include.SecretKey = os.ExpandEnv(include.SecretKey)
+		include.Contents = downloader.ReadS3FileContents(include.FullUrl(), include.AccessKey, include.SecretKey, include.Secure)
+	} else {
+		fmt.Printf("unknown include type: %s\n", include.DisplayName())
+		return nil, nil
 	}
 
-	if !found || data.IsExpired() {
-		if include.IsLocalFile() {
-			b, _ := os.ReadFile(include.Filename())
-			include.Contents = string(b)
-		} else if include.IsRemoteUrl() {
-			include.Contents, err = workflow.Gateway.GetUrl(include.FullUrl(), include.Headers...)
-		} else if include.IsS3Url() {
-			include.AccessKey = os.ExpandEnv(include.AccessKey)
-			include.SecretKey = os.ExpandEnv(include.SecretKey)
-			include.Contents = downloader.ReadS3FileContents(include.FullUrl(), include.AccessKey, include.SecretKey, include.Secure)
-		} else {
-			fmt.Printf("unknown include type: %s\n", include.DisplayName())
-			return nil
-		}
-
-		if err != nil {
-			return err
-		}
-
-		include.Hash = checksums.CalculateSha256Hash(include.Contents)
-		expires := carbon.Now().AddMinutes(workflow.Settings.Cache.TtlMinutes)
-
-		item := workflow.Cache.CreateEntry(
-			include.DisplayName(),
-			include.Contents,
-			&expires,
-			include.Hash,
-			include.HashAlgorithm,
-			nil,
-		)
-
-		workflow.Cache.Set(include.DisplayName(), item, workflow.Settings.Cache.TtlMinutes)
+	if err != nil {
+		return nil, err
 	}
 
-	return err
+	include.Hash = checksums.CalculateSha256Hash(include.Contents)
+	expires := carbon.Now().AddMinutes(workflow.Settings.Cache.TtlMinutes)
+
+	item := workflow.Cache.CreateEntry(
+		include.DisplayName(),
+		include.Contents,
+		&expires,
+		include.Hash,
+		include.HashAlgorithm,
+		nil,
+	)
+
+	workflow.Cache.Set(include.Identifier(), item, workflow.Settings.Cache.TtlMinutes)
+
+	return item, err
 }
 
 func (workflow *StackupWorkflow) importTasksFromIncludedTemplate(template *StackupWorkflow) {
@@ -379,14 +443,12 @@ func (workflow *StackupWorkflow) importPreconditionsFromIncludedTemplate(templat
 	for _, p := range template.Preconditions {
 		p.FromRemote = true
 		workflow.Preconditions = append(workflow.Preconditions, p)
-		// fmt.Printf("imported precondition %s\n", p.Name)
 	}
 
 	workflow.Preconditions = utils.ReverseArray(workflow.Preconditions)
 }
 
 func (workflow *StackupWorkflow) copySettingsFromIncludedTemplate(template *StackupWorkflow) {
-	workflow.Settings.ChecksumVerification = template.Settings.ChecksumVerification
 	workflow.Settings.AnonymousStatistics = template.Settings.AnonymousStatistics
 
 	workflow.Settings.Domains.Allowed = append(workflow.Settings.Domains.Allowed, template.Settings.Domains.Allowed...)

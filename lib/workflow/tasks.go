@@ -4,6 +4,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
@@ -85,7 +86,7 @@ func (task *Task) Initialize() {
 	engine := *(*task.Workflow).GetJsEngine()
 
 	if len(task.Path) == 0 {
-		task.Path = engine.MakeStringEvaluatable("getCwd()")
+		task.Path = engine.MakeStringEvaluatable(consts.DEFAULT_CWD_SETTING)
 	}
 
 	task.If = engine.MakeStringEvaluatable(task.If)
@@ -139,12 +140,8 @@ func (task Task) GetDisplayName() string {
 }
 
 func (task *Task) Run(synchronous bool) {
-	// task.Workflow.State.History.Push(task)
-	// task.Workflow.State.CurrentTask = &task
-
-	// defer func() {
-	// 	task.Workflow.State.CurrentTask = nil
-	// }()
+	cleanup := task.Workflow.State.SetCurrent(task)
+	defer cleanup()
 
 	if task.RunCount >= task.MaxRuns && task.MaxRuns > 0 {
 		support.SkippedMessageWithSymbol(task.GetDisplayName())

@@ -13,6 +13,7 @@ import (
 	"github.com/stackup-app/stackup/lib/gateway"
 )
 
+// this is not a secret, it is a public key
 var POSTHOG_API_KEY_FOR_CLI = "V6yB20dWAVDZfG1yDOFkSQPeGachBJst3UPkVJJdkIS"
 
 type Telemetry struct {

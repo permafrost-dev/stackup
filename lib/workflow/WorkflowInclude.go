@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"os"
@@ -18,7 +19,7 @@ type WorkflowInclude struct {
 	Headers           []string `yaml:"headers"`
 	File              string   `yaml:"file"`
 	ChecksumUrl       string   `yaml:"checksum-url"`
-	VerifyChecksum    *bool    `yaml:"verify,omitempty"`
+	VerifyChecksum    bool     `yaml:"verify,omitempty"`
 	AccessKey         string   `yaml:"access-key"`
 	SecretKey         string   `yaml:"secret-key"`
 	Secure            bool     `yaml:"secure"`
@@ -44,41 +45,42 @@ func (wi WorkflowInclude) Initialize(workflow *StackupWorkflow) {
 		wi.Headers[i] = os.ExpandEnv(v)
 	}
 
-	// set some default values
-	if wi.VerifyChecksum == nil {
-		boolValue := true
-		wi.VerifyChecksum = &boolValue
-	}
+	wi.VerifyChecksum = wi.Workflow.Settings.ChecksumVerification
 	wi.ValidationState = "not validated"
 	wi.ChecksumIsValid = nil
 }
 
 func (include *WorkflowInclude) Process(wf *StackupWorkflow) {
-	var err error = nil
-	if include == nil {
-		return
-	}
+	include.Workflow = wf
 
 	data := wf.tryLoadingCachedData(include)
-	found := data != nil
+	loaded := data != nil
 
-	// if !wf.hasRemoteDomainAccess(include) {
-	// 	return
-	// }
+	if loaded {
+		if err := wf.handleDataWasCached(data, include); err != nil {
+			support.FailureMessageWithXMark("include from cache failed: (" + err.Error() + "): " + include.DisplayName())
+			return
+		}
 
-	if found {
-		if err = wf.handleDataNotCached(found, nil, include); err != nil {
+		loaded = true
+	}
+
+	if !loaded {
+		if err := wf.loadRemoteFileInclude(include); err != nil {
 			support.FailureMessageWithXMark("remote include (rejected: " + err.Error() + "): " + include.DisplayName())
 			return
 		}
+
+		loaded = true
 	}
 
-	// if !wf.handleChecksumVerification(include) {
-	// 	return
-	// }
+	if !loaded {
+		support.FailureMessageWithXMark("remote include failed: " + include.DisplayName())
+		return
+	}
 
-	if err = wf.loadRemoteFileInclude(include); err != nil {
-		support.FailureMessageWithXMark("remote include (rejected: " + err.Error() + "): " + include.DisplayName())
+	if !wf.handleChecksumVerification(include) {
+		support.FailureMessageWithXMark("checksum verification failed: " + include.DisplayName())
 		return
 	}
 
@@ -118,7 +120,7 @@ func (wi *WorkflowInclude) getChecksumFromContents(contents string) string {
 }
 
 func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, string, error) {
-	if !*wi.VerifyChecksum {
+	if !wi.Workflow.Settings.ChecksumVerification {
 		return true, "", nil
 	}
 
@@ -133,15 +135,16 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, string, erro
 	}
 
 	for _, url := range checksumUrls {
-		checksumContents, err := wi.Workflow.Gateway.GetUrl(url)
-		if err != nil {
+		var checksumContents string
+		var err error
+
+		if checksumContents, err = wi.Workflow.Gateway.GetUrl(url); err != nil {
 			continue
 		}
 
 		wi.ChecksumUrl = url
 		wi.FoundChecksum = wi.getChecksumFromContents(checksumContents)
 		wi.HashAlgorithm = wi.GetChecksumAlgorithm()
-
 		break
 	}
 
@@ -169,15 +172,15 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, string, erro
 }
 
 func (wi *WorkflowInclude) IsLocalFile() bool {
-	return wi.File != "" && utils.IsFile(wi.File)
+	return wi.Filename() != "" && !wi.IsRemoteUrl() && !wi.IsS3Url()
 }
 
 func (wi *WorkflowInclude) IsRemoteUrl() bool {
-	return wi.FullUrl() != "" && strings.HasPrefix(wi.FullUrl(), "http")
+	return strings.HasPrefix(wi.FullUrl(), "http")
 }
 
 func (wi *WorkflowInclude) IsS3Url() bool {
-	return wi.FullUrl() != "" && strings.HasPrefix(wi.FullUrl(), "s3:")
+	return strings.HasPrefix(wi.FullUrl(), "s3:")
 }
 
 func (wi *WorkflowInclude) Filename() string {
@@ -190,6 +193,14 @@ func (wi *WorkflowInclude) FullUrl() string {
 	}
 
 	return wi.Url
+}
+
+func (wi *WorkflowInclude) Identifier() string {
+	if wi.IsLocalFile() {
+		return wi.Filename()
+	}
+
+	return wi.FullUrl()
 }
 
 func (wi *WorkflowInclude) Domain() string {
@@ -278,4 +289,14 @@ func (wi *WorkflowInclude) GetChecksumAlgorithm() string {
 
 func (wi *WorkflowInclude) SetChecksumIsValid(value bool) {
 	wi.ChecksumIsValid = &value
+}
+
+func (wi *WorkflowInclude) DecodeContents() {
+	b, err := base64.StdEncoding.DecodeString(wi.Contents)
+
+	if err != nil {
+		return
+	}
+
+	wi.Contents = string(b)
 }
