@@ -41,9 +41,8 @@ func New(name string, storagePath string) *Cache {
 	}
 
 	result := Cache{Name: name, Enabled: false, Path: storagePath, DefaultTtl: 60}
-	result.Init()
 
-	return &result
+	return result.Init()
 }
 
 func (c *Cache) AutoPurgeInterval() time.Duration {
@@ -143,6 +142,8 @@ func (c *Cache) StartAutoPurge() {
 	if c.ticker != nil {
 		return
 	}
+
+	c.purgeExpired()
 
 	c.ticker = time.NewTicker(c.AutoPurgeInterval())
 

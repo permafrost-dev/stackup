@@ -63,10 +63,11 @@ func (a *Application) GetWorkflow() workflow.StackupWorkflow {
 }
 
 func (a *Application) loadWorkflowFile(filename string, wf *workflow.StackupWorkflow) {
+	// var engine interface{} =
 	wf.CommandStartCb = a.CmdStartCallback
 	wf.ExitAppFunc = a.exitApp
 	wf.Gateway = a.Gateway
-	wf.JsEngine = scripting.CreateNewJavascriptEngine(a.Vars, a.Gateway, *(a.Workflow), a.GetApplicationIconPath)
+	// wf.JsEngine = scripting.CreateNewJavascriptEngine(a.Vars, a.Gateway, a.Workflow, a.GetApplicationIconPath)
 	wf.ProcessMap = a.ProcessMap
 
 	contents, err := os.ReadFile(filename)
@@ -111,9 +112,12 @@ func (a *Application) init() {
 		a.ConfigFilename = *a.flags.ConfigFile
 	}
 
+	// a.JsEngine = scripting.CreateNewJavascriptEngine(a.Vars, a.Gateway, nil, a.GetApplicationIconPath)
+
 	a.loadWorkflowFile(a.ConfigFilename, a.Workflow)
 	a.Workflow.ConfigureDefaultSettings()
-	a.JsEngine = scripting.CreateNewJavascriptEngine(a.Vars, a.Gateway, *(a.Workflow), a.GetApplicationIconPath)
+
+	a.JsEngine = scripting.CreateNewJavascriptEngine(a.Vars, a.Gateway, a.Workflow, a.GetApplicationIconPath)
 	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
 
 	for _, task := range a.Workflow.Tasks {
@@ -210,6 +214,10 @@ func (a *Application) runEventLoop() {
 
 func (a *Application) runTaskReferences(refs []*workflow.TaskReferenceContract) {
 	for _, def := range refs {
+		if def == nil {
+			continue
+		}
+
 		task, found := a.Workflow.FindTaskById((*def).TaskId())
 		if !found {
 			support.SkippedMessageWithSymbol("Task " + (*def).TaskId() + " not found.")
@@ -336,11 +344,20 @@ func (a *Application) Run() {
 	a.Analytics = telemetry.New(a.Workflow.Settings.AnonymousStatistics, a.Gateway)
 	a.Gateway.AllowedDomains = []string{"*"}
 
+	for _, t := range a.Workflow.Tasks {
+		t.Workflow = a.Workflow
+		t.Initialize()
+	}
+
 	a.Workflow.ProcessIncludes()
+
+	for _, t := range a.Workflow.Tasks {
+		t.Workflow = a.Workflow
+		t.Initialize()
+	}
 
 	a.JsEngine.CreateEnvironmentVariables(os.Environ())
 	a.JsEngine.CreateAppVariables(a.Vars)
-
 	a.JsEngine.Evaluate(a.Workflow.Init)
 
 	if a.Analytics.IsEnabled {

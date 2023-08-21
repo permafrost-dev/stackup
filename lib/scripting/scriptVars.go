@@ -1,13 +1,13 @@
 package scripting
 
 type ScriptVars struct {
-    engine *JavaScriptEngine
+	engine *JavaScriptEngine
 }
 
 func CreateScriptVarsObject(e *JavaScriptEngine) {
 	obj := &ScriptVars{
-        engine: e,
-    }
+		engine: e,
+	}
 	e.Vm.Set("vars", obj)
 }
 

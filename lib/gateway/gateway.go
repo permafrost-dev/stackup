@@ -343,9 +343,6 @@ func (g *Gateway) processHeaders(headers []string) []string {
 // GetUrl returns the contents of a URL as a string, assuming it
 // is allowed by the gateway, otherwise it returns an error.
 func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
-
-	fmt.Printf("requested url %s\n", urlStr)
-
 	if err := g.runUrlRequestPipeline(urlStr); err != nil {
 		fmt.Printf("error: %v\n", err)
 		return "", err

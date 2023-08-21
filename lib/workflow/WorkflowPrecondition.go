@@ -53,7 +53,7 @@ func (wp *WorkflowPrecondition) Run() bool {
 	result := true
 
 	if wp.Check != "" {
-		if (wp.Attempts - 1) > wp.MaxRetries {
+		if wp.Attempts >= wp.MaxRetries {
 			support.FailureMessageWithXMark(wp.Name)
 			return false
 		}

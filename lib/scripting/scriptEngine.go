@@ -25,6 +25,13 @@ type JavaScriptEngine struct {
 }
 
 func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, wf types.AppWorkflowContract, getAppIconFunc func() string) *JavaScriptEngine {
+	// if wf != nil && wf.GetJsEngine() != nil {
+	// 	//result := wf.GetJsEngine()
+	// 	// if (*result) != nil {
+	// 	// 	return result.(JavaScriptEngine)
+	// 	// }
+	// }
+
 	result := &JavaScriptEngine{
 		Vm:                     otto.New(),
 		AppVars:                vars,
@@ -34,7 +41,9 @@ func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, wf type
 		InstalledExtensions:    &sync.Map{},
 	}
 
-	result.Init(&wf)
+	if wf != nil {
+		result.Init(&wf)
+	}
 
 	return result
 }
@@ -85,6 +94,9 @@ func (e *JavaScriptEngine) Init(workflow *types.AppWorkflowContract) {
 }
 
 func (e *JavaScriptEngine) CreateAppVariables(vars *sync.Map) {
+
+	fmt.Printf("creating app vars\n")
+
 	vars.Range(func(key, value any) bool {
 		e.Vm.Set("$"+(key.(string)), value)
 		return true

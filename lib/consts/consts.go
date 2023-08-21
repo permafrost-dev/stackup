@@ -3,7 +3,7 @@ package consts
 const APP_CONFIG_PATH_BASE_NAME = "stackup"
 const APP_REPOSITORY = "permafrost-dev/stackup"
 
-const DEFAULT_CWD_SETTING = "getCwd()"
+const DEFAULT_CWD_SETTING = "{{ getCwd() }}"
 
 var ALL_PLATFORMS = []string{"windows", "linux", "darwin"}
 var DEFAULT_ALLOWED_DOMAINS = []string{"raw.githubusercontent.com", "api.github.com"}
