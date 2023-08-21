@@ -173,7 +173,7 @@ func (c *Cache) Get(key string) (*CacheEntry, bool) {
 		return nil, false
 	}
 
-	result.DecodeValue()
+	// result.DecodeValue()
 
 	return result, true
 }
