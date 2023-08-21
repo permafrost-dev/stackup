@@ -253,12 +253,13 @@ func (c *Cache) Has(key string) bool {
 
 	c.Db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(c.Name))
-		b.ForEach(func(k, v []byte) error {
-			if string(k) == key {
-				found = true
-			}
-			return nil
-		})
+		v := b.Get([]byte(key))
+		found = v != nil
+
+		if found {
+			item, _ := c.Get(key)
+			found = !item.IsExpired()
+		}
 		return nil
 	})
 
