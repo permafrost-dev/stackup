@@ -169,11 +169,11 @@ func (c *Cache) Get(key string) (*CacheEntry, bool) {
 		return nil
 	})
 
-	// if result.IsExpired() {
-	// 	return nil, false
-	// }
+	if result.IsExpired() {
+		return nil, false
+	}
 
-	// result.DecodeValue()
+	result.DecodeValue()
 
 	return result, true
 }
@@ -248,7 +248,7 @@ func (c *Cache) Set(key string, value *CacheEntry, ttlMinutes int) {
 // given key and checks if the value is not empty (`c.Get(key) != ""`) and if the cache entry is not
 // expired (`!c.IsExpired(key)`). If both conditions are true, it returns `true`, indicating that the
 // cache entry exists and is valid. Otherwise, it returns `false`.
-func (c Cache) Has(key string) bool {
+func (c *Cache) Has(key string) bool {
 	found := false
 
 	c.Db.View(func(tx *bolt.Tx) error {
