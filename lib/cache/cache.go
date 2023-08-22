@@ -42,7 +42,7 @@ func New(name string, storagePath string) *Cache {
 
 	result := Cache{Name: name, Enabled: false, Path: storagePath, DefaultTtl: 60}
 
-	return result.Init()
+	return result.Initialize()
 }
 
 func (c *Cache) AutoPurgeInterval() time.Duration {
@@ -95,13 +95,14 @@ func (c *Cache) GetBaseKey(key string) string {
 	return result
 }
 
-// The `Init` function in the `Cache` struct is used to initialize the cache by setting up the
+// The `Initialize` function in the `Cache` struct is used to initialize the cache by setting up the
 // necessary configurations and opening the database connection. Here's a breakdown of what it does:
-func (c *Cache) Init() *Cache {
+func (c *Cache) Initialize() *Cache {
 	if c.Db != nil {
 		return c
 	}
 
+	c.Enabled = false
 	filename := utils.FsSafeName(c.Name) + ".db"
 
 	if c.Name == "" || strings.TrimSuffix(filename, ".db") == "" {
@@ -114,37 +115,33 @@ func (c *Cache) Init() *Cache {
 		c.Name = strings.TrimSuffix(filename, ".db")
 	}
 
-	db, err := bolt.Open(c.Filename, 0644, bolt.DefaultOptions)
-	if err != nil {
-		c.Enabled = false
-		c.Db = nil
+	var err error
+	if c.Db, err = bolt.Open(c.Filename, 0644, &bolt.Options{Timeout: 5 * time.Second}); err != nil {
 		return c
 	}
 
-	c.Db = db
-
-	// create a new project bucket if it doesn't exist
+	// create a new project bucket if it does not already exist
 	c.Db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists([]byte(c.Name))
-		if err != nil {
-			return fmt.Errorf("create bucket: %s", err)
+		if _, err := tx.CreateBucketIfNotExists([]byte(c.Name)); err != nil {
+			return fmt.Errorf("error creating cache bucket: %s", err)
 		}
 		return nil
 	})
 
 	c.Enabled = true
-	c.StartAutoPurge()
+	c.startAutoPurge()
 
 	return c
 }
 
-func (c *Cache) StartAutoPurge() {
+func (c *Cache) startAutoPurge() {
+	// prevent multiple tickers from being created
 	if c.ticker != nil {
 		return
 	}
 
+	// perform an initial purge
 	c.purgeExpired()
-
 	c.ticker = time.NewTicker(c.AutoPurgeInterval())
 
 	go func() {
@@ -160,21 +157,24 @@ func (c *Cache) StartAutoPurge() {
 // The `Get` function in the `Cache` struct is used to retrieve the value of a cache entry with a given
 // key. It takes a `key` parameter (string) and returns the corresponding value (string).
 func (c *Cache) Get(key string) (*CacheEntry, bool) {
+	var err error
+
+	key = c.GetBaseKey(key)
 	result := &CacheEntry{Value: "", ExpiresAt: ""}
 
 	c.Db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(c.Name))
-		bytes := b.Get([]byte(key))
-		json.Unmarshal(bytes, &result)
+		bucket := tx.Bucket([]byte(c.Name))
+		bytes := bucket.Get([]byte(key))
+		err = json.Unmarshal(bytes, &result)
 
 		return nil
 	})
 
-	if result.IsExpired() {
+	if err != nil || result.IsExpired() {
 		return nil, false
 	}
 
-	// result.DecodeValue()
+	result.DecodeValue()
 
 	return result, true
 }
@@ -218,7 +218,7 @@ func (c *Cache) purgeExpired() {
 // The `IsExpired` function in the `Cache` struct is used to check if a cache entry with a given key
 // has expired.
 func (c *Cache) IsExpired(key string) bool {
-	item, found := c.Get(c.GetBaseKey(key))
+	item, found := c.Get(key)
 	if !found {
 		return true
 	}
@@ -228,13 +228,15 @@ func (c *Cache) IsExpired(key string) bool {
 
 // The `Set` function in the `Cache` struct is used to set a cache entry with a given key and value. It
 // takes three parameters: `key` (string), `value` (any), and `ttlMinutes` (int).
+// the .Value attribute of `value.Value` attribute is automatically base64 encoded before being stored.
 func (c *Cache) Set(key string, value *CacheEntry, ttlMinutes int) {
 	c.Db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(c.Name))
+
 		value.EncodeValue()
 
-		code, err := json.Marshal(value)
-		if err == nil {
+		var err error
+		if code, err := json.Marshal(value); err == nil {
 			err = b.Put([]byte(key), code)
 		}
 

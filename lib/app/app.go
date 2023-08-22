@@ -277,10 +277,11 @@ func (a *Application) createNewConfigFile() {
 
 func (a *Application) checkForApplicationUpdates() {
 	updateAvailable, release := updater.
-		New(a.Gateway).IsLatestApplicationReleaseNewerThanCurrent(a.Workflow.Cache, version.APP_VERSION, consts.APP_REPOSITORY)
+		New(a.Workflow.Cache, a.Gateway).
+		IsUpdateAvailable(consts.APP_REPOSITORY, version.APP_VERSION)
 
 	if updateAvailable {
-		support.WarningMessage(fmt.Sprintf("A new version of StackUp is available, released %s.", release.TimeSinceRelease()))
+		support.WarningMessage("A new version of StackUp is available, released " + release.TimeSinceRelease())
 	}
 }
 
