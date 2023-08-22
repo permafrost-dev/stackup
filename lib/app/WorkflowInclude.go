@@ -48,25 +48,23 @@ func (wi WorkflowInclude) Initialize(workflow *StackupWorkflow) {
 	wi.ChecksumIsValid = nil
 }
 
-func (include *WorkflowInclude) Process(wf *StackupWorkflow) {
+func (include *WorkflowInclude) Process(wf *StackupWorkflow) error {
 	include.Workflow = wf
 
 	data := wf.tryLoadingCachedData(include)
 	loaded := data != nil
 
 	if loaded {
-		if err := wf.handleDataWasCached(data, include); err != nil {
+		if err := wf.loadAndImportInclude(include); err != nil {
 			support.FailureMessageWithXMark("include from cache failed: (" + err.Error() + "): " + include.DisplayName())
-			return
+			return err
 		}
-
-		loaded = true
 	}
 
 	if !loaded {
 		if err := wf.loadRemoteFileInclude(include); err != nil {
 			support.FailureMessageWithXMark("remote include (rejected: " + err.Error() + "): " + include.DisplayName())
-			return
+			return err
 		}
 
 		loaded = true
@@ -74,15 +72,17 @@ func (include *WorkflowInclude) Process(wf *StackupWorkflow) {
 
 	if !loaded {
 		support.FailureMessageWithXMark("remote include failed: " + include.DisplayName())
-		return
+		return fmt.Errorf("unable to load remote include: %s", include.DisplayName())
 	}
 
 	if !wf.handleChecksumVerification(include) {
 		support.FailureMessageWithXMark("checksum verification failed: " + include.DisplayName())
-		return
+		return fmt.Errorf("checksum verification failed: %s", include.DisplayName())
 	}
 
 	support.SuccessMessageWithCheck("remote include (" + include.LoadedStatusText() + "): " + include.DisplayName())
+
+	return nil
 }
 
 func (wi *WorkflowInclude) LoadedStatusText() string {

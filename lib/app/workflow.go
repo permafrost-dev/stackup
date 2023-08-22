@@ -138,13 +138,13 @@ func (workflow *StackupWorkflow) GetAllTaskReferences() []*TaskReference {
 	refs = utils.CombineArrays(refs, workflow.Startup)
 	refs = utils.CombineArrays(refs, workflow.Shutdown)
 	refs = utils.CombineArrays(refs, workflow.Servers)
-	//refs = utils.CombineArrays(refs, workflow.Scheduler)
 
 	return refs
 }
 
 func (workflow *StackupWorkflow) Initialize(configPath string) {
 	workflow.Cache = cache.New("", configPath)
+	workflow.Cache.DefaultTtl = workflow.Settings.Cache.TtlMinutes
 	workflow.Settings = &settings.Settings{}
 
 	// generate uuids for each task as the initial step, as other code below relies on a uuid existing
@@ -165,10 +165,9 @@ func (workflow *StackupWorkflow) Initialize(configPath string) {
 
 	for _, task := range workflow.Tasks {
 		task.JsEngine = workflow.JsEngine
+		task.CommandStartCb = workflow.CommandStartCb
 		task.Initialize()
 	}
-
-	workflow.Cache.DefaultTtl = workflow.Settings.Cache.TtlMinutes
 }
 
 func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
@@ -238,17 +237,15 @@ func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
 }
 
 func (workflow *StackupWorkflow) processEnvSection() {
-	if len(workflow.Env) > 0 {
-		for _, def := range workflow.Env {
-			if strings.EqualFold(def, "dotenv://vault") {
-				workflow.TryLoadDotEnvVaultFile(def)
-				continue
-			}
+	for _, str := range workflow.Env {
+		if strings.EqualFold(str, "dotenv://vault") {
+			workflow.TryLoadDotEnvVaultFile(str)
+			continue
+		}
 
-			if strings.Contains(def, "=") {
-				key, value, _ := strings.Cut(def, "=")
-				os.Setenv(key, value)
-			}
+		if strings.Contains(str, "=") {
+			parts := strings.SplitN(str, "=", 2)
+			os.Setenv(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
 		}
 	}
 }
@@ -272,18 +269,6 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 	wg.Wait()
 }
 
-func (workflow *StackupWorkflow) hasRemoteDomainAccess(include *WorkflowInclude) bool {
-	if !include.IsS3Url() && !include.IsRemoteUrl() {
-		return true
-	}
-	if workflow.Gateway.Allowed(include.FullUrl()) {
-		return true
-	}
-
-	support.FailureMessageWithXMark("remote include (rejected): domain " + include.Domain() + " access denied.")
-	return false
-}
-
 func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) *cache.CacheEntry {
 	if !workflow.Cache.Has(include.Identifier()) {
 		return nil
@@ -303,51 +288,16 @@ func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) 
 
 func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude) error {
 	var err error
-	var template *IncludedTemplate
 
 	if include.Contents, err = workflow.Gateway.GetUrl(include.FullUrl()); err != nil {
 		return err
 	}
 
-	if err = yaml.Unmarshal([]byte(include.Contents), &template); err != nil {
+	if err := workflow.loadAndImportInclude(include); err != nil {
 		return err
 	}
 
-	for _, task := range template.Tasks {
-		task.JsEngine = workflow.JsEngine
-		workflow.Tasks = append(workflow.Tasks, task)
-	}
-
-	for _, precondition := range template.Preconditions {
-		precondition.Workflow = workflow
-		workflow.Preconditions = append(workflow.Preconditions, precondition)
-	}
-
-	for _, startup := range template.Startup {
-		startup.Workflow = workflow
-		workflow.Startup = append(workflow.Startup, startup)
-	}
-
-	for _, shutdown := range template.Shutdown {
-		shutdown.Workflow = workflow
-		workflow.Shutdown = append(workflow.Shutdown, shutdown)
-	}
-
-	for _, server := range template.Servers {
-		server.Workflow = workflow
-		workflow.Servers = append(workflow.Servers, server)
-	}
-
-	if len(template.Init) > 0 {
-		workflow.Init += "\n" + template.Init
-	}
-
 	workflow.cacheFetchedRemoteInclude(include)
-
-	// workflow.initializeAllTemplateTaskReferences(template)
-	// workflow.importPreconditionsFromIncludedTemplate(template)
-	// workflow.importTasksFromIncludedTemplate(template)
-	//workflow.copySettingsFromIncludedTemplate(&template)
 
 	return nil
 }
@@ -399,16 +349,30 @@ func (workflow *StackupWorkflow) handleChecksumVerification(include *WorkflowInc
 	return true
 }
 
-func (workflow *StackupWorkflow) handleDataWasCached(data *cache.CacheEntry, include *WorkflowInclude) error {
-	var template IncludedTemplate
-	var err error
+// prepend the included preconditions; we reverse the order of the preconditions in the included file,
+// then reverse the existing preconditions, append them, then reverse the workflow preconditions again
+// to achieve the correct order.
+func (workflow *StackupWorkflow) importPreconditionsFromIncludedTemplate(template *StackupWorkflow) {
+	workflow.Preconditions = utils.ReverseArray(workflow.Preconditions)
+	template.Preconditions = utils.ReverseArray(template.Preconditions)
 
-	if err = yaml.Unmarshal([]byte(include.Contents), &template); err != nil {
-		support.FailureMessageWithXMark("cache include (failed: " + err.Error() + "): " + include.DisplayName())
+	for _, p := range template.Preconditions {
+		p.FromRemote = true
+		workflow.Preconditions = append(workflow.Preconditions, p)
+	}
+
+	workflow.Preconditions = utils.ReverseArray(workflow.Preconditions)
+}
+
+func (workflow *StackupWorkflow) loadAndImportInclude(include *WorkflowInclude) error {
+	var template IncludedTemplate
+
+	if err := yaml.Unmarshal([]byte(include.Contents), &template); err != nil {
 		return err
 	}
 
 	for _, task := range template.Tasks {
+		task.JsEngine = workflow.JsEngine
 		workflow.Tasks = append(workflow.Tasks, task)
 	}
 
@@ -436,78 +400,5 @@ func (workflow *StackupWorkflow) handleDataWasCached(data *cache.CacheEntry, inc
 		workflow.Init += "\n" + template.Init
 	}
 
-	// workflow.initializeAllTemplateTaskReferences(&template)
-	// workflow.importPreconditionsFromIncludedTemplate(&template)
-	// workflow.importTasksFromIncludedTemplate(&template)
-
 	return nil
-}
-
-func (workflow *StackupWorkflow) importTasksFromIncludedTemplate(template *StackupWorkflow) {
-	for _, t := range template.Tasks {
-		t.FromRemote = true
-		t.Uuid = utils.GenerateTaskUuid()
-		workflow.Tasks = append(workflow.Tasks, t)
-	}
-}
-
-func (workflow *StackupWorkflow) initializeAllTemplateTaskReferences(template *StackupWorkflow) {
-	for _, tr := range template.GetAllTaskReferences() {
-		tr.Initialize(workflow)
-	}
-}
-
-// prepend the included preconditions; we reverse the order of the preconditions in the included file,
-// then reverse the existing preconditions, append them, then reverse the workflow preconditions again
-// to achieve the correct order.
-func (workflow *StackupWorkflow) importPreconditionsFromIncludedTemplate(template *StackupWorkflow) {
-	workflow.Preconditions = utils.ReverseArray(workflow.Preconditions)
-	template.Preconditions = utils.ReverseArray(template.Preconditions)
-
-	for _, p := range template.Preconditions {
-		p.FromRemote = true
-		workflow.Preconditions = append(workflow.Preconditions, p)
-	}
-
-	workflow.Preconditions = utils.ReverseArray(workflow.Preconditions)
-}
-
-func (workflow *StackupWorkflow) copySettingsFromIncludedTemplate(template *StackupWorkflow) {
-	workflow.Settings.AnonymousStatistics = template.Settings.AnonymousStatistics
-
-	workflow.Settings.Domains.Allowed = append(workflow.Settings.Domains.Allowed, template.Settings.Domains.Allowed...)
-	workflow.Settings.Domains.Blocked = append(workflow.Settings.Domains.Blocked, template.Settings.Domains.Blocked...)
-
-	workflow.Settings.Domains.Allowed = utils.GetUniqueStrings(workflow.Settings.Domains.Allowed)
-	workflow.Settings.Domains.Blocked = utils.GetUniqueStrings(workflow.Settings.Domains.Blocked)
-
-	workflow.Settings.Cache.TtlMinutes = template.Settings.Cache.TtlMinutes
-
-	//     if template.Settings.Defaults != nil {
-	// 	workflow.Settings.Defaults = &settings.WorkflowSettingsDefaults{
-	// 		Tasks: &settings.WorkflowSettingsDefaultsTasks{
-	// 			Silent:    false,
-	// 			Path:      "",
-	// 			Platforms: template.Settings.Defaults.Tasks.Platforms,
-	// 		},
-	// 	}
-	// }
-	for _, contentType := range workflow.Settings.Gateway.ContentTypes.Blocked {
-		workflow.Settings.Gateway.ContentTypes.Blocked = append(workflow.Settings.Gateway.ContentTypes.Blocked, contentType)
-	}
-	for _, contentType := range workflow.Settings.Gateway.ContentTypes.Allowed {
-		workflow.Settings.Gateway.ContentTypes.Allowed = append(workflow.Settings.Gateway.ContentTypes.Allowed, contentType)
-	}
-
-	// workflow.Gateway.SetAllowedDomains(workflow.Settings.Domains.Allowed)
-	// workflow.Gateway.SetDomainContentTypes("*", workflow.Settings.Gateway.ContentTypes.Allowed)
-	// workflow.Gateway.SetBlockedContentTypes("*", workflow.Settings.Gateway.ContentTypes.Blocked)
-}
-
-func (workflow *StackupWorkflow) GetSettings() *settings.Settings {
-	return workflow.Settings
-}
-
-func (workflow *StackupWorkflow) GetJsEngine() *scripting.JavaScriptEngine {
-	return workflow.JsEngine
 }
