@@ -65,14 +65,15 @@ func (c *Cache) Cleanup(removeFile bool) {
 }
 
 func (c *Cache) CreateEntry(keyName string, value string, expiresAt *carbon.Carbon, hash string, algorithm string, updatedAt *carbon.Carbon) *CacheEntry {
-	if updatedAt == nil {
-		temp := carbon.Now()
-		updatedAt = &temp
+	updatedObj := carbon.Now()
+	expiresObj := carbon.Now().AddMinutes(c.DefaultTtl)
+
+	if updatedAt != nil {
+		updatedObj = *updatedAt
 	}
 
-	if expiresAt == nil {
-		temp := carbon.Now().AddMinutes(c.DefaultTtl)
-		expiresAt = &temp
+	if expiresAt != nil {
+		expiresObj = *expiresAt
 	}
 
 	return &CacheEntry{
@@ -80,12 +81,12 @@ func (c *Cache) CreateEntry(keyName string, value string, expiresAt *carbon.Carb
 		Value:     value,
 		Algorithm: algorithm,
 		Hash:      hash,
-		ExpiresAt: expiresAt.ToIso8601String(),
-		UpdatedAt: updatedAt.ToIso8601String(),
+		ExpiresAt: expiresObj.ToIso8601String(),
+		UpdatedAt: updatedObj.ToIso8601String(),
 	}
 }
 
-func (c *Cache) GetBaseKey(key string) string {
+func (c *Cache) MakeKey(key string) string {
 	result := key
 	suffixes := []string{"_expires_at", "_hash", "_updated_at"}
 	for _, suffix := range suffixes {
@@ -102,18 +103,18 @@ func (c *Cache) Initialize() *Cache {
 		return c
 	}
 
-	c.Enabled = false
-	filename := utils.FsSafeName(c.Name) + ".db"
+	filename := utils.EnforceSuffix(utils.FsSafeName(c.Name), ".db")
 
-	if c.Name == "" || strings.TrimSuffix(filename, ".db") == "" {
+	if strings.TrimSuffix(filename, ".db") == "" {
 		cwd, _ := os.Getwd()
-		filename = projectinfo.New(os.Args[0], cwd).FsSafeName() + ".db"
+		filename = utils.EnforceSuffix(projectinfo.New(os.Args[0], cwd).FsSafeName(), ".db")
 	}
 
-	c.Filename = filepath.Join(c.Path, filename)
 	if c.Name == "" {
 		c.Name = strings.TrimSuffix(filename, ".db")
 	}
+
+	c.Filename = filepath.Join(c.Path, filename)
 
 	var err error
 	if c.Db, err = bolt.Open(c.Filename, 0644, &bolt.Options{Timeout: 5 * time.Second}); err != nil {
@@ -159,7 +160,7 @@ func (c *Cache) startAutoPurge() {
 func (c *Cache) Get(key string) (*CacheEntry, bool) {
 	var err error
 
-	key = c.GetBaseKey(key)
+	key = c.MakeKey(key)
 	result := &CacheEntry{Value: "", ExpiresAt: ""}
 
 	c.Db.View(func(tx *bolt.Tx) error {

@@ -306,7 +306,6 @@ func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) 
 		include.Hash = data.Hash
 		include.HashAlgorithm = data.Algorithm
 		include.Contents = data.Value
-		include.DecodeContents()
 	}
 
 	return data

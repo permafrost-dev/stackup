@@ -282,6 +282,14 @@ func FsSafeName(name string) string {
 	return strings.Trim(result, "-")
 }
 
+func EnforceSuffix(s string, suffix string) string {
+	if !strings.HasSuffix(s, suffix) {
+		return s + suffix
+	}
+
+	return s
+}
+
 func ReverseArray[T any](items []T) []T {
 	length := len(items)
 	for i := 0; i < length/2; i++ {

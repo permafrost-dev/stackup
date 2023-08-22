@@ -50,16 +50,13 @@ func (u *Updater) IsUpdateAvailable(githubRepository string, currentVersion stri
 
 func (u *Updater) fetchLatestRepositoryRelease(repository string) (*Release, error) {
 	if !strings.Contains(repository, "/") {
-		return nil, fmt.Errorf("invalid repository format: '%s'", repository)
+		return nil, fmt.Errorf("invalid repository value: '%s'", repository)
 	}
 
-	var url string = fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repository)
-	var body string
-	var err error
-
-	if body, err = u.gw.GetUrl(url); err != nil {
+	body, err := u.gw.GetUrl(fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repository))
+	if err != nil {
 		return nil, err
 	}
 
-	return NewReleaseFromJson(string(body)), nil
+	return NewReleaseFromJson(body), nil
 }

@@ -1,11 +1,9 @@
 package workflow
 
 import (
-	"encoding/base64"
 	"fmt"
 	"net/url"
 	"os"
-	"path"
 	"regexp"
 	"strings"
 
@@ -224,13 +222,12 @@ func (wi *WorkflowInclude) DisplayUrl() string {
 	displayUrl := strings.Replace(wi.FullUrl(), "https://", "", -1)
 	displayUrl = strings.Replace(displayUrl, "github.com/", "", -1)
 	displayUrl = strings.Replace(displayUrl, "raw.githubusercontent.com/", "", -1)
-	// displayUrl = strings.Replace(displayUrl, "s3://", "", -1)
 
 	return displayUrl
 }
 
 func (wi WorkflowInclude) DisplayName() string {
-	if wi.IsRemoteUrl() {
+	if wi.IsRemoteUrl() || wi.IsS3Url() {
 		return wi.DisplayUrl()
 	}
 
@@ -238,50 +235,34 @@ func (wi WorkflowInclude) DisplayName() string {
 		return wi.Filename()
 	}
 
-	if wi.IsS3Url() {
-		return wi.DisplayUrl()
-	}
-
 	return "<unknown>"
 }
 
 func (wi *WorkflowInclude) GetChecksumAlgorithm() string {
-	if strings.HasSuffix(wi.ChecksumUrl, ".sha256") || strings.HasSuffix(wi.ChecksumUrl, ".sha256.txt") {
-		return "sha256"
-	}
-	if strings.HasSuffix(wi.ChecksumUrl, ".sha512") || strings.HasSuffix(wi.ChecksumUrl, ".sha512.txt") {
-		return "sha512"
+	var patterns map[string]*regexp.Regexp = map[string]*regexp.Regexp{
+		"sha256": regexp.MustCompile("sha256(sum|\\.txt)"),
+		"sha512": regexp.MustCompile("sha512(sum|\\.txt)"),
 	}
 
-	if strings.EqualFold(path.Base(wi.ChecksumUrl), "sha256sum") {
-		return "sha256"
+	for name, pattern := range patterns {
+		fmt.Printf("Checking %s against %s\n", wi.ChecksumUrl, pattern)
+		if pattern.MatchString(wi.ChecksumUrl) {
+			return name
+		}
 	}
 
-	if strings.EqualFold(path.Base(wi.ChecksumUrl), "sha512sum") {
-		return "sha512"
+	// hash length to name mapping
+	hashTypeMap := map[int]string{
+		16:  "md4",
+		32:  "md5",
+		40:  "sha1",
+		64:  "sha256",
+		96:  "sha384",
+		128: "sha512",
 	}
 
-	// check for md4 hash length:
-	if len(wi.FoundChecksum) == 16 {
-		return "md4"
-	}
-	if len(wi.FoundChecksum) == 32 {
-		return "md5"
-	}
-	if len(wi.FoundChecksum) == 40 {
-		return "sha1"
-	}
-	if len(wi.FoundChecksum) == 48 {
-		return "sha224"
-	}
-	if len(wi.FoundChecksum) == 64 {
-		return "sha256"
-	}
-	if len(wi.FoundChecksum) == 96 {
-		return "sha384"
-	}
-	if len(wi.FoundChecksum) == 128 {
-		return "sha512"
+	if hashType, ok := hashTypeMap[len(wi.FoundChecksum)]; ok {
+		return hashType
 	}
 
 	return "unknown"
@@ -289,14 +270,4 @@ func (wi *WorkflowInclude) GetChecksumAlgorithm() string {
 
 func (wi *WorkflowInclude) SetChecksumIsValid(value bool) {
 	wi.ChecksumIsValid = &value
-}
-
-func (wi *WorkflowInclude) DecodeContents() {
-	b, err := base64.StdEncoding.DecodeString(wi.Contents)
-
-	if err != nil {
-		return
-	}
-
-	wi.Contents = string(b)
 }
