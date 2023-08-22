@@ -1,12 +1,13 @@
-package workflow
+package app
 
 import (
+	"fmt"
 	"runtime"
 	"strings"
 
 	"github.com/stackup-app/stackup/lib/consts"
+	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/support"
-	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
@@ -24,6 +25,7 @@ type Task struct {
 	Uuid       string
 	FromRemote bool
 	Workflow   *StackupWorkflow //*types.AppWorkflowContract
+	JsEngine   *scripting.JavaScriptEngine
 	// types.AppWorkflowTaskContract
 }
 
@@ -35,6 +37,7 @@ type TaskReferenceContract interface {
 type TaskReference struct {
 	Task     string `yaml:"task"`
 	Workflow *StackupWorkflow
+	JsEngine *scripting.JavaScriptEngine
 	TaskReferenceContract
 }
 
@@ -45,10 +48,8 @@ type ScheduledTask struct {
 	TaskReferenceContract
 }
 
-func (task *Task) engine() *types.JavaScriptEngineContract {
-	engine := task.Workflow.GetJsEngine()
-
-	return engine
+func (task *Task) engine() *scripting.JavaScriptEngine {
+	return task.Workflow.JsEngine
 }
 
 func (task *Task) CanRunOnCurrentPlatform() bool {
@@ -70,10 +71,7 @@ func (task *Task) CanRunConditionally() bool {
 		return true
 	}
 
-	jse := (*task.Workflow).GetJsEngine()
-	result := (*jse).Evaluate(task.If).(bool)
-
-	return result
+	return task.Workflow.JsEngine.Evaluate(task.If).(bool)
 }
 
 func (task *Task) Initialize() {
@@ -83,18 +81,15 @@ func (task *Task) Initialize() {
 		task.MaxRuns = 999999999
 	}
 
-	if task.Workflow == nil {
-		return
-	}
-
-	enginePtr := task.engine()
+	// task.JsEngine = task.Workflow.JsEngine
+	// enginePtr := task.engine()
 	//.(scripting.JavaScriptEngine)
 
-	if enginePtr == nil {
-		return
-	}
+	// if enginePtr == nil {
+	// 	return
+	// }
 
-	var engine = *enginePtr
+	engine := task.JsEngine
 
 	// *(*task.Workflow).GetJsEngine()
 
@@ -217,24 +212,32 @@ func (task *Task) Run(synchronous bool) {
 
 func (tr *TaskReference) Initialize(workflow *StackupWorkflow) {
 	tr.Workflow = workflow
+	tr.JsEngine = workflow.JsEngine
 }
 
 func (tr *TaskReference) TaskId() string {
-	// if tr.Workflow.JsEngine.IsEvaluatableScriptString(tr.Task) {
-	// 	return tr.Workflow.JsEngine.Evaluate(tr.Task).(string)
-	// }
+	fmt.Printf("st == %v\n", tr)
+
+	if tr.JsEngine.IsEvaluatableScriptString(tr.Task) {
+		return tr.JsEngine.Evaluate(tr.Task).(string)
+	}
 
 	return tr.Task
 }
 
 func (st *ScheduledTask) TaskId() string {
-	// if st.Workflow.JsEngine.IsEvaluatableScriptString(st.Task) {
-	// 	return st.Workflow.JsEngine.Evaluate(st.Task).(string)
-	// }
+	fmt.Printf("st == %v\n", st)
+	if st.Workflow.JsEngine.IsEvaluatableScriptString(st.Task) {
+		return st.Workflow.JsEngine.Evaluate(st.Task).(string)
+	}
 
 	return st.Task
 }
 
 func (st *ScheduledTask) Initialize(workflow *StackupWorkflow) {
 	st.Workflow = workflow
+
+	if workflow.JsEngine.IsEvaluatableScriptString(st.Task) {
+		st.Task = workflow.JsEngine.Evaluate(st.Task).(string)
+	}
 }

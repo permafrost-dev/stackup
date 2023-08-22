@@ -298,6 +298,15 @@ func ReverseArray[T any](items []T) []T {
 	return items
 }
 
+func CombineArrays[T any](a []T, b []T) []T {
+	result := []T{}
+
+	result = append(result, a...)
+	result = append(result, b...)
+
+	return result
+}
+
 // casts the items in `toAppend` to the same type as the items in `items`, then
 // returns a new array containing the two items from both arrays combined
 func CastAndCombineArrays[T interface{}, R any](items []*T, toAppend []R) []*T {

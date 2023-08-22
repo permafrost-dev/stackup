@@ -1,10 +1,8 @@
-package workflow
+package app
 
 import (
-	"fmt"
-
+	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/support"
-	"github.com/stackup-app/stackup/lib/types"
 )
 
 type WorkflowPrecondition struct {
@@ -14,17 +12,13 @@ type WorkflowPrecondition struct {
 	MaxRetries int    `yaml:"max-retries,omitempty"`
 	FromRemote bool
 	Attempts   int
-	engine     *types.JavaScriptEngineContract
+	engine     *scripting.JavaScriptEngine
 	Workflow   *StackupWorkflow
 }
 
-func (p *WorkflowPrecondition) Initialize(workflow *StackupWorkflow, engine types.JavaScriptEngineContract) {
+func (p *WorkflowPrecondition) Initialize(workflow *StackupWorkflow, engine *scripting.JavaScriptEngine) {
 	p.Workflow = workflow
-	p.engine = &engine
-
-	// var temp interface{} = workflow
-	// p.Workflow = temp.(*StackupWorkflow)
-
+	p.engine = engine
 	p.Attempts = 0
 	p.MaxRetries = 99999999999
 }
@@ -41,9 +35,9 @@ func (p *WorkflowPrecondition) HandleOnFailure() bool {
 	}
 
 	task, found := (*p.Workflow).FindTaskById(p.OnFail)
-	fmt.Printf("task: %v\n", task)
+
 	if found {
-		task.(types.AppWorkflowTaskContract).Run(true)
+		task.Run(true)
 	}
 
 	return result
@@ -80,21 +74,3 @@ func (wp *WorkflowPrecondition) Run() bool {
 
 	return result
 }
-
-// func (pc *WorkflowPrecondition) UnmarshalYAML(node *yaml.Node) error {
-// 	// switch node.Kind {
-// 	// case yaml.ScalarNode:
-// 	//     if node.Kind == yaml.Kind(reflect.String) {
-// 	//         value := ""
-// 	//         vers := Version{Semver: semver.ParseSemverString(value), Original: value}
-// 	//         if err := node.Decode(&value); err != nil {
-// 	//             return err
-// 	//         }
-// 	//         node.Value = &vers
-// 	//         if scripting.IsScriptString(value) {
-// 	//             node.SetString(scripting.GetScriptFromString(value))
-// 	//         }
-// 	//     }
-// 	// }
-// 	return nil
-// }

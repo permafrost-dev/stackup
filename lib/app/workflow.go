@@ -1,4 +1,4 @@
-package workflow
+package app
 
 import (
 	"fmt"
@@ -14,6 +14,7 @@ import (
 	"github.com/stackup-app/stackup/lib/checksums"
 	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/gateway"
+	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/settings"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/types"
@@ -38,7 +39,7 @@ type StackupWorkflow struct {
 	Includes          []WorkflowInclude `yaml:"includes"`
 	State             StackupWorkflowState
 	Cache             *cache.Cache
-	JsEngine          *types.JavaScriptEngineContract
+	JsEngine          *scripting.JavaScriptEngine
 	Gateway           *gateway.Gateway
 	ProcessMap        *sync.Map
 	CommandStartCb    types.CommandCallback
@@ -90,7 +91,7 @@ func (ws *StackupWorkflowState) SetCurrent(task *Task) CleanupCallback {
 	}
 }
 
-func (workflow StackupWorkflow) FindTaskById(id string) (any, bool) {
+func (workflow *StackupWorkflow) FindTaskById(id string) (*Task, bool) {
 	if len(id) == 0 {
 		return nil, false
 	}
@@ -133,12 +134,12 @@ func (workflow *StackupWorkflow) TryLoadDotEnvVaultFile(value string) {
 	}
 }
 
-func (workflow *StackupWorkflow) GetAllTaskReferences() []*TaskReferenceContract {
-	refs := []*TaskReferenceContract{}
-	refs = utils.CastAndCombineArrays(refs, workflow.Startup)
-	refs = utils.CastAndCombineArrays(refs, workflow.Shutdown)
-	refs = utils.CastAndCombineArrays(refs, workflow.Servers)
-	refs = utils.CastAndCombineArrays(refs, workflow.Scheduler)
+func (workflow *StackupWorkflow) GetAllTaskReferences() []*TaskReference {
+	refs := []*TaskReference{}
+	refs = utils.CombineArrays(refs, workflow.Startup)
+	refs = utils.CombineArrays(refs, workflow.Shutdown)
+	refs = utils.CombineArrays(refs, workflow.Servers)
+	//refs = utils.CombineArrays(refs, workflow.Scheduler)
 
 	return refs
 }
@@ -156,7 +157,7 @@ func (workflow *StackupWorkflow) Initialize(configPath string) {
 
 	// init the server, scheduler, and startup/shutdown items
 	for _, tr := range workflow.GetAllTaskReferences() {
-		(*tr).Initialize(workflow)
+		tr.Initialize(workflow)
 	}
 
 	for _, pc := range workflow.Preconditions {
@@ -168,6 +169,7 @@ func (workflow *StackupWorkflow) Initialize(configPath string) {
 
 		for _, task := range workflow.Tasks {
 			task.Workflow = workflow
+			task.JsEngine = workflow.JsEngine
 			task.Initialize()
 		}
 
@@ -313,7 +315,7 @@ func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) 
 
 func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude) error {
 	var err error
-	var template *StackupWorkflow
+	var template *IncludedTemplate
 
 	if include.Contents, err = workflow.Gateway.GetUrl(include.FullUrl()); err != nil {
 		return err
@@ -323,34 +325,64 @@ func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude)
 		return err
 	}
 
-	template.IsPrimaryWorkflow = false
-
-	// template.JsEngine.CreateEnvironmentVariables(os.Environ())
-	// template.JsEngine.CreateAppVariables(.Vars)
-
-	template.Settings = workflow.Settings
-	template.JsEngine = workflow.JsEngine
-	template.Gateway = workflow.Gateway
-	template.Cache = workflow.Cache
-
 	for _, task := range template.Tasks {
 		task.Workflow = workflow
-		// task.Initialize()
+		task.JsEngine = workflow.JsEngine
+		workflow.Tasks = append(workflow.Tasks, task)
 	}
 
-	template.Initialize(".")
+	for _, precondition := range template.Preconditions {
+		precondition.Workflow = workflow
+		workflow.Preconditions = append(workflow.Preconditions, precondition)
+	}
 
-	// template.Initialize("/tmp")
+	for _, startup := range template.Startup {
+		startup.Workflow = workflow
+		workflow.Startup = append(workflow.Startup, startup)
+	}
+
+	for _, shutdown := range template.Shutdown {
+		shutdown.Workflow = workflow
+		workflow.Shutdown = append(workflow.Shutdown, shutdown)
+	}
+
+	for _, server := range template.Servers {
+		server.Workflow = workflow
+		workflow.Servers = append(workflow.Servers, server)
+	}
 
 	if len(template.Init) > 0 {
 		workflow.Init += "\n" + template.Init
 	}
 
+	// template.IsPrimaryWorkflow = false
+
+	// template.JsEngine.CreateEnvironmentVariables(os.Environ())
+	// template.JsEngine.CreateAppVariables(.Vars)
+
+	// template.Settings = workflow.Settings
+	// template.JsEngine = workflow.JsEngine
+	// template.Gateway = workflow.Gateway
+	// template.Cache = workflow.Cache
+
+	// for _, task := range template.Tasks {
+	// 	task.Workflow = workflow
+	// 	// task.Initialize()
+	// }
+
+	// template.Initialize(".")
+
+	// // template.Initialize("/tmp")
+
+	// if len(template.Init) > 0 {
+	// 	workflow.Init += "\n" + template.Init
+	// }
+
 	workflow.cacheFetchedRemoteInclude(include)
 
-	workflow.initializeAllTemplateTaskReferences(template)
-	workflow.importPreconditionsFromIncludedTemplate(template)
-	workflow.importTasksFromIncludedTemplate(template)
+	// workflow.initializeAllTemplateTaskReferences(template)
+	// workflow.importPreconditionsFromIncludedTemplate(template)
+	// workflow.importTasksFromIncludedTemplate(template)
 	//workflow.copySettingsFromIncludedTemplate(&template)
 
 	return nil
@@ -404,7 +436,7 @@ func (workflow *StackupWorkflow) handleChecksumVerification(include *WorkflowInc
 }
 
 func (workflow *StackupWorkflow) handleDataWasCached(data *cache.CacheEntry, include *WorkflowInclude) error {
-	var template StackupWorkflow
+	var template IncludedTemplate
 	var err error
 
 	if err = yaml.Unmarshal([]byte(include.Contents), &template); err != nil {
@@ -412,32 +444,46 @@ func (workflow *StackupWorkflow) handleDataWasCached(data *cache.CacheEntry, inc
 		return err
 	}
 
-	template.IsPrimaryWorkflow = false
-
-	template.Settings = workflow.Settings
-	template.JsEngine = workflow.JsEngine
-	template.Gateway = workflow.Gateway
-	template.Cache = workflow.Cache
-	workflow.Init += "\n" + template.Init
-
+	// template.IsPrimaryWorkflow = false
+	// template.Settings = workflow.Settings
+	// template.JsEngine = workflow.JsEngine
+	// template.Gateway = workflow.Gateway
+	// template.Cache = workflow.Cache
+	// workflow.Init += "\n" + template.Init
 	//template.ConfigureDefaultSettings()
 
 	for _, task := range template.Tasks {
 		task.Workflow = workflow
-		//task.Initialize()
+		workflow.Tasks = append(workflow.Tasks, task)
 	}
 
-	template.Initialize(".")
+	for _, precondition := range template.Preconditions {
+		precondition.Workflow = workflow
+		workflow.Preconditions = append(workflow.Preconditions, precondition)
+	}
 
-	// template.Initialize("/tmp")
+	for _, startup := range template.Startup {
+		startup.Workflow = workflow
+		workflow.Startup = append(workflow.Startup, startup)
+	}
+
+	for _, shutdown := range template.Shutdown {
+		shutdown.Workflow = workflow
+		workflow.Shutdown = append(workflow.Shutdown, shutdown)
+	}
+
+	for _, server := range template.Servers {
+		server.Workflow = workflow
+		workflow.Servers = append(workflow.Servers, server)
+	}
 
 	if len(template.Init) > 0 {
 		workflow.Init += "\n" + template.Init
 	}
 
-	workflow.initializeAllTemplateTaskReferences(&template)
-	workflow.importPreconditionsFromIncludedTemplate(&template)
-	workflow.importTasksFromIncludedTemplate(&template)
+	// workflow.initializeAllTemplateTaskReferences(&template)
+	// workflow.importPreconditionsFromIncludedTemplate(&template)
+	// workflow.importTasksFromIncludedTemplate(&template)
 
 	return nil
 }
@@ -495,7 +541,7 @@ func (workflow *StackupWorkflow) importTasksFromIncludedTemplate(template *Stack
 
 func (workflow *StackupWorkflow) initializeAllTemplateTaskReferences(template *StackupWorkflow) {
 	for _, tr := range template.GetAllTaskReferences() {
-		(*tr).Initialize(workflow)
+		tr.Initialize(workflow)
 	}
 }
 
@@ -546,16 +592,10 @@ func (workflow *StackupWorkflow) copySettingsFromIncludedTemplate(template *Stac
 	// workflow.Gateway.SetBlockedContentTypes("*", workflow.Settings.Gateway.ContentTypes.Blocked)
 }
 
-func (workflow StackupWorkflow) GetSettings() *settings.Settings {
+func (workflow *StackupWorkflow) GetSettings() *settings.Settings {
 	return workflow.Settings
 }
 
-func (workflow *StackupWorkflow) GetJsEngine() *types.JavaScriptEngineContract {
-	if workflow.JsEngine == nil {
-		return nil
-	}
-
-	var ref interface{} = workflow.JsEngine
-	result := ref.(types.JavaScriptEngineContract)
-	return &result
+func (workflow *StackupWorkflow) GetJsEngine() *scripting.JavaScriptEngine {
+	return workflow.JsEngine
 }

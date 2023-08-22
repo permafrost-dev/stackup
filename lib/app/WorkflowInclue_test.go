@@ -1,10 +1,10 @@
-package workflow_test
+package app_test
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/stackup-app/stackup/lib/workflow"
+	"github.com/stackup-app/stackup/lib/app"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,12 +26,12 @@ func TestWorkflowIncdeGetChecksumAlforithm(t *testing.T) {
 	}
 
 	for url, expected := range hashUrls {
-		wi := workflow.WorkflowInclude{ChecksumUrl: url}
+		wi := app.WorkflowInclude{ChecksumUrl: url}
 		assert.Equal(t, expected, wi.GetChecksumAlgorithm(), "expected %s for url %s", expected, url)
 	}
 
 	for name, length := range hashLengths {
-		wi := workflow.WorkflowInclude{FoundChecksum: strings.Repeat("a", length)}
+		wi := app.WorkflowInclude{FoundChecksum: strings.Repeat("a", length)}
 		assert.Equal(t, name, wi.GetChecksumAlgorithm())
 	}
 }

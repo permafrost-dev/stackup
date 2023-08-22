@@ -17,21 +17,13 @@ type JavaScriptEngine struct {
 	AppVars                *sync.Map
 	AppGateway             *gateway.Gateway
 	Functions              *JavaScriptFunctions
-	GetWorkflowContract    *types.AppWorkflowContract
 	GetApplicationIconPath func() string
 	Registry               *sync.Map
 	InstalledExtensions    *sync.Map
 	types.JavaScriptEngineContract
 }
 
-func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, wf types.AppWorkflowContract, getAppIconFunc func() string) *JavaScriptEngine {
-	// if wf != nil && wf.GetJsEngine() != nil {
-	// 	//result := wf.GetJsEngine()
-	// 	// if (*result) != nil {
-	// 	// 	return result.(JavaScriptEngine)
-	// 	// }
-	// }
-
+func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, getAppIconFunc func() string) *JavaScriptEngine {
 	result := &JavaScriptEngine{
 		Vm:                     otto.New(),
 		AppVars:                vars,
@@ -41,10 +33,7 @@ func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, wf type
 		InstalledExtensions:    &sync.Map{},
 	}
 
-	if wf != nil {
-		result.Init(&wf)
-	}
-
+	result.Init()
 	return result
 }
 
@@ -82,7 +71,7 @@ func (e *JavaScriptEngine) AsContractPtr() *types.JavaScriptEngineContract {
 	return &result
 }
 
-func (e *JavaScriptEngine) Init(workflow *types.AppWorkflowContract) {
+func (e *JavaScriptEngine) Init() {
 	e.Vm = otto.New()
 	e.CreateJavascriptFunctions()
 	e.CreateScriptFsObject()
@@ -90,7 +79,7 @@ func (e *JavaScriptEngine) Init(workflow *types.AppWorkflowContract) {
 	CreateScriptVarsObject(e)
 	CreateScriptDevObject(e)
 	CreateScriptNetObject(e)
-	CreateScripNotificationsObject(workflow, e)
+	// CreateScripNotificationsObject(workflow, e)
 }
 
 func (e *JavaScriptEngine) CreateAppVariables(vars *sync.Map) {
@@ -158,6 +147,8 @@ func (e *JavaScriptEngine) Evaluate(script string) any {
 	if e.IsEvaluatableScriptString(tempScript) {
 		tempScript = e.GetEvaluatableScriptString(tempScript)
 	}
+
+	fmt.Printf("script == %s\n", tempScript)
 
 	result, err := e.Vm.Run(tempScript)
 

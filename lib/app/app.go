@@ -23,7 +23,6 @@ import (
 	"github.com/stackup-app/stackup/lib/updater"
 	"github.com/stackup-app/stackup/lib/utils"
 	"github.com/stackup-app/stackup/lib/version"
-	"github.com/stackup-app/stackup/lib/workflow"
 	"gopkg.in/yaml.v2"
 )
 
@@ -37,7 +36,7 @@ type AppFlags struct {
 }
 
 type Application struct {
-	Workflow            *workflow.StackupWorkflow
+	Workflow            *StackupWorkflow
 	JsEngine            *scripting.JavaScriptEngine
 	cronEngine          *cron.Cron
 	scheduledTaskMap    *sync.Map
@@ -58,11 +57,11 @@ func NewApplication() *Application {
 	return result
 }
 
-func (a *Application) GetWorkflow() workflow.StackupWorkflow {
+func (a *Application) GetWorkflow() StackupWorkflow {
 	return *a.Workflow
 }
 
-func (a *Application) loadWorkflowFile(filename string, wf *workflow.StackupWorkflow) {
+func (a *Application) loadWorkflowFile(filename string, wf *StackupWorkflow) {
 	// var engine interface{} =
 	wf.CommandStartCb = a.CmdStartCallback
 	wf.ExitAppFunc = a.exitApp
@@ -85,7 +84,7 @@ func (a *Application) loadWorkflowFile(filename string, wf *workflow.StackupWork
 		task.Workflow = a.Workflow
 	}
 
-	wf.State = workflow.StackupWorkflowState{
+	wf.State = StackupWorkflowState{
 		CurrentTask: nil,
 		Stack:       linkedliststack.New(),
 		History:     linkedliststack.New(),
@@ -97,7 +96,7 @@ func (a *Application) init() {
 	a.ProcessMap = &sync.Map{}
 	a.Vars = &sync.Map{}
 	a.ConfigFilename = support.FindExistingFile([]string{"stackup.dist.yaml", "stackup.yaml"}, "stackup.yaml")
-	a.Workflow = workflow.CreateWorkflow(a.Gateway)
+	a.Workflow = CreateWorkflow(a.Gateway)
 	a.Gateway = gateway.New()
 
 	a.flags = AppFlags{
@@ -117,7 +116,7 @@ func (a *Application) init() {
 	a.loadWorkflowFile(a.ConfigFilename, a.Workflow)
 	a.Workflow.ConfigureDefaultSettings()
 
-	a.JsEngine = scripting.CreateNewJavascriptEngine(a.Vars, a.Gateway, a.Workflow, a.GetApplicationIconPath)
+	a.JsEngine = scripting.CreateNewJavascriptEngine(a.Vars, a.Gateway, a.GetApplicationIconPath)
 	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
 
 	for _, task := range a.Workflow.Tasks {
@@ -172,6 +171,8 @@ func (a *Application) exitApp() {
 
 func (a *Application) createScheduledTasks() {
 	for _, def := range a.Workflow.Scheduler {
+		def.Workflow = a.Workflow
+
 		_, found := a.Workflow.FindTaskById(def.TaskId())
 
 		if !found {
@@ -185,7 +186,7 @@ func (a *Application) createScheduledTasks() {
 		a.cronEngine.AddFunc(cron, func() {
 			task, found := a.Workflow.FindTaskById(taskId)
 			if found {
-				task.(*workflow.Task).Run(true)
+				task.Run(true)
 			}
 		})
 
@@ -212,35 +213,41 @@ func (a *Application) runEventLoop() {
 	}
 }
 
-func (a *Application) runTaskReferences(refs []*workflow.TaskReferenceContract) {
+func (a *Application) runTaskReferences(refs []*TaskReference) {
 	for _, def := range refs {
 		if def == nil {
 			continue
 		}
 
-		task, found := a.Workflow.FindTaskById((*def).TaskId())
+		def.Workflow = a.Workflow
+		def.JsEngine = a.JsEngine
+
+		task, found := a.Workflow.FindTaskById(def.TaskId())
 		if !found {
-			support.SkippedMessageWithSymbol("Task " + (*def).TaskId() + " not found.")
+			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
 			continue
 		}
 
-		task.(*workflow.Task).Run(true)
+		task.Workflow = a.Workflow
+		task.JsEngine = a.JsEngine
+
+		task.Run(true)
 	}
 }
 
 func (a *Application) runStartupTasks() {
-	arr := []*workflow.TaskReferenceContract{}
-	a.runTaskReferences(utils.CastAndCombineArrays(arr, a.Workflow.Startup))
+	arr := []*TaskReference{}
+	a.runTaskReferences(utils.CombineArrays(arr, a.Workflow.Startup))
 }
 
 func (a *Application) runShutdownTasks() {
-	arr := []*workflow.TaskReferenceContract{}
-	a.runTaskReferences(utils.CastAndCombineArrays(arr, a.Workflow.Shutdown))
+	arr := []*TaskReference{}
+	a.runTaskReferences(utils.CombineArrays(arr, a.Workflow.Shutdown))
 }
 
 func (a *Application) runServerTasks() {
-	arr := []*workflow.TaskReferenceContract{}
-	a.runTaskReferences(utils.CastAndCombineArrays(arr, a.Workflow.Servers))
+	arr := []*TaskReference{}
+	a.runTaskReferences(utils.CombineArrays(arr, a.Workflow.Servers))
 }
 
 func (a Application) runPreconditions() {
@@ -344,21 +351,30 @@ func (a *Application) Run() {
 	a.Gateway.Initialize(a.Workflow.Settings, a.JsEngine.AsContract(), nil)
 	a.Analytics = telemetry.New(a.Workflow.Settings.AnonymousStatistics, a.Gateway)
 	a.Gateway.AllowedDomains = []string{"*"}
-
-	for _, t := range a.Workflow.Tasks {
-		t.Workflow = a.Workflow
-		t.Initialize()
-	}
+	a.Workflow.IsPrimaryWorkflow = true
 
 	a.Workflow.ProcessIncludes()
 
+	a.JsEngine.CreateEnvironmentVariables(os.Environ())
+	a.JsEngine.CreateAppVariables(a.Vars)
+
 	for _, t := range a.Workflow.Tasks {
 		t.Workflow = a.Workflow
+		t.JsEngine = a.JsEngine
 		t.Initialize()
 	}
 
-	a.JsEngine.CreateEnvironmentVariables(os.Environ())
-	a.JsEngine.CreateAppVariables(a.Vars)
+	for _, st := range a.Workflow.Servers {
+		st.Workflow = a.Workflow
+		st.JsEngine = a.JsEngine
+		st.Initialize(a.Workflow)
+	}
+
+	for _, st := range a.Workflow.Scheduler {
+		st.Workflow = a.Workflow
+		st.Initialize(a.Workflow)
+	}
+
 	a.JsEngine.Evaluate(a.Workflow.Init)
 
 	if a.Analytics.IsEnabled {

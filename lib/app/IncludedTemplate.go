@@ -1,4 +1,4 @@
-package workflow
+package app
 
 import "github.com/stackup-app/stackup/lib/settings"
 
