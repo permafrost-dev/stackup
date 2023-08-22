@@ -62,11 +62,9 @@ func (a *Application) GetWorkflow() StackupWorkflow {
 }
 
 func (a *Application) loadWorkflowFile(filename string, wf *StackupWorkflow) {
-	// var engine interface{} =
 	wf.CommandStartCb = a.CmdStartCallback
 	wf.ExitAppFunc = a.exitApp
 	wf.Gateway = a.Gateway
-	// wf.JsEngine = scripting.CreateNewJavascriptEngine(a.Vars, a.Gateway, a.Workflow, a.GetApplicationIconPath)
 	wf.ProcessMap = a.ProcessMap
 
 	contents, err := os.ReadFile(filename)
@@ -215,10 +213,6 @@ func (a *Application) runEventLoop() {
 
 func (a *Application) runTaskReferences(refs []*TaskReference) {
 	for _, def := range refs {
-		if def == nil {
-			continue
-		}
-
 		def.Workflow = a.Workflow
 		def.JsEngine = a.JsEngine
 
@@ -228,26 +222,28 @@ func (a *Application) runTaskReferences(refs []*TaskReference) {
 			continue
 		}
 
-		task.Workflow = a.Workflow
-		task.JsEngine = a.JsEngine
-
 		task.Run(true)
 	}
 }
 
 func (a *Application) runStartupTasks() {
-	arr := []*TaskReference{}
-	a.runTaskReferences(utils.CombineArrays(arr, a.Workflow.Startup))
+	a.runTaskReferences(a.Workflow.Startup)
 }
 
 func (a *Application) runShutdownTasks() {
-	arr := []*TaskReference{}
-	a.runTaskReferences(utils.CombineArrays(arr, a.Workflow.Shutdown))
+	a.runTaskReferences(a.Workflow.Shutdown)
 }
 
 func (a *Application) runServerTasks() {
-	arr := []*TaskReference{}
-	a.runTaskReferences(utils.CombineArrays(arr, a.Workflow.Servers))
+	for _, def := range a.Workflow.Servers {
+		task, found := a.Workflow.FindTaskById(def.TaskId())
+		if !found {
+			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
+			continue
+		}
+
+		task.Run(false)
+	}
 }
 
 func (a Application) runPreconditions() {
@@ -362,6 +358,18 @@ func (a *Application) Run() {
 		t.Workflow = a.Workflow
 		t.JsEngine = a.JsEngine
 		t.Initialize()
+	}
+
+	for _, t := range a.Workflow.Startup {
+		t.Workflow = a.Workflow
+		t.JsEngine = a.JsEngine
+		t.Initialize(a.Workflow)
+	}
+
+	for _, t := range a.Workflow.Shutdown {
+		t.Workflow = a.Workflow
+		t.JsEngine = a.JsEngine
+		t.Initialize(a.Workflow)
 	}
 
 	for _, st := range a.Workflow.Servers {

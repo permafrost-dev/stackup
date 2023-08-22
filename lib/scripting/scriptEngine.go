@@ -83,9 +83,6 @@ func (e *JavaScriptEngine) Init() {
 }
 
 func (e *JavaScriptEngine) CreateAppVariables(vars *sync.Map) {
-
-	fmt.Printf("creating app vars\n")
-
 	vars.Range(func(key, value any) bool {
 		e.Vm.Set("$"+(key.(string)), value)
 		return true
@@ -147,8 +144,6 @@ func (e *JavaScriptEngine) Evaluate(script string) any {
 	if e.IsEvaluatableScriptString(tempScript) {
 		tempScript = e.GetEvaluatableScriptString(tempScript)
 	}
-
-	fmt.Printf("script == %s\n", tempScript)
 
 	result, err := e.Vm.Run(tempScript)
 

@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"runtime"
 	"strings"
 
@@ -48,10 +47,6 @@ type ScheduledTask struct {
 	TaskReferenceContract
 }
 
-func (task *Task) engine() *scripting.JavaScriptEngine {
-	return task.Workflow.JsEngine
-}
-
 func (task *Task) CanRunOnCurrentPlatform() bool {
 	if task.Platforms == nil || len(task.Platforms) == 0 {
 		return true
@@ -71,27 +66,16 @@ func (task *Task) CanRunConditionally() bool {
 		return true
 	}
 
-	return task.Workflow.JsEngine.Evaluate(task.If).(bool)
+	return task.JsEngine.Evaluate(task.If).(bool)
 }
 
 func (task *Task) Initialize() {
 	task.RunCount = 0
-
 	if task.MaxRuns <= 0 {
 		task.MaxRuns = 999999999
 	}
 
-	// task.JsEngine = task.Workflow.JsEngine
-	// enginePtr := task.engine()
-	//.(scripting.JavaScriptEngine)
-
-	// if enginePtr == nil {
-	// 	return
-	// }
-
 	engine := task.JsEngine
-
-	// *(*task.Workflow).GetJsEngine()
 
 	if len(task.Path) == 0 {
 		task.Path = engine.MakeStringEvaluatable(consts.DEFAULT_CWD_SETTING)
@@ -106,7 +90,7 @@ func (task *Task) Initialize() {
 
 func (task *Task) runWithStatusMessagesSync(runningSilently bool) {
 	command := task.Command
-	engine := *task.engine()
+	engine := task.JsEngine
 
 	if engine.IsEvaluatableScriptString(command) {
 		command = engine.Evaluate(command).(string)
@@ -155,10 +139,10 @@ func (task *Task) Run(synchronous bool) {
 	// 	defer cleanup()
 	// }
 
-	enginePtr := task.engine()
-	if enginePtr == nil {
-		return
-	}
+	// enginePtr := task.engine()
+	// if enginePtr == nil {
+	// 	return
+	// }
 
 	if task.RunCount >= task.MaxRuns && task.MaxRuns > 0 {
 		support.SkippedMessageWithSymbol(task.GetDisplayName())
@@ -169,11 +153,11 @@ func (task *Task) Run(synchronous bool) {
 
 	// allow the path property to be an environment variable reference without wrapping it in `{{ }}`
 	if utils.MatchesPattern(task.Path, "^\\$[\\w_]+$") {
-		task.Path = (*task.engine()).MakeStringEvaluatable(task.Path)
+		task.Path = task.JsEngine.MakeStringEvaluatable(task.Path)
 	}
 
-	if (*task.engine()).IsEvaluatableScriptString(task.Path) {
-		tempCwd := (*task.engine()).Evaluate(task.Path)
+	if task.JsEngine.IsEvaluatableScriptString(task.Path) {
+		tempCwd := task.JsEngine.Evaluate(task.Path)
 		task.Path = tempCwd.(string)
 	}
 
@@ -197,8 +181,8 @@ func (task *Task) Run(synchronous bool) {
 		return
 	}
 
-	if (*task.engine()).IsEvaluatableScriptString(command) {
-		command = (*task.engine()).Evaluate(command).(string)
+	if task.JsEngine.IsEvaluatableScriptString(command) {
+		command = task.JsEngine.Evaluate(command).(string)
 	}
 
 	cmd := utils.StartCommand(command, task.Path, false)
@@ -216,8 +200,6 @@ func (tr *TaskReference) Initialize(workflow *StackupWorkflow) {
 }
 
 func (tr *TaskReference) TaskId() string {
-	fmt.Printf("st == %v\n", tr)
-
 	if tr.JsEngine.IsEvaluatableScriptString(tr.Task) {
 		return tr.JsEngine.Evaluate(tr.Task).(string)
 	}
@@ -226,7 +208,6 @@ func (tr *TaskReference) TaskId() string {
 }
 
 func (st *ScheduledTask) TaskId() string {
-	fmt.Printf("st == %v\n", st)
 	if st.Workflow.JsEngine.IsEvaluatableScriptString(st.Task) {
 		return st.Workflow.JsEngine.Evaluate(st.Task).(string)
 	}

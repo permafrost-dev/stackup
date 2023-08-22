@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -280,8 +279,6 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 		}(include)
 	}
 	wg.Wait()
-
-	fmt.Printf("workflow now== %v\n", workflow)
 }
 
 func (workflow *StackupWorkflow) hasRemoteDomainAccess(include *WorkflowInclude) bool {
@@ -355,29 +352,6 @@ func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude)
 		workflow.Init += "\n" + template.Init
 	}
 
-	// template.IsPrimaryWorkflow = false
-
-	// template.JsEngine.CreateEnvironmentVariables(os.Environ())
-	// template.JsEngine.CreateAppVariables(.Vars)
-
-	// template.Settings = workflow.Settings
-	// template.JsEngine = workflow.JsEngine
-	// template.Gateway = workflow.Gateway
-	// template.Cache = workflow.Cache
-
-	// for _, task := range template.Tasks {
-	// 	task.Workflow = workflow
-	// 	// task.Initialize()
-	// }
-
-	// template.Initialize(".")
-
-	// // template.Initialize("/tmp")
-
-	// if len(template.Init) > 0 {
-	// 	workflow.Init += "\n" + template.Init
-	// }
-
 	workflow.cacheFetchedRemoteInclude(include)
 
 	// workflow.initializeAllTemplateTaskReferences(template)
@@ -444,14 +418,6 @@ func (workflow *StackupWorkflow) handleDataWasCached(data *cache.CacheEntry, inc
 		return err
 	}
 
-	// template.IsPrimaryWorkflow = false
-	// template.Settings = workflow.Settings
-	// template.JsEngine = workflow.JsEngine
-	// template.Gateway = workflow.Gateway
-	// template.Cache = workflow.Cache
-	// workflow.Init += "\n" + template.Init
-	//template.ConfigureDefaultSettings()
-
 	for _, task := range template.Tasks {
 		task.Workflow = workflow
 		workflow.Tasks = append(workflow.Tasks, task)
@@ -487,48 +453,6 @@ func (workflow *StackupWorkflow) handleDataWasCached(data *cache.CacheEntry, inc
 
 	return nil
 }
-
-// func (workflow StackupWorkflow) handleDataNotCached(data *cache.CacheEntry, include *WorkflowInclude) (*cache.CacheEntry, error) {
-// 	var err error = nil
-
-// 	// if data != nil && !data.IsExpired() {
-// 	// 	return nil
-// 	// }
-
-// 	if include.IsLocalFile() {
-// 		b, _ := os.ReadFile(include.Filename())
-// 		include.Contents = string(b)
-// 	} else if include.IsRemoteUrl() {
-// 		include.Contents, err = workflow.Gateway.GetUrl(include.FullUrl(), include.Headers...)
-// 	} else if include.IsS3Url() {
-// 		include.AccessKey = os.ExpandEnv(include.AccessKey)
-// 		include.SecretKey = os.ExpandEnv(include.SecretKey)
-// 		include.Contents = downloader.ReadS3FileContents(include.FullUrl(), include.AccessKey, include.SecretKey, include.Secure)
-// 	} else {
-// 		fmt.Printf("unknown include type: %s\n", include.DisplayName())
-// 		return nil, nil
-// 	}
-
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	include.Hash = checksums.CalculateSha256Hash(include.Contents)
-// 	expires := carbon.Now().AddMinutes(workflow.Settings.Cache.TtlMinutes)
-
-// 	item := workflow.Cache.CreateEntry(
-// 		include.DisplayName(),
-// 		include.Contents,
-// 		&expires,
-// 		include.Hash,
-// 		include.HashAlgorithm,
-// 		nil,
-// 	)
-
-// 	workflow.Cache.Set(include.Identifier(), item, workflow.Settings.Cache.TtlMinutes)
-
-// 	return item, err
-// }
 
 func (workflow *StackupWorkflow) importTasksFromIncludedTemplate(template *StackupWorkflow) {
 	for _, t := range template.Tasks {
