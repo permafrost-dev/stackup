@@ -79,7 +79,8 @@ func (a *Application) loadWorkflowFile(filename string, wf *StackupWorkflow) {
 	}
 
 	for _, task := range wf.Tasks {
-		task.Workflow = a.Workflow
+		task.CommandStartCb = a.CmdStartCallback
+		task.ProcessMap = a.ProcessMap
 	}
 
 	wf.State = StackupWorkflowState{
@@ -94,8 +95,8 @@ func (a *Application) init() {
 	a.ProcessMap = &sync.Map{}
 	a.Vars = &sync.Map{}
 	a.ConfigFilename = support.FindExistingFile([]string{"stackup.dist.yaml", "stackup.yaml"}, "stackup.yaml")
-	a.Workflow = CreateWorkflow(a.Gateway)
 	a.Gateway = gateway.New()
+	a.Workflow = CreateWorkflow(a.Gateway, a.ProcessMap)
 
 	a.flags = AppFlags{
 		DisplayHelp:    flag.Bool("help", false, "Display help"),
@@ -109,19 +110,22 @@ func (a *Application) init() {
 		a.ConfigFilename = *a.flags.ConfigFile
 	}
 
-	// a.JsEngine = scripting.CreateNewJavascriptEngine(a.Vars, a.Gateway, nil, a.GetApplicationIconPath)
-
 	a.loadWorkflowFile(a.ConfigFilename, a.Workflow)
 	a.Workflow.ConfigureDefaultSettings()
 
-	a.JsEngine = scripting.CreateNewJavascriptEngine(a.Vars, a.Gateway, a.GetApplicationIconPath)
+	a.JsEngine = scripting.CreateNewJavascriptEngine(
+		a.Vars,
+		a.Gateway,
+		func(id string) (any, error) {
+			result, _ := a.Workflow.FindTaskById(id)
+			return result, nil
+		},
+		a.GetApplicationIconPath,
+	)
 	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
 
 	for _, task := range a.Workflow.Tasks {
-		// var temp interface{} = a.Workflow
-		// ref := temp.(types.AppWorkflowContract)
-		task.Workflow = a.Workflow
-
+		task.JsEngine = a.JsEngine
 		task.Initialize()
 	}
 }
@@ -170,6 +174,7 @@ func (a *Application) exitApp() {
 func (a *Application) createScheduledTasks() {
 	for _, def := range a.Workflow.Scheduler {
 		def.Workflow = a.Workflow
+		def.JsEngine = a.JsEngine
 
 		_, found := a.Workflow.FindTaskById(def.TaskId())
 
@@ -237,6 +242,9 @@ func (a *Application) runShutdownTasks() {
 func (a *Application) runServerTasks() {
 	for _, def := range a.Workflow.Servers {
 		task, found := a.Workflow.FindTaskById(def.TaskId())
+
+		task.JsEngine = a.JsEngine
+
 		if !found {
 			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
 			continue
@@ -355,8 +363,8 @@ func (a *Application) Run() {
 	a.JsEngine.CreateAppVariables(a.Vars)
 
 	for _, t := range a.Workflow.Tasks {
-		t.Workflow = a.Workflow
 		t.JsEngine = a.JsEngine
+		t.CommandStartCb = a.CmdStartCallback
 		t.Initialize()
 	}
 
@@ -379,8 +387,7 @@ func (a *Application) Run() {
 	}
 
 	for _, st := range a.Workflow.Scheduler {
-		st.Workflow = a.Workflow
-		st.Initialize(a.Workflow)
+		st.Initialize(a.Workflow, a.JsEngine)
 	}
 
 	a.JsEngine.Evaluate(a.Workflow.Init)

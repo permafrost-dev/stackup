@@ -47,7 +47,7 @@ type StackupWorkflow struct {
 	types.AppWorkflowContract
 }
 
-func CreateWorkflow(gw *gateway.Gateway) *StackupWorkflow {
+func CreateWorkflow(gw *gateway.Gateway, processMap *sync.Map) *StackupWorkflow {
 	return &StackupWorkflow{
 		IsPrimaryWorkflow: true,
 		Settings:          &settings.Settings{},
@@ -58,7 +58,7 @@ func CreateWorkflow(gw *gateway.Gateway) *StackupWorkflow {
 		Includes:          []WorkflowInclude{},
 		Cache:             cache.New("project", ""),
 		Gateway:           gw,
-		ProcessMap:        &sync.Map{},
+		ProcessMap:        processMap,
 	}
 }
 
@@ -144,10 +144,8 @@ func (workflow *StackupWorkflow) GetAllTaskReferences() []*TaskReference {
 }
 
 func (workflow *StackupWorkflow) Initialize(configPath string) {
-	if workflow.IsPrimaryWorkflow {
-		workflow.Cache = cache.New("", configPath)
-		workflow.Settings = &settings.Settings{}
-	}
+	workflow.Cache = cache.New("", configPath)
+	workflow.Settings = &settings.Settings{}
 
 	// generate uuids for each task as the initial step, as other code below relies on a uuid existing
 	for _, task := range workflow.Tasks {
@@ -163,17 +161,14 @@ func (workflow *StackupWorkflow) Initialize(configPath string) {
 		pc.Workflow = workflow
 	}
 
-	if workflow.IsPrimaryWorkflow {
-		workflow.processEnvSection()
+	workflow.processEnvSection()
 
-		for _, task := range workflow.Tasks {
-			task.Workflow = workflow
-			task.JsEngine = workflow.JsEngine
-			task.Initialize()
-		}
-
-		workflow.Cache.DefaultTtl = workflow.Settings.Cache.TtlMinutes
+	for _, task := range workflow.Tasks {
+		task.JsEngine = workflow.JsEngine
+		task.Initialize()
 	}
+
+	workflow.Cache.DefaultTtl = workflow.Settings.Cache.TtlMinutes
 }
 
 func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
@@ -261,10 +256,6 @@ func (workflow *StackupWorkflow) processEnvSection() {
 // ProcessIncludes loads the includes and processes all included files in the workflow asynchronously,
 // so the order in which they loading is not guaranteed.
 func (workflow *StackupWorkflow) ProcessIncludes() {
-	if !workflow.IsPrimaryWorkflow {
-		return
-	}
-
 	for _, inc := range workflow.Includes {
 		inc.Initialize(workflow)
 	}
@@ -323,7 +314,6 @@ func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude)
 	}
 
 	for _, task := range template.Tasks {
-		task.Workflow = workflow
 		task.JsEngine = workflow.JsEngine
 		workflow.Tasks = append(workflow.Tasks, task)
 	}
@@ -419,7 +409,6 @@ func (workflow *StackupWorkflow) handleDataWasCached(data *cache.CacheEntry, inc
 	}
 
 	for _, task := range template.Tasks {
-		task.Workflow = workflow
 		workflow.Tasks = append(workflow.Tasks, task)
 	}
 
@@ -456,7 +445,6 @@ func (workflow *StackupWorkflow) handleDataWasCached(data *cache.CacheEntry, inc
 
 func (workflow *StackupWorkflow) importTasksFromIncludedTemplate(template *StackupWorkflow) {
 	for _, t := range template.Tasks {
-		t.Workflow = workflow
 		t.FromRemote = true
 		t.Uuid = utils.GenerateTaskUuid()
 		workflow.Tasks = append(workflow.Tasks, t)

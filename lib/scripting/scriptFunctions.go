@@ -3,6 +3,7 @@ package scripting
 import (
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/robertkrimen/otto"
@@ -160,17 +161,15 @@ func (jsf *JavaScriptFunctions) createPlatformFunction(call otto.FunctionCall) o
 }
 
 func (jsf *JavaScriptFunctions) createTaskFunction(call otto.FunctionCall) otto.Value {
-	return call.Argument(0)
-	// taskName := call.Argument(0).String()
+	taskName := call.Argument(0).String()
 
-	// if strings.HasPrefix(taskName, "$") && len(taskName) > 1 {
-	// 	temp, _ := jsf.Engine.AppVars.Load(taskName[1:])
-	// 	taskName = temp.(string)
-	// }
-	// task, _ := jsf.Engine.
-	// .FindTaskById(taskName)
+	if strings.HasPrefix(taskName, "$") && len(taskName) > 1 {
+		temp, _ := jsf.Engine.AppVars.Load(taskName[1:])
+		taskName = temp.(string)
+	}
 
-	// return getResult(call, task)
+	task, _ := jsf.Engine.FindTaskById(taskName)
+	return getResult(call, task)
 }
 
 func (jsf *JavaScriptFunctions) createScriptFunction(call otto.FunctionCall) otto.Value {
@@ -189,23 +188,18 @@ func (jsf *JavaScriptFunctions) createScriptFunction(call otto.FunctionCall) ott
 }
 
 func (jsf *JavaScriptFunctions) createSelectTaskWhen(call otto.FunctionCall) otto.Value {
-	return call.Argument(0)
-	// conditional, _ := call.Argument(0).ToBoolean()
-	// trueTaskName := call.Argument(1).String()
-	// falseTaskName := call.Argument(2).String()
-	// //var task *types.AppWorkflowTaskContract
-	// //var wf *types.AppWorkflowContract = jsf.Engine.GetWorkflowContract
-	// temp := (*jsf.Engine.GetWorkflowContract)
+	conditional, _ := call.Argument(0).ToBoolean()
+	trueTaskName := call.Argument(1).String()
+	falseTaskName := call.Argument(2).String()
+	taskName := trueTaskName
 
-	// var t any
+	if !conditional {
+		taskName = falseTaskName
+	}
 
-	// if conditional {
-	// 	t, _ = temp.FindTaskById(trueTaskName)
-	// } else {
-	// 	t, _ = temp.FindTaskById(falseTaskName)
-	// }
+	t, _ := jsf.Engine.FindTaskById(taskName)
 
-	// return getResult(call, t)
+	return getResult(call, t)
 }
 
 func (jsf *JavaScriptFunctions) createGetCurrentWorkingDirectory(call otto.FunctionCall) otto.Value {

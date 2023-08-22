@@ -3,28 +3,32 @@ package app
 import (
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/support"
+	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type Task struct {
-	Name       string   `yaml:"name"`
-	Command    string   `yaml:"command"`
-	If         string   `yaml:"if,omitempty"`
-	Id         string   `yaml:"id,omitempty"`
-	Silent     bool     `yaml:"silent"`
-	Path       string   `yaml:"path"`
-	Platforms  []string `yaml:"platforms,omitempty"`
-	MaxRuns    int      `yaml:"maxRuns,omitempty"`
-	Include    string   `yaml:"include,omitempty"`
-	RunCount   int
-	Uuid       string
-	FromRemote bool
-	Workflow   *StackupWorkflow //*types.AppWorkflowContract
-	JsEngine   *scripting.JavaScriptEngine
+	Name           string   `yaml:"name"`
+	Command        string   `yaml:"command"`
+	If             string   `yaml:"if,omitempty"`
+	Id             string   `yaml:"id,omitempty"`
+	Silent         bool     `yaml:"silent"`
+	Path           string   `yaml:"path"`
+	Platforms      []string `yaml:"platforms,omitempty"`
+	MaxRuns        int      `yaml:"maxRuns,omitempty"`
+	Include        string   `yaml:"include,omitempty"`
+	RunCount       int
+	Uuid           string
+	FromRemote     bool
+	ProcessMap     *sync.Map
+	CommandStartCb types.CommandCallback
+	//Workflow   *StackupWorkflow //*types.AppWorkflowContract
+	JsEngine *scripting.JavaScriptEngine
 	// types.AppWorkflowTaskContract
 }
 
@@ -44,6 +48,7 @@ type ScheduledTask struct {
 	Task     string `yaml:"task"`
 	Cron     string `yaml:"cron"`
 	Workflow *StackupWorkflow
+	JsEngine *scripting.JavaScriptEngine
 	TaskReferenceContract
 }
 
@@ -139,11 +144,6 @@ func (task *Task) Run(synchronous bool) {
 	// 	defer cleanup()
 	// }
 
-	// enginePtr := task.engine()
-	// if enginePtr == nil {
-	// 	return
-	// }
-
 	if task.RunCount >= task.MaxRuns && task.MaxRuns > 0 {
 		support.SkippedMessageWithSymbol(task.GetDisplayName())
 		return
@@ -157,8 +157,7 @@ func (task *Task) Run(synchronous bool) {
 	}
 
 	if task.JsEngine.IsEvaluatableScriptString(task.Path) {
-		tempCwd := task.JsEngine.Evaluate(task.Path)
-		task.Path = tempCwd.(string)
+		task.Path = task.JsEngine.Evaluate(task.Path).(string)
 	}
 
 	if !task.CanRunConditionally() {
@@ -186,12 +185,12 @@ func (task *Task) Run(synchronous bool) {
 	}
 
 	cmd := utils.StartCommand(command, task.Path, false)
-	task.Workflow.CommandStartCb(cmd)
+	task.CommandStartCb(cmd)
 	cmd.Start()
 
 	support.PrintCheckMarkLine()
 
-	task.Workflow.ProcessMap.Store(task.Uuid, cmd)
+	task.ProcessMap.Store(task.Uuid, cmd)
 }
 
 func (tr *TaskReference) Initialize(workflow *StackupWorkflow) {
@@ -208,15 +207,16 @@ func (tr *TaskReference) TaskId() string {
 }
 
 func (st *ScheduledTask) TaskId() string {
-	if st.Workflow.JsEngine.IsEvaluatableScriptString(st.Task) {
-		return st.Workflow.JsEngine.Evaluate(st.Task).(string)
+	if st.JsEngine.IsEvaluatableScriptString(st.Task) {
+		return st.JsEngine.Evaluate(st.Task).(string)
 	}
 
 	return st.Task
 }
 
-func (st *ScheduledTask) Initialize(workflow *StackupWorkflow) {
+func (st *ScheduledTask) Initialize(workflow *StackupWorkflow, engine *scripting.JavaScriptEngine) {
 	st.Workflow = workflow
+	st.JsEngine = engine
 
 	if workflow.JsEngine.IsEvaluatableScriptString(st.Task) {
 		st.Task = workflow.JsEngine.Evaluate(st.Task).(string)

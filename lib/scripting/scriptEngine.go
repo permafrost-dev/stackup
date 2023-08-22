@@ -12,18 +12,21 @@ import (
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
+type FindTaskByIdFunc func(string) (any, error)
+
 type JavaScriptEngine struct {
 	Vm                     *otto.Otto
 	AppVars                *sync.Map
 	AppGateway             *gateway.Gateway
 	Functions              *JavaScriptFunctions
 	GetApplicationIconPath func() string
+	FindTaskById           FindTaskByIdFunc
 	Registry               *sync.Map
 	InstalledExtensions    *sync.Map
 	types.JavaScriptEngineContract
 }
 
-func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, getAppIconFunc func() string) *JavaScriptEngine {
+func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, findTaskFunc FindTaskByIdFunc, getAppIconFunc func() string) *JavaScriptEngine {
 	result := &JavaScriptEngine{
 		Vm:                     otto.New(),
 		AppVars:                vars,
@@ -31,6 +34,7 @@ func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, getAppI
 		GetApplicationIconPath: getAppIconFunc,
 		Registry:               &sync.Map{},
 		InstalledExtensions:    &sync.Map{},
+		FindTaskById:           findTaskFunc,
 	}
 
 	result.Init()
@@ -64,11 +68,6 @@ func (e *JavaScriptEngine) toInterface() interface{} {
 
 func (e *JavaScriptEngine) AsContract() types.JavaScriptEngineContract {
 	return e.toInterface().(types.JavaScriptEngineContract)
-}
-
-func (e *JavaScriptEngine) AsContractPtr() *types.JavaScriptEngineContract {
-	var result types.JavaScriptEngineContract = e.AsContract()
-	return &result
 }
 
 func (e *JavaScriptEngine) Init() {
