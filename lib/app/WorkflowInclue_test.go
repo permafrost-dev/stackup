@@ -27,11 +27,13 @@ func TestWorkflowIncdeGetChecksumAlforithm(t *testing.T) {
 
 	for url, expected := range hashUrls {
 		wi := app.WorkflowInclude{ChecksumUrl: url}
-		assert.Equal(t, expected, wi.GetChecksumAlgorithm(), "expected %s for url %s", expected, url)
+		wi.UpdateChecksumAlgorithm()
+		assert.Equal(t, expected, wi.HashAlgorithm, "expected %s for url %s", expected, url)
 	}
 
 	for name, length := range hashLengths {
 		wi := app.WorkflowInclude{FoundChecksum: strings.Repeat("a", length)}
-		assert.Equal(t, name, wi.GetChecksumAlgorithm())
+		wi.UpdateChecksumAlgorithm()
+		assert.Equal(t, name, wi.HashAlgorithm)
 	}
 }

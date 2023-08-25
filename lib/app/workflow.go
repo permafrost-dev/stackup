@@ -32,6 +32,7 @@ type StackupWorkflow struct {
 	Servers        []*TaskReference        `yaml:"servers"`
 	Scheduler      []*ScheduledTask        `yaml:"scheduler"`
 	Includes       []WorkflowInclude       `yaml:"includes"`
+	Debug          bool                    `yaml:"debug"`
 	State          WorkflowState
 	Cache          *cache.Cache
 	JsEngine       *scripting.JavaScriptEngine
@@ -240,7 +241,6 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 		wgPreload.Add(1)
 		go func(s string) {
 			defer wgPreload.Done()
-			fmt.Printf("url == %s\n", s)
 			workflow.Gateway.GetUrl(s)
 		}(url)
 	}
@@ -288,21 +288,15 @@ func (workflow *StackupWorkflow) GetPossibleIncludedChecksumUrls() []string {
 	return utils.GetUniqueStrings(result)
 }
 
-func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) (*cache.CacheEntry, bool) {
+func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) bool {
 	if !workflow.Cache.Has(include.Identifier()) {
-		return nil, false
+		return false
 	}
 
 	data, loaded := workflow.Cache.Get(include.Identifier())
+	include.SetLoadedFromCache(loaded, data)
 
-	if loaded {
-		include.FromCache = true
-		include.Hash = data.Hash
-		include.HashAlgorithm = data.Algorithm
-		include.Contents = data.Value
-	}
-
-	return data, loaded
+	return loaded
 }
 
 func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude) error {
@@ -312,30 +306,21 @@ func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude)
 		return err
 	}
 
-	include.UpdateHash()
 	workflow.Cache.Set(include.Identifier(), include.NewCacheEntry(), workflow.Settings.Cache.TtlMinutes)
 
 	return nil
 }
 
 func (workflow *StackupWorkflow) handleChecksumVerification(include *WorkflowInclude) bool {
-	if !include.IsRemoteUrl() {
-		return true
-	}
+	var result bool
+	result = include.ValidateChecksum()
 
-	if !include.VerifyChecksum {
-		return true
-	}
-
-	include.ValidateChecksum()
-
-	if include.ValidationState == ChecksumVerificationStateMismatch && workflow.Settings.ExitOnChecksumMismatch {
+	if include.ValidationState.IsMismatch() && workflow.Settings.ExitOnChecksumMismatch {
 		support.FailureMessageWithXMark("Exiting due to checksum mismatch.")
 		workflow.ExitAppFunc()
-		return false
 	}
 
-	return true
+	return result
 }
 
 // prepend the included preconditions; we reverse the order of the preconditions in the included file,
@@ -395,15 +380,18 @@ func (workflow *StackupWorkflow) loadAndImportInclude(rawYaml string) error {
 func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) error {
 	include.Initialize(workflow)
 
-	_, loaded := workflow.tryLoadingCachedData(include)
+	loaded := workflow.tryLoadingCachedData(include)
 
 	if !loaded {
-		fmt.Printf("not loaded from cache: %s\n", include.DisplayUrl())
+		if workflow.Debug {
+			fmt.Printf(" [debug] include not loaded from cache: %s\n", include.DisplayUrl())
+		}
 
 		if err := workflow.loadRemoteFileInclude(include); err != nil {
 			support.FailureMessageWithXMark("remote include (rejected: " + err.Error() + "): " + include.DisplayName())
 			return err
 		}
+
 		loaded = true
 	}
 
@@ -420,8 +408,8 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) error 
 	}
 
 	if !workflow.handleChecksumVerification(include) {
-		support.FailureMessageWithXMark("checksum verification failed: " + include.DisplayName())
-		return fmt.Errorf("checksum verification failed: %s", include.DisplayName())
+		// support.FailureMessageWithXMark("checksum verification failed: " + include.DisplayName())
+		// return fmt.Errorf("remote include checksum verification failed: %s", include.DisplayName())
 	}
 
 	support.SuccessMessageWithCheck("remote include (" + include.LoadedStatusText() + "): " + include.DisplayName())

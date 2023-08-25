@@ -121,6 +121,11 @@ func (a *Application) Initialize() {
 	a.handleFlagOptions()
 
 	a.loadWorkflowFile(a.ConfigFilename, a.Workflow)
+
+	if !a.Workflow.Debug {
+		a.Workflow.Debug = os.Getenv("DEBUG") == "true" || os.Getenv("DEBUG") == "1"
+	}
+
 	a.Analytics = telemetry.New(a.Workflow.Settings.AnonymousStatistics, a.Gateway)
 	godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
 
@@ -129,6 +134,7 @@ func (a *Application) Initialize() {
 	a.Gateway.Cache = a.Workflow.Cache
 	a.Workflow.Initialize(a.JsEngine, a.GetConfigurationPath())
 	a.JsEngine.Initialize(a.Vars, os.Environ())
+	a.Gateway.Debug = a.Workflow.Debug
 
 	a.Analytics.EventOnly("app.start")
 	a.checkForApplicationUpdates(!*a.flags.NoUpdateCheck)
@@ -349,7 +355,7 @@ func (a *Application) DownloadApplicationIcon() {
 		return
 	}
 
-	utils.SaveUrlToFile("https://raw.githubusercontent.com/"+consts.APP_REPOSITORY+"/main/assets/stackup-app-512px.png", filename)
+	a.Gateway.SaveUrlToFile("https://raw.githubusercontent.com/"+consts.APP_REPOSITORY+"/main/assets/stackup-app-512px.png", filename)
 }
 
 func (a Application) GetWorkflowContract() *types.AppWorkflowContract {
@@ -369,6 +375,7 @@ func (a *Application) runInitScript() {
 
 func (a *Application) Run() {
 	a.Initialize()
+	defer a.Workflow.Cache.Cleanup(false)
 
 	a.hookSignals()
 	a.hookKeyboard()

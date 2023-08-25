@@ -25,12 +25,15 @@ func BinaryExistsInPath(binary string) bool {
 }
 
 func KillProcessOnWindows(cmd *exec.Cmd) error {
-	cmd.Process.Kill()
-	return nil
+	return cmd.Process.Kill()
 }
 
 func WaitForStartOfNextMinute() {
-	time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
+	WaitForStartOfNextInterval(time.Minute)
+}
+
+func WaitForStartOfNextInterval(interval time.Duration) {
+	time.Sleep(time.Until(time.Now().Truncate(interval).Add(interval)))
 }
 
 func AbsoluteFilePath(path string) string {
@@ -110,19 +113,19 @@ func GetUrlContents(url string) (string, error) {
 	return string(body), nil
 }
 
-func GetUrlJson(url string) (interface{}, error) {
+func GetUrlJson(url string, result any) error {
 	body, err := GetUrlContents(url)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var data interface{}
-	err = json.Unmarshal([]byte(body), &data)
+	// var data interface{}
+	err = json.Unmarshal([]byte(body), &result)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return data, nil
+	return nil
 }
 
 func IsFile(filename string) bool {
@@ -143,11 +146,36 @@ func IsDir(filename string) bool {
 	return info.IsDir()
 }
 
+func FileSize(filename string) int64 {
+	var result int64 = 0
+
+	if info, err := os.Stat(filename); err == nil {
+		result = info.Size()
+	}
+
+	return result
+}
+
 func FileExists(filename string) bool {
-	if _, err := os.Stat(filename); err == nil {
-		return true
+	if st, err := os.Stat(filename); err == nil {
+		return !st.IsDir()
 	}
 	return false
+}
+
+func PathExists(pathname string) bool {
+	if st, err := os.Stat(pathname); err == nil {
+		return st.IsDir()
+	}
+	return false
+}
+
+func RemoveFile(filename string) error {
+	if !FileExists(filename) && !PathExists(filename) {
+		return nil
+	}
+
+	return os.Remove(filename)
 }
 
 func MatchesPattern(s string, pattern string) bool {
@@ -165,25 +193,8 @@ func StringArrayContains(arr []string, s string) bool {
 	return false
 }
 
-func SaveUrlToFile(url string, filename string) error {
-	out, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		return err
-	}
-
-	return nil
+func SaveStringToFile(contents string, filename string) error {
+	return os.WriteFile(filename, []byte(contents), 0644)
 }
 
 func GenerateTaskUuid() string {
@@ -192,6 +203,8 @@ func GenerateTaskUuid() string {
 
 func GenerateShortID(length ...int) string {
 	var charCount = 8
+	var result string = ""
+
 	if len(length) > 0 {
 		charCount = length[0]
 	}
@@ -200,29 +213,53 @@ func GenerateShortID(length ...int) string {
 	charset := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 	// Generate a random number for each character in the short ID
-	var result string
 	for i := 0; i < charCount; i++ {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		if err != nil {
-			continue
+		if n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset)))); err == nil {
+			result += string(charset[n.Int64()])
 		}
-
-		result += string(charset[n.Int64()])
 	}
 
 	return result
 }
 
-func ReplaceFilenameInUrl(u string, newFilename string) (string, error) {
-	parsedUrl, err := url.Parse(u)
-	if err != nil {
-		return "", err
+func UrlBasePath(u string) string {
+	var parsedUrl *url.URL
+	var err error
+
+	if parsedUrl, err = url.Parse(u); err != nil {
+		// failed to parse the url, so try to parse it manually
+		parts := strings.Split(u, "/")
+		length := len(parts)
+		if !strings.HasSuffix(u, "/") {
+			length--
+		}
+		return strings.Join(parts[1:length], "/")
 	}
 
-	// Replace the filename in the URL path
-	parsedUrl.Path = path.Join(path.Dir(parsedUrl.Path), newFilename)
+	baseFn := path.Base(parsedUrl.Path)
+	result := strings.Replace(parsedUrl.String(), "/"+baseFn, "", 1)
 
-	return parsedUrl.String(), nil
+	if parsedUrl, err = url.Parse(result); err == nil {
+		result = parsedUrl.String()
+	}
+
+	result = strings.Replace(result, "?"+parsedUrl.Query().Encode(), "", 1)
+
+	return strings.TrimSuffix(result, "/")
+}
+
+func ReplaceFilenameInUrl(u string, newFilename string) string {
+	var result string = u + newFilename
+	if !strings.HasSuffix(u, "/") {
+		result = UrlBasePath(u) + "/" + newFilename
+	}
+
+	parsedUrl, err := url.Parse(result)
+	if err == nil {
+		result = parsedUrl.String()
+	}
+
+	return strings.TrimSuffix(result, "/")
 }
 
 func GetUniqueStrings(items []string) []string {
@@ -237,22 +274,31 @@ func GetUniqueStrings(items []string) []string {
 	return uniqueItems
 }
 
-func EnsureConfigDirExists(appName string) (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
+func GetDefaultConfigurationBasePath(path string, defaultPath string) string {
+	var err error
+
+	if path == "~" || path == "" {
+		if path, _ = os.UserHomeDir(); err != nil {
+			return defaultPath
+		}
+	}
+
+	return path
+}
+
+func MakeConfigurationPath(path string, appName string) string {
+	appName = "." + strings.TrimPrefix(appName, ".")
+	return filepath.Join(GetDefaultConfigurationBasePath(path, "."), appName)
+}
+
+func EnsureConfigDirExists(homeDir string, appName string) (string, error) {
+	result := MakeConfigurationPath(GetDefaultConfigurationBasePath(homeDir, "."), appName)
+
+	if err := os.MkdirAll(result, 0744); err != nil {
 		return "", err
 	}
 
-	// Append the directory name to the home directory
-	configDir := filepath.Join(homeDir, "."+appName)
-
-	// Ensure the directory exists
-	err = os.MkdirAll(configDir, 0744)
-	if err != nil {
-		return "", err
-	}
-
-	return configDir, nil
+	return result, nil
 }
 
 func DomainGlobMatch(pattern string, s string) bool {
@@ -260,19 +306,19 @@ func DomainGlobMatch(pattern string, s string) bool {
 }
 
 func GlobMatch(pattern string, s string, optional bool) bool {
+	var match glob.Glob
+	var err error
+
 	if pattern == "*" {
 		return len(s) > 0
 	}
 
-	if !optional {
-		return glob.
-			MustCompile(pattern, '.').
-			Match(s)
+	if match, err = glob.Compile(pattern); err != nil {
+		return false
 	}
 
-	match, err := glob.Compile(pattern)
-	if err != nil {
-		return false
+	if !optional {
+		match = glob.MustCompile(pattern, '.')
 	}
 
 	return match.Match(s)
@@ -287,11 +333,11 @@ func FsSafeName(name string) string {
 }
 
 func EnforceSuffix(s string, suffix string) string {
-	if !strings.HasSuffix(s, suffix) {
-		return s + suffix
+	if suffix == "" {
+		return s
 	}
 
-	return s
+	return strings.TrimSuffix(s, suffix) + suffix
 }
 
 func ReverseArray[T any](items []T) []T {
@@ -302,59 +348,56 @@ func ReverseArray[T any](items []T) []T {
 	return items
 }
 
-func CombineArrays[T any](a []T, b []T) []T {
+func CombineArrays[T any](arrays ...[]T) []T {
 	result := []T{}
 
-	result = append(result, a...)
-	result = append(result, b...)
+	for _, arr := range arrays {
+		result = append(result, arr...)
+	}
 
 	return result
 }
 
 // casts the items in `toAppend` to the same type as the items in `items`, then
 // returns a new array containing the two items from both arrays combined
-func CastAndCombineArrays[T interface{}, R any](items []*T, toAppend []R) []*T {
-	result := []*T{}
-	casted := []*T{}
+func CastAndCombineArrays[T any, R any](items []T, toAppend []R) []T {
+	casted := []T{}
 
 	for _, item := range toAppend {
 		var temp interface{} = item
 		var castedItem T = (temp).(T)
-		casted = append(casted, &castedItem)
+		casted = append(casted, castedItem)
 	}
 
-	result = append(result, items...)
-	result = append(result, casted...)
+	return CombineArrays(items, casted)
+}
+
+func Max(args ...int) int {
+	if len(args) == 0 {
+		return 0
+	}
+
+	result := args[0]
+	for _, value := range args {
+		if value > result {
+			result = value
+		}
+	}
 
 	return result
 }
 
-func CastArrayItems[T interface{}, R any](items []*T, toAppend []R) []*T {
-	result := []*T{}
-	casted := []*T{}
-
-	for _, item := range toAppend {
-		var temp interface{} = item
-		var castedItem T = (temp).(T)
-		casted = append(casted, &castedItem)
+func Min(args ...int) int {
+	if len(args) == 0 {
+		return 0
 	}
 
-	result = append(result, items...)
-	result = append(result, casted...)
+	result := args[0]
+	for _, value := range args {
+		if value < result {
+			result = value
+		}
+	}
 
 	return result
-}
-
-func Max(x, y int) int {
-	if x < y {
-		return y
-	}
-	return x
-}
-
-func Min(x, y int) int {
-	if x < y {
-		return x
-	}
-	return y
 }

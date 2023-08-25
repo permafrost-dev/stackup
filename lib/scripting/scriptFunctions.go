@@ -83,7 +83,8 @@ func (jsf *JavaScriptFunctions) createFetchFunction(call otto.FunctionCall) otto
 }
 
 func (jsf *JavaScriptFunctions) createFetchJsonFunction(call otto.FunctionCall) otto.Value {
-	result, _ := utils.GetUrlJson(call.Argument(0).String())
+	var result interface{}
+	utils.GetUrlJson(call.Argument(0).String(), &result)
 
 	return getResult(call, result)
 }

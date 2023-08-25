@@ -11,10 +11,12 @@ type Settings struct {
 	Gateway                WorkflowSettingsGateway       `yaml:"gateway"`
 	Notifications          WorkflowSettingsNotifications `yaml:"notifications"`
 }
+
 type GatewayContentTypes struct {
 	Blocked []string `yaml:"blocked"`
 	Allowed []string `yaml:"allowed"`
 }
+
 type WorkflowSettingsGateway struct {
 	ContentTypes   *GatewayContentTypes                   `yaml:"content-types"`
 	FileExtensions *WorkflowSettingsGatewayFileExtensions `yaml:"file-extensions"`

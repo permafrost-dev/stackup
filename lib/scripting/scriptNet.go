@@ -6,13 +6,13 @@ import (
 )
 
 type ScriptNet struct {
-    engine *JavaScriptEngine
+	engine *JavaScriptEngine
 }
 
 func CreateScriptNetObject(e *JavaScriptEngine) {
 	obj := &ScriptNet{
-        engine: e,
-    }
+		engine: e,
+	}
 	e.Vm.Set("net", obj)
 }
 
@@ -33,16 +33,17 @@ func (net *ScriptNet) FetchJson(url string) any {
 		return interface{}(nil)
 	}
 
-	result, _ := utils.GetUrlJson(url)
+	var result interface{} = nil
+	utils.GetUrlJson(url, result)
 
 	return result
 }
 
 func (net *ScriptNet) DownloadTo(url string, filename string) {
 	if !net.engine.AppGateway.Allowed(url) {
-		support.FailureMessageWithXMark("download failed: access to " + url + " is not allowed.")
+		support.FailureMessageWithXMark(" [script] DownloadTo() failed: access to '" + url + "' is not allowed.")
 		return
 	}
 
-	utils.SaveUrlToFile(url, filename)
+	net.engine.AppGateway.SaveUrlToFile(url, filename)
 }

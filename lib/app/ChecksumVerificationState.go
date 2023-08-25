@@ -42,6 +42,22 @@ func (x ChecksumVerificationState) String() string {
 	return fmt.Sprintf("ChecksumVerificationState(%d)", x)
 }
 
+func (x ChecksumVerificationState) IsVerified() bool {
+	return x == ChecksumVerificationStateVerified
+}
+
+func (x ChecksumVerificationState) IsPending() bool {
+	return x == ChecksumVerificationStatePending
+}
+
+func (x ChecksumVerificationState) IsMismatch() bool {
+	return x == ChecksumVerificationStateMismatch
+}
+
+func (x ChecksumVerificationState) IsError() bool {
+	return x == ChecksumVerificationStateError
+}
+
 // IsValid provides a quick way to determine if the typed value is
 // part of the allowed enumerated values
 func (x ChecksumVerificationState) IsValid() bool {
@@ -79,4 +95,19 @@ func (x *ChecksumVerificationState) UnmarshalText(text []byte) error {
 	}
 	*x = tmp
 	return nil
+}
+
+func (x *ChecksumVerificationState) SetVerified(value bool) {
+	value = value && !x.IsError()
+
+	if value {
+		*x = ChecksumVerificationStateVerified
+		return
+	}
+
+	*x = ChecksumVerificationStateMismatch
+}
+
+func (x *ChecksumVerificationState) Reset() {
+	*x = ChecksumVerificationStateNotVerified
 }

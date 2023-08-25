@@ -48,6 +48,7 @@ type Gateway struct {
 	HttpClient          *http.Client
 	Settings            *settings.Settings
 	Cache               *cache.Cache
+	Debug               bool
 }
 
 // New initializes the gateway with deny/allow lists
@@ -357,6 +358,16 @@ func (g *Gateway) processHeaders(headers []string) []string {
 	return result
 }
 
+func (g *Gateway) SaveUrlToFile(url string, filename string) error {
+	result, err := g.GetUrl(url)
+
+	if err != nil {
+		return err
+	}
+
+	return utils.SaveStringToFile(result, filename)
+}
+
 // GetUrl returns the contents of a URL as a string, assuming it
 // is allowed by the gateway, otherwise it returns an error.
 func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
@@ -374,7 +385,6 @@ func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 	}
 
 	if g.HasCache() {
-		// fmt.Printf(" [gateway] checking cache for response to %s\n", urlStr)
 		entry, _ := g.Cache.Get(g.CacheKeyFor(urlStr))
 		if entry != nil {
 			err := json.Unmarshal([]byte(entry.Value), response)
@@ -390,7 +400,9 @@ func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 		}
 	}
 
-	fmt.Printf("gateway.get url == %s\n", urlStr)
+	if g.Debug {
+		fmt.Printf(" [debug] [gateway.GetUrl]: %s\n", urlStr)
+	}
 
 	var allHeaders []string = []string{"User-Agent: stackup/1.0"}
 

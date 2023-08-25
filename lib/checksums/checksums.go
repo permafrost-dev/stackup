@@ -5,104 +5,58 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"fmt"
-	"path"
 	"regexp"
 	"strings"
-
-	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type Checksum struct {
-	Hash     string
-	Filename string
+	Hash      string
+	Algorithm ChecksumAlgorithm
+	Filename  string
 }
 
-func ParseChecksumFileContents(contents string) ([]*Checksum, error) {
-	lines := strings.Split(strings.TrimSpace(contents), "\n")
-
-	// Parse each line into a Checksum struct
-	var checksums []*Checksum
-	lines = strings.Split(lines[0], "\n")
-
-	for _, line := range lines {
-		line = strings.ReplaceAll(line, "\t", " ")
-		re, _ := regexp.Compile(`\s{2,}`)
-		line = re.ReplaceAllString(line, " ")
-		hash, fn, err := MatchHashAndFilename(line)
-		if err != nil {
-			continue
-		}
-
-		// Create a new Checksum struct and append it to the array
-		checksums = append(checksums, &Checksum{
-			Hash:     hash,
-			Filename: fn,
-		})
-	}
-
-	return checksums, nil
-}
-
-func FindChecksumForFilename(filename string, contents string) *Checksum {
-	// re := regexp.MustCompile(`([a-fA-F0-9]{48,})[\t\s]+(` + filename + `)`)
-	// matches := re.FindAllStringSubmatch(contents, -1)
-	mapped := ParseChecksumsIntoMap(contents)
-	result, ok := mapped[filename]
-
+func FindFilenameChecksum(filename string, contents string) *Checksum {
+	result, ok := parseChecksumFileContentsIntoMap(contents)[filename]
 	if !ok {
 		return nil
 	}
-
 	return result
 }
 
-func ParseChecksumsIntoMap(contents string) map[string]*Checksum {
-	contents = strings.ReplaceAll(contents, "\\n", "  # \n")
-
-	contents = strings.ReplaceAll(contents, "\t", " ")
-	lines := strings.Split(contents, "\\n")
-	lines = strings.Split(lines[0], "\n")
-
+func parseChecksumFileContentsIntoMap(contents string) map[string]*Checksum {
+	lines := stringToLines(contents)
 	result := map[string]*Checksum{}
 
 	for _, line := range lines {
-		hash, fn, _ := MatchHashAndFilename(line)
-		if hash == "" || fn == "" {
-			continue
+		hash, fn, _ := matchHashAndFilename(line)
+		if hash != "" && fn != "" {
+			result[fn] = &Checksum{Hash: hash, Filename: fn, Algorithm: ChecksumAlgorithmSha256}
 		}
-		result[fn] = &Checksum{Hash: hash, Filename: fn}
 	}
 
 	return result
 }
 
-func FindChecksumForFileFromUrl(checksums []*Checksum, url string) *Checksum {
-	for _, checksum := range checksums {
-		if path.Base(checksum.Filename) == path.Base(url) {
-			return checksum
-		}
-	}
+func stringToLines(contents string) []string {
+	contents = strings.TrimSpace(contents)
+	contents = strings.ReplaceAll(contents, "\\n", "  # \n")
+	contents = strings.ReplaceAll(contents, "\t", " ")
 
-	return nil
+	lines := strings.Split(contents, "\\n")
+	lines = strings.Split(lines[0], "\n")
+
+	return lines
 }
 
-func MatchHashAndFilename(input string) (string, string, error) {
-	// Define the regular expression pattern
+func matchHashAndFilename(input string) (string, string, error) {
 	pattern := `([a-fA-F0-9]{48,})[\s\t]+([\w\d_\-\.\/\\]+)`
+	regex := regexp.MustCompile(pattern)
 
-	// Compile the regular expression
-	regex, err := regexp.Compile(pattern)
-	if err != nil {
-		return "", "", err
-	}
-
-	// Match the input string against the regular expression
 	matches := regex.FindStringSubmatch(input)
 	if len(matches) != 3 {
 		return "", "", fmt.Errorf("input string does not match pattern")
 	}
 
-	// Extract the hash and filename from the matches
 	hash := matches[1]
 	filename := matches[2]
 
@@ -110,25 +64,67 @@ func MatchHashAndFilename(input string) (string, string, error) {
 }
 
 func CalculateSha256Hash(input string) string {
-	inputBytes := []byte(input)
-	hashBytes := sha256.Sum256(inputBytes)
-
-	// Convert the hash bytes to a hex string
-	hashString := hex.EncodeToString(hashBytes[:])
-
-	return hashString
+	hashBytes := sha256.Sum256([]byte(input))
+	return hex.EncodeToString(hashBytes[:])
 }
 
 func CalculateSha512Hash(input string) string {
-	inputBytes := []byte(input)
-	hashBytes := sha512.Sum512(inputBytes)
-	hashString := hex.EncodeToString(hashBytes[:])
-
-	return hashString
+	hashBytes := sha512.Sum512([]byte(input))
+	return hex.EncodeToString(hashBytes[:])
 }
 
-func (c *Checksum) FilenameAsUrl(baseUrl string) string {
-	result, _ := utils.ReplaceFilenameInUrl(baseUrl, c.Filename)
+func DetermineChecksumAlgorithm(hashes []string, checksumUrl string) ChecksumAlgorithm {
+	result := ChecksumAlgorithmUnsupported
+
+	// find the algorithm using length of the hash
+	if algorithm := matchAlgorithmByLength(hashes); !result.IsSupportedAlgorithm() && algorithm.IsSupportedAlgorithm() {
+		result = algorithm
+	}
+
+	// find the algorithm using the checksum url
+	if algorithm := matchAlgorithmByUrl(checksumUrl); !result.IsSupportedAlgorithm() && algorithm.IsSupportedAlgorithm() {
+		result = algorithm
+	}
 
 	return result
+}
+
+func matchAlgorithmByUrl(url string) ChecksumAlgorithm {
+	// regex to match against checksum filenames
+	patterns := map[ChecksumAlgorithm]*regexp.Regexp{
+		ChecksumAlgorithmSha256: regexp.MustCompile("sha256(sum|\\.txt)"),
+		ChecksumAlgorithmSha512: regexp.MustCompile("sha512(sum|\\.txt)"),
+	}
+
+	for name, pattern := range patterns {
+		if pattern.MatchString(url) {
+			return name
+		}
+	}
+
+	return ChecksumAlgorithmUnsupported
+}
+
+func matchAlgorithmByLength(hashes []string) ChecksumAlgorithm {
+	// hash length to name mapping
+	hashTypeMap := map[int]ChecksumAlgorithm{
+		16:  ParseChecksumAlgorithm("md4"),
+		32:  ParseChecksumAlgorithm("md5"),
+		40:  ParseChecksumAlgorithm("sha1"),
+		64:  ParseChecksumAlgorithm("sha256"),
+		96:  ParseChecksumAlgorithm("sha384"),
+		128: ParseChecksumAlgorithm("sha512"),
+	}
+
+	for _, hash := range hashes {
+		if hashType, ok := hashTypeMap[len(hash)]; ok {
+			return hashType
+		}
+	}
+
+	return ChecksumAlgorithmUnsupported
+}
+
+func HashesMatch(hash1 string, hash2 string) bool {
+	return strings.EqualFold(hash1, hash2) && hash1 != ""
 }

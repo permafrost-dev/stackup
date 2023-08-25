@@ -8,14 +8,14 @@ import (
 )
 
 func TestGatewayEnable(t *testing.T) {
-	g := gateway.New()
+	g := gateway.New(nil)
 	g.Enabled = false
 	g.Enable()
 	assert.True(t, g.Enabled, "gateway should be enabled")
 }
 
 func TestGatewayDisable(t *testing.T) {
-	g := gateway.New()
+	g := gateway.New(nil)
 	g.Enabled = true
 	g.Disable()
 	assert.False(t, g.Enabled, "gateway should be disabled")

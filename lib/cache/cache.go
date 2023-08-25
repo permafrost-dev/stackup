@@ -64,6 +64,17 @@ func NewCacheEntry(obj any, ttlMinutes int) *CacheEntry {
 	}
 }
 
+func CreateCarbonNowPtr() *carbon.Carbon {
+	result := carbon.Now()
+	return &result
+}
+
+func CreateExpiresAtPtr(ttlMinutes int) *carbon.Carbon {
+	result := CreateCarbonNowPtr().AddMinutes(ttlMinutes)
+
+	return &result
+}
+
 func (c *Cache) AutoPurgeInterval() time.Duration {
 	interval, err := time.ParseDuration("60s")
 	if err != nil {
@@ -76,6 +87,7 @@ func (c *Cache) AutoPurgeInterval() time.Duration {
 func (c *Cache) Cleanup(removeFile bool) {
 	if c.Db != nil {
 		c.Db.Close()
+		c.Db = nil
 	}
 
 	if removeFile && utils.FileExists(c.Filename) {
@@ -175,27 +187,32 @@ func (c *Cache) startAutoPurge() {
 
 // The `Get` function in the `Cache` struct is used to retrieve the value of a cache entry with a given
 // key. It takes a `key` parameter (string) and returns the corresponding value (string).
+// returns a valid, unexpired cache item or nil if the item is expired or not found.
+// note: do not call `Cache.Has()` from here.
 func (c *Cache) Get(key string) (*CacheEntry, bool) {
 	var err error
-
-	key = c.MakeKey(key)
-	result := &CacheEntry{Value: "", ExpiresAt: ""}
+	entry := &CacheEntry{}
 
 	c.Db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(c.Name))
-		bytes := bucket.Get([]byte(key))
-		err = json.Unmarshal(bytes, &result)
+		bytes := bucket.Get([]byte(c.MakeKey(key)))
+		err = json.Unmarshal(bytes, &entry)
+
+		if entry != nil {
+			entry.UpdateTimestampsFromStrings()
+			entry.DecodeValue()
+		}
 
 		return nil
 	})
 
-	if err != nil || result.IsExpired() {
+	// return nothing if there was an error or the entry was found, but is expired
+	if err != nil || entry.IsExpired() {
 		return nil, false
 	}
 
-	result.DecodeValue()
-
-	return result, true
+	// return a valid, unexpired cache item
+	return entry, true
 }
 
 // The `purgeExpired` function in the `Cache` struct is used to remove any cache entries that have
@@ -253,43 +270,33 @@ func (c *Cache) Set(key string, value *CacheEntry, ttlMinutes int) {
 		b := tx.Bucket([]byte(c.Name))
 
 		value.EncodeValue()
+		defer value.DecodeValue()
 
 		var err error
 		if code, err := json.Marshal(value); err == nil {
 			err = b.Put([]byte(key), code)
 		}
 
-		value.DecodeValue()
-
 		return err
 	})
 }
 
 // The `Has` function in the `Cache` struct is used to check if a cache entry with a given key exists
-// and is not expired. It calls the `Get` function to retrieve the value of the cache entry with the
-// given key and checks if the value is not empty (`c.Get(key) != ""`) and if the cache entry is not
-// expired (`!c.IsExpired(key)`). If both conditions are true, it returns `true`, indicating that the
-// cache entry exists and is valid. Otherwise, it returns `false`.
+// and is not expired.
 func (c *Cache) Has(key string) bool {
 	found := false
 
-	c.Db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(c.Name))
-		v := b.Get([]byte(key))
-		found = v != nil
-
-		if found {
-			item, _ := c.Get(key)
-			found = !item.IsExpired()
-		}
-		return nil
-	})
+	// c.Db.View(func(tx *bolt.Tx) error {
+	// b := tx.Bucket([]byte(c.Name))
+	//v := b.Get([]byte(key))
+	item, ok := c.Get(key)
+	if ok {
+		found = !item.IsExpired()
+	}
+	// return nil
+	// })
 
 	return found
-}
-
-func (c *Cache) HasUnexpired(key string) bool {
-	return c.Has(key) && !c.IsExpired(key)
 }
 
 // The `Remove` function in the `Cache` struct is used to remove a cache entry with a given key. It
