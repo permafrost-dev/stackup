@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -142,11 +143,7 @@ func (workflow *StackupWorkflow) Initialize(configPath string) {
 	workflow.Cache = cache.New("", configPath)
 	workflow.Cache.DefaultTtl = workflow.Settings.Cache.TtlMinutes
 	workflow.Settings = &settings.Settings{}
-
-	// generate uuids for each task as the initial step, as other code below relies on a uuid existing
-	for _, task := range workflow.Tasks {
-		task.Uuid = utils.GenerateTaskUuid()
-	}
+	workflow.processEnvSection()
 
 	// init the server, scheduler, and startup/shutdown items
 	for _, tr := range workflow.GetAllTaskReferences() {
@@ -156,8 +153,6 @@ func (workflow *StackupWorkflow) Initialize(configPath string) {
 	for _, pc := range workflow.Preconditions {
 		pc.Workflow = workflow
 	}
-
-	workflow.processEnvSection()
 
 	for _, task := range workflow.Tasks {
 		task.JsEngine = workflow.JsEngine
@@ -259,7 +254,7 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 		wg.Add(1)
 		go func(inc WorkflowInclude) {
 			defer wg.Done()
-			inc.Process(workflow)
+			workflow.ProcessInclude(&inc)
 		}(include)
 	}
 	wg.Wait()
@@ -300,10 +295,11 @@ func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude)
 
 func (workflow *StackupWorkflow) cacheFetchedRemoteInclude(include *WorkflowInclude) *cache.CacheEntry {
 	include.Hash = checksums.CalculateSha256Hash(include.Contents)
+	include.HashAlgorithm = "sha256"
 	expires := carbon.Now().AddMinutes(workflow.Settings.Cache.TtlMinutes)
 
 	item := workflow.Cache.CreateEntry(
-		include.DisplayName(),
+		include.Identifier(),
 		include.Contents,
 		&expires,
 		include.Hash,
@@ -395,6 +391,43 @@ func (workflow *StackupWorkflow) loadAndImportInclude(include *WorkflowInclude) 
 	if len(template.Init) > 0 {
 		workflow.Init += "\n" + template.Init
 	}
+
+	return nil
+}
+
+func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) error {
+	include.Workflow = workflow
+
+	data := workflow.tryLoadingCachedData(include)
+	loaded := data != nil
+
+	if loaded {
+		if err := workflow.loadAndImportInclude(include); err != nil {
+			support.FailureMessageWithXMark("include from cache failed: (" + err.Error() + "): " + include.DisplayName())
+			return err
+		}
+	}
+
+	if !loaded {
+		if err := workflow.loadRemoteFileInclude(include); err != nil {
+			support.FailureMessageWithXMark("remote include (rejected: " + err.Error() + "): " + include.DisplayName())
+			return err
+		}
+
+		loaded = true
+	}
+
+	if !loaded {
+		support.FailureMessageWithXMark("remote include failed: " + include.DisplayName())
+		return fmt.Errorf("unable to load remote include: %s", include.DisplayName())
+	}
+
+	if loaded && !workflow.handleChecksumVerification(include) {
+		support.FailureMessageWithXMark("checksum verification failed: " + include.DisplayName())
+		return fmt.Errorf("checksum verification failed: %s", include.DisplayName())
+	}
+
+	support.SuccessMessageWithCheck("remote include (" + include.LoadedStatusText() + "): " + include.DisplayName())
 
 	return nil
 }

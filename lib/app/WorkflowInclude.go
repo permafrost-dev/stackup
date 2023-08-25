@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/stackup-app/stackup/lib/checksums"
-	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
@@ -36,52 +35,15 @@ func (wi WorkflowInclude) Initialize(workflow *StackupWorkflow) {
 
 	// expand environment variables in the include headers
 	for i, v := range wi.Headers {
-		// if wi.Workflow.JsEngine.IsEvaluatableScriptString(v) {
-		// 	wi.Headers[i] = wi.Workflow.JsEngine.Evaluate(v).(string)
-		// }
+		if wi.Workflow.JsEngine.IsEvaluatableScriptString(v) {
+			wi.Headers[i] = wi.Workflow.JsEngine.Evaluate(v).(string)
+		}
 		wi.Headers[i] = os.ExpandEnv(v)
 	}
 
 	wi.VerifyChecksum = wi.Workflow.Settings.ChecksumVerification
 	wi.ValidationState = "not validated"
 	wi.ChecksumIsValid = nil
-}
-
-func (include *WorkflowInclude) Process(wf *StackupWorkflow) error {
-	include.Workflow = wf
-
-	data := wf.tryLoadingCachedData(include)
-	loaded := data != nil
-
-	if loaded {
-		if err := wf.loadAndImportInclude(include); err != nil {
-			support.FailureMessageWithXMark("include from cache failed: (" + err.Error() + "): " + include.DisplayName())
-			return err
-		}
-	}
-
-	if !loaded {
-		if err := wf.loadRemoteFileInclude(include); err != nil {
-			support.FailureMessageWithXMark("remote include (rejected: " + err.Error() + "): " + include.DisplayName())
-			return err
-		}
-
-		loaded = true
-	}
-
-	if !loaded {
-		support.FailureMessageWithXMark("remote include failed: " + include.DisplayName())
-		return fmt.Errorf("unable to load remote include: %s", include.DisplayName())
-	}
-
-	if !wf.handleChecksumVerification(include) {
-		support.FailureMessageWithXMark("checksum verification failed: " + include.DisplayName())
-		return fmt.Errorf("checksum verification failed: %s", include.DisplayName())
-	}
-
-	support.SuccessMessageWithCheck("remote include (" + include.LoadedStatusText() + "): " + include.DisplayName())
-
-	return nil
 }
 
 func (wi *WorkflowInclude) LoadedStatusText() string {
