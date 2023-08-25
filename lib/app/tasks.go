@@ -73,6 +73,8 @@ func (task *Task) CanRunConditionally() bool {
 }
 
 func (task *Task) Initialize() {
+	task.Uuid = utils.GenerateTaskUuid()
+
 	task.RunCount = 0
 	if task.MaxRuns <= 0 {
 		task.MaxRuns = 999999999
@@ -141,6 +143,9 @@ func (task *Task) Run(synchronous bool) {
 	// if cleanup != nil {
 	// 	defer cleanup()
 	// }
+	if task.Uuid == "" {
+		task.Uuid = utils.GenerateTaskUuid()
+	}
 
 	if task.RunCount >= task.MaxRuns && task.MaxRuns > 0 {
 		support.SkippedMessageWithSymbol(task.GetDisplayName())
@@ -169,16 +174,15 @@ func (task *Task) Run(synchronous bool) {
 	}
 
 	command := task.Command
+	if task.JsEngine.IsEvaluatableScriptString(command) {
+		command = task.JsEngine.Evaluate(command).(string)
+	}
 
 	support.StatusMessage(task.GetDisplayName()+"...", false)
 
 	if synchronous {
 		task.runWithStatusMessagesSync(task.Silent)
 		return
-	}
-
-	if task.JsEngine.IsEvaluatableScriptString(command) {
-		command = task.JsEngine.Evaluate(command).(string)
 	}
 
 	cmd := utils.StartCommand(command, task.Path, false)

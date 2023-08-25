@@ -197,8 +197,14 @@ func (a *Application) createScheduledTasks() {
 func (a *Application) stopServerProcesses() {
 	a.ProcessMap.Range(func(key any, value any) bool {
 		t := a.Workflow.FindTaskByUuid(key.(string))
-		support.StatusMessage("Stopping "+t.GetDisplayName()+"...", false)
-		a.KillCommandCallback(value.(*exec.Cmd))
+		if t != nil {
+			support.StatusMessage("Stopping "+t.GetDisplayName()+"...", false)
+		}
+
+		if value != nil {
+			a.KillCommandCallback(value.(*exec.Cmd))
+		}
+
 		support.PrintCheckMarkLine()
 
 		return true
@@ -243,7 +249,6 @@ func (a *Application) runServerTasks() {
 			continue
 		}
 
-		// task.JsEngine = a.JsEngine
 		task.Run(false)
 	}
 }
@@ -357,6 +362,7 @@ func (a *Application) Run() {
 	a.JsEngine.CreateAppVariables(a.Vars)
 
 	for _, t := range a.Workflow.Tasks {
+		t.Uuid = utils.GenerateTaskUuid()
 		t.JsEngine = a.JsEngine
 		t.CommandStartCb = a.CmdStartCallback
 		t.Initialize()
