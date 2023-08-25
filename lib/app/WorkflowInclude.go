@@ -3,9 +3,12 @@ package app
 import (
 	"fmt"
 	"os"
+	"path"
 	"regexp"
 	"strings"
 
+	"github.com/golang-module/carbon/v2"
+	"github.com/stackup-app/stackup/lib/cache"
 	"github.com/stackup-app/stackup/lib/checksums"
 	"github.com/stackup-app/stackup/lib/utils"
 )
@@ -20,7 +23,7 @@ type WorkflowInclude struct {
 	SecretKey         string   `yaml:"secret-key"`
 	Secure            bool     `yaml:"secure"`
 	ChecksumIsValid   *bool
-	ValidationState   string
+	ValidationState   ChecksumVerificationState
 	Contents          string
 	Hash              string
 	FoundChecksum     string
@@ -30,7 +33,7 @@ type WorkflowInclude struct {
 	Workflow          *StackupWorkflow
 }
 
-func (wi WorkflowInclude) Initialize(workflow *StackupWorkflow) {
+func (wi *WorkflowInclude) Initialize(workflow *StackupWorkflow) {
 	wi.Workflow = workflow
 
 	// expand environment variables in the include headers
@@ -42,46 +45,39 @@ func (wi WorkflowInclude) Initialize(workflow *StackupWorkflow) {
 	}
 
 	wi.VerifyChecksum = wi.Workflow.Settings.ChecksumVerification
-	wi.ValidationState = "not validated"
+	wi.ValidationState = ChecksumVerificationStateNotVerified
 	wi.ChecksumIsValid = nil
 }
 
 func (wi *WorkflowInclude) LoadedStatusText() string {
-	cachedText := "fetched"
+	result := "fetched"
+
 	if wi.FromCache {
-		cachedText = "cached"
-	}
-	if wi.ValidationState != "" {
-		cachedText += wi.ValidationState + ", " + cachedText
+		result = "cached"
 	}
 
-	return cachedText
+	return fmt.Sprintf("%s, %s", result, wi.ValidationState.String())
 }
 
 func (wi *WorkflowInclude) getChecksumFromContents(contents string) string {
-	checksumsArr, _ := checksums.ParseChecksumFileContents(contents)
-	checksum := checksums.FindChecksumForFileFromUrl(checksumsArr, wi.FullUrl())
-
-	if checksum != nil {
-		// fmt.Printf("found checksum: %s\n", checksum.Hash)
+	if checksum := checksums.FindChecksumForFilename(path.Base(wi.FullUrl()), contents); checksum != nil {
 		return checksum.Hash
 	}
 
-	//try to match a hash using regex
-	regex := regexp.MustCompile("^([a-fA-F0-9]{48,})$")
-	matches := regex.FindAllString(contents, -1)
+	fmt.Printf("error parsing checksums\n")
 
-	if len(matches) > 0 {
-		return matches[0]
-	}
-
-	return strings.TrimSpace(contents)
+	return "---"
 }
 
-func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, string, error) {
+func (wi *WorkflowInclude) ValidateChecksum() (bool, string, error) {
+	wi.ChecksumValidated = false
+	wi.ValidationState = ChecksumVerificationStateNotVerified
+
 	if !wi.Workflow.Settings.ChecksumVerification {
-		return true, "", nil
+		return true, wi.Hash, nil
 	}
+
+	wi.ValidationState = ChecksumVerificationStatePending
 
 	checksumUrls := []string{
 		wi.FullUrlPath() + "/checksums.txt",
@@ -93,41 +89,55 @@ func (wi *WorkflowInclude) ValidateChecksum(contents string) (bool, string, erro
 		wi.FullUrl() + ".sha512",
 	}
 
+	var checksumContents string = ""
 	for _, url := range checksumUrls {
-		var checksumContents string
 		var err error
+		temp, err := wi.Workflow.Gateway.GetUrl(url)
 
-		if checksumContents, err = wi.Workflow.Gateway.GetUrl(url); err != nil {
-			continue
+		if err == nil && temp != "" {
+			hasChecksum := strings.Contains(temp, path.Base(wi.FullUrl()))
+
+			if !hasChecksum {
+				hasChecksum = strings.HasSuffix(url, ".sha256") || strings.HasSuffix(url, ".sha512") && strings.Contains(url, path.Base(wi.FullUrl()))
+			}
+
+			if !hasChecksum {
+				continue
+			}
+
+			checksumContents = temp
+			wi.ChecksumUrl = url
+
+			break
 		}
+	}
 
-		wi.ChecksumUrl = url
+	if checksumContents != "" {
 		wi.FoundChecksum = wi.getChecksumFromContents(checksumContents)
 		wi.HashAlgorithm = wi.GetChecksumAlgorithm()
-		break
 	}
 
 	if wi.HashAlgorithm == "unknown" || wi.HashAlgorithm == "" {
+		wi.ValidationState = ChecksumVerificationStateError
 		return false, "", fmt.Errorf("unable to find valid checksum file for %s", wi.DisplayUrl())
 	}
 
-	hash := ""
+	wi.UpdateHash()
+	// fmt.Printf("Found checksum: %s\n", wi.FoundChecksum)
+	// fmt.Printf("Calculated checksum: %s\n", wi.Hash)
+	// fmt.Printf("Checksum algorithm: %s\n", wi.HashAlgorithm)
 
-	switch wi.HashAlgorithm {
-	case "sha256":
-		hash = checksums.CalculateSha256Hash(contents)
-		break
-	case "sha512":
-		hash = checksums.CalculateSha512Hash(contents)
-		break
-	default:
-		wi.SetChecksumIsValid(false)
-		return false, "", fmt.Errorf("unsupported algorithm: %s", wi.HashAlgorithm)
+	wi.SetChecksumIsValid(strings.EqualFold(wi.Hash, wi.FoundChecksum))
+	wi.ChecksumValidated = *wi.ChecksumIsValid
+	// fmt.Printf("Checksum is valid: %v\n", *wi.ChecksumIsValid)
+
+	if *wi.ChecksumIsValid {
+		wi.ValidationState = ChecksumVerificationStateVerified
+	} else {
+		wi.ValidationState = ChecksumVerificationStateMismatch
 	}
 
-	wi.SetChecksumIsValid(strings.EqualFold(hash, wi.FoundChecksum))
-
-	return *wi.ChecksumIsValid, hash, nil
+	return *wi.ChecksumIsValid, wi.Hash, nil
 }
 
 func (wi *WorkflowInclude) IsLocalFile() bool {
@@ -195,7 +205,7 @@ func (wi *WorkflowInclude) GetChecksumAlgorithm() string {
 	}
 
 	for name, pattern := range patterns {
-		fmt.Printf("Checking %s against %s\n", wi.ChecksumUrl, pattern)
+		// fmt.Printf("Checking %s against %s\n", wi.ChecksumUrl, pattern)
 		if pattern.MatchString(wi.ChecksumUrl) {
 			return name
 		}
@@ -220,4 +230,23 @@ func (wi *WorkflowInclude) GetChecksumAlgorithm() string {
 
 func (wi *WorkflowInclude) SetChecksumIsValid(value bool) {
 	wi.ChecksumIsValid = &value
+}
+
+func (wi *WorkflowInclude) UpdateHash() {
+	wi.Hash = checksums.CalculateSha256Hash(wi.Contents)
+	wi.HashAlgorithm = "sha256"
+}
+
+func (wi *WorkflowInclude) NewCacheEntry() *cache.CacheEntry {
+	expires := carbon.Now().AddMinutes(wi.Workflow.Settings.Cache.TtlMinutes)
+
+	result := wi.Workflow.Cache.CreateEntry(
+		wi.Contents,
+		&expires,
+		wi.Hash,
+		wi.HashAlgorithm,
+		nil,
+	)
+
+	return result
 }

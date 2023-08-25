@@ -35,14 +35,33 @@ const (
 
 // creates a new Cache instance. `name` is used to determine the boltdb filename, and `storagePath` is
 // used as the path for the db file.  If `name` is empty, it defaults to the name of the current binary.
-func New(name string, storagePath string) *Cache {
+func New(name string, storagePath string, ttlMinutes int) *Cache {
 	if !utils.FileExists(storagePath) {
 		os.MkdirAll(storagePath, 0744)
 	}
 
-	result := Cache{Name: name, Enabled: false, Path: storagePath, DefaultTtl: 60}
+	result := Cache{Name: name, Enabled: false, Path: storagePath, DefaultTtl: ttlMinutes}
 
 	return result.Initialize()
+}
+
+func NewCacheEntry(obj any, ttlMinutes int) *CacheEntry {
+	updatedObj := carbon.Now()
+	expiresObj := carbon.Now().AddMinutes(ttlMinutes)
+
+	value, err := json.Marshal(obj)
+
+	if err != nil {
+		return nil
+	}
+
+	return &CacheEntry{
+		Value:     string(value),
+		Algorithm: "",
+		Hash:      "",
+		ExpiresAt: expiresObj.ToIso8601String(),
+		UpdatedAt: updatedObj.ToIso8601String(),
+	}
 }
 
 func (c *Cache) AutoPurgeInterval() time.Duration {
@@ -64,7 +83,7 @@ func (c *Cache) Cleanup(removeFile bool) {
 	}
 }
 
-func (c *Cache) CreateEntry(keyName string, value string, expiresAt *carbon.Carbon, hash string, algorithm string, updatedAt *carbon.Carbon) *CacheEntry {
+func (c *Cache) CreateEntry(value string, expiresAt *carbon.Carbon, hash string, algorithm string, updatedAt *carbon.Carbon) *CacheEntry {
 	updatedObj := carbon.Now()
 	expiresObj := carbon.Now().AddMinutes(c.DefaultTtl)
 
@@ -77,7 +96,6 @@ func (c *Cache) CreateEntry(keyName string, value string, expiresAt *carbon.Carb
 	}
 
 	return &CacheEntry{
-		Key:       keyName,
 		Value:     value,
 		Algorithm: algorithm,
 		Hash:      hash,

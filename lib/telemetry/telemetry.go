@@ -50,6 +50,10 @@ func New(telemetryIsEnabled bool, gw *gateway.Gateway) *Telemetry {
 }
 
 func (t *Telemetry) EventOnly(name string) {
+	if !t.IsEnabled {
+		return
+	}
+
 	t.Event(name, map[string]interface{}{})
 }
 

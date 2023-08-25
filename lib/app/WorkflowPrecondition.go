@@ -12,13 +12,13 @@ type WorkflowPrecondition struct {
 	MaxRetries int    `yaml:"max-retries,omitempty"`
 	FromRemote bool
 	Attempts   int
-	engine     *scripting.JavaScriptEngine
+	JsEngine   *scripting.JavaScriptEngine
 	Workflow   *StackupWorkflow
 }
 
 func (p *WorkflowPrecondition) Initialize(workflow *StackupWorkflow, engine *scripting.JavaScriptEngine) {
 	p.Workflow = workflow
-	p.engine = engine
+	p.JsEngine = engine
 	p.Attempts = 0
 	p.MaxRetries = 99999999999
 }
@@ -30,14 +30,14 @@ func (p *WorkflowPrecondition) HandleOnFailure() bool {
 		return result
 	}
 
-	if (*p.engine).IsEvaluatableScriptString(p.OnFail) {
-		return (*p.engine).Evaluate(p.OnFail).(bool)
+	if p.JsEngine.IsEvaluatableScriptString(p.OnFail) {
+		return p.JsEngine.Evaluate(p.OnFail).(bool)
 	}
 
 	task, found := (*p.Workflow).FindTaskById(p.OnFail)
 
 	if found {
-		task.Run(true)
+		task.RunSync()
 	}
 
 	return result
@@ -54,7 +54,7 @@ func (wp *WorkflowPrecondition) Run() bool {
 
 		wp.Attempts++
 
-		result = (*wp.engine).Evaluate(wp.Check).(bool)
+		result = wp.JsEngine.Evaluate(wp.Check).(bool)
 
 		if !result && len(wp.OnFail) > 0 {
 			support.FailureMessageWithXMark(wp.Name)

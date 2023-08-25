@@ -56,9 +56,13 @@ func StartCommand(input string, cwd string, silent bool) *exec.Cmd {
 
 	c := exec.Command(cmd, args...)
 	c.Dir = cwd
+
 	if !silent {
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr
+	} else {
+		c.Stdout = nil
+		c.Stderr = nil
 	}
 
 	return c
@@ -339,4 +343,18 @@ func CastArrayItems[T interface{}, R any](items []*T, toAppend []R) []*T {
 	result = append(result, casted...)
 
 	return result
+}
+
+func Max(x, y int) int {
+	if x < y {
+		return y
+	}
+	return x
+}
+
+func Min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
 }

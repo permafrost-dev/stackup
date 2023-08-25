@@ -7,11 +7,7 @@ import (
 	"sync"
 
 	"github.com/dotenv-org/godotenvvault"
-	lla "github.com/emirpasic/gods/lists/arraylist"
-	lls "github.com/emirpasic/gods/stacks/linkedliststack"
-	"github.com/golang-module/carbon/v2"
 	"github.com/stackup-app/stackup/lib/cache"
-	"github.com/stackup-app/stackup/lib/checksums"
 	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/gateway"
 	"github.com/stackup-app/stackup/lib/scripting"
@@ -23,71 +19,39 @@ import (
 )
 
 type StackupWorkflow struct {
-	Name              string                  `yaml:"name"`
-	Description       string                  `yaml:"description"`
-	Version           string                  `yaml:"version"`
-	Settings          *settings.Settings      `yaml:"settings"`
-	Env               []string                `yaml:"env"`
-	Init              string                  `yaml:"init"`
-	Preconditions     []*WorkflowPrecondition `yaml:"preconditions"`
-	Tasks             []*Task                 `yaml:"tasks"`
-	TaskList          *lla.List
-	Startup           []*TaskReference  `yaml:"startup"`
-	Shutdown          []*TaskReference  `yaml:"shutdown"`
-	Servers           []*TaskReference  `yaml:"servers"`
-	Scheduler         []*ScheduledTask  `yaml:"scheduler"`
-	Includes          []WorkflowInclude `yaml:"includes"`
-	State             StackupWorkflowState
-	Cache             *cache.Cache
-	JsEngine          *scripting.JavaScriptEngine
-	Gateway           *gateway.Gateway
-	ProcessMap        *sync.Map
-	CommandStartCb    types.CommandCallback
-	ExitAppFunc       func()
-	IsPrimaryWorkflow bool
+	Name           string                  `yaml:"name"`
+	Description    string                  `yaml:"description"`
+	Version        string                  `yaml:"version"`
+	Settings       *settings.Settings      `yaml:"settings"`
+	Env            []string                `yaml:"env"`
+	Init           string                  `yaml:"init"`
+	Preconditions  []*WorkflowPrecondition `yaml:"preconditions"`
+	Tasks          []*Task                 `yaml:"tasks"`
+	Startup        []*TaskReference        `yaml:"startup"`
+	Shutdown       []*TaskReference        `yaml:"shutdown"`
+	Servers        []*TaskReference        `yaml:"servers"`
+	Scheduler      []*ScheduledTask        `yaml:"scheduler"`
+	Includes       []WorkflowInclude       `yaml:"includes"`
+	State          WorkflowState
+	Cache          *cache.Cache
+	JsEngine       *scripting.JavaScriptEngine
+	Gateway        *gateway.Gateway
+	ProcessMap     *sync.Map
+	CommandStartCb types.CommandCallback
+	ExitAppFunc    func()
 	types.AppWorkflowContract
 }
 
 func CreateWorkflow(gw *gateway.Gateway, processMap *sync.Map) *StackupWorkflow {
 	return &StackupWorkflow{
-		IsPrimaryWorkflow: true,
-		Settings:          &settings.Settings{},
-		Preconditions:     []*WorkflowPrecondition{},
-		Tasks:             []*Task{},
-		TaskList:          lla.New(),
-		State:             StackupWorkflowState{},
-		Includes:          []WorkflowInclude{},
-		Cache:             cache.New("project", ""),
-		Gateway:           gw,
-		ProcessMap:        processMap,
-	}
-}
-
-type StackupWorkflowState struct {
-	CurrentTask *Task
-	Stack       *lls.Stack
-	History     *lls.Stack
-}
-
-type CleanupCallback = func()
-
-// sets the current task, and pushes the previous task onto the stack if it was still running.
-// returns a cleanup function callback that restores the state to its previous value.
-func (ws *StackupWorkflowState) SetCurrent(task *Task) CleanupCallback {
-	if ws.CurrentTask != nil {
-		ws.Stack.Push(ws.CurrentTask)
-	}
-
-	ws.History.Push(task.Uuid)
-	ws.CurrentTask = task
-
-	return func() {
-		ws.CurrentTask = nil
-
-		value, ok := ws.Stack.Pop()
-		if ok {
-			ws.CurrentTask = value.(*Task)
-		}
+		Settings:      &settings.Settings{},
+		Preconditions: []*WorkflowPrecondition{},
+		Tasks:         []*Task{},
+		State:         WorkflowState{},
+		Includes:      []WorkflowInclude{},
+		//Cache:         cache.New("stackup", "", 60),
+		Gateway:    gw,
+		ProcessMap: processMap,
 	}
 }
 
@@ -139,25 +103,37 @@ func (workflow *StackupWorkflow) GetAllTaskReferences() []*TaskReference {
 	return refs
 }
 
-func (workflow *StackupWorkflow) Initialize(configPath string) {
-	workflow.Cache = cache.New("", configPath)
-	workflow.Cache.DefaultTtl = workflow.Settings.Cache.TtlMinutes
-	workflow.Settings = &settings.Settings{}
-	workflow.processEnvSection()
+func (workflow *StackupWorkflow) Initialize(engine *scripting.JavaScriptEngine, configPath string) {
+	workflow.JsEngine = engine
 
-	// init the server, scheduler, and startup/shutdown items
-	for _, tr := range workflow.GetAllTaskReferences() {
-		tr.Initialize(workflow)
+	// if workflow.Settings == nil {
+	// 	workflow.Settings = &settings.Settings{}
+	// }
+
+	// workflow.Cache.DefaultTtl = workflow.Settings.Cache.TtlMinutes
+
+	workflow.processEnvSection()
+	workflow.InitializeSections()
+	workflow.ProcessIncludes()
+}
+
+func (workflow *StackupWorkflow) InitializeSections() {
+	for _, t := range workflow.Tasks {
+		t.Initialize(workflow.JsEngine, workflow.CommandStartCb, workflow.State.SetCurrent)
+		t.SetDefaultSetttings(workflow.Settings)
+	}
+
+	// init startup, shutdown, servers sections
+	for _, t := range workflow.GetAllTaskReferences() {
+		t.Initialize(workflow, workflow.JsEngine)
+	}
+
+	for _, st := range workflow.Scheduler {
+		st.Initialize(workflow, workflow.JsEngine)
 	}
 
 	for _, pc := range workflow.Preconditions {
-		pc.Workflow = workflow
-	}
-
-	for _, task := range workflow.Tasks {
-		task.JsEngine = workflow.JsEngine
-		task.CommandStartCb = workflow.CommandStartCb
-		task.Initialize()
+		pc.Initialize(workflow, workflow.JsEngine)
 	}
 }
 
@@ -179,29 +155,44 @@ func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
 		}
 	}
 
-	workflow.Settings.Defaults.Tasks.Path = consts.DEFAULT_CWD_SETTING
-	workflow.Settings.Defaults.Tasks.Platforms = consts.ALL_PLATFORMS
+	if len(workflow.Settings.Defaults.Tasks.Path) == 0 {
+		workflow.Settings.Defaults.Tasks.Path = consts.DEFAULT_CWD_SETTING
+	}
 
-	workflow.Settings.ChecksumVerification = true
-	workflow.Settings.Domains.Allowed = consts.DEFAULT_ALLOWED_DOMAINS
+	if len(workflow.Settings.Defaults.Tasks.Platforms) == 0 {
+		workflow.Settings.Defaults.Tasks.Platforms = consts.ALL_PLATFORMS
+	}
+
+	//workflow.Settings.ChecksumVerification = true
+	if len(workflow.Settings.Domains.Allowed) == 0 {
+		workflow.Settings.Domains.Allowed = consts.DEFAULT_ALLOWED_DOMAINS
+	}
+
 	workflow.Settings.Gateway.Middleware = []string{"validateUrl", "verifyFileType", "validateContentType"}
 
-	workflow.Settings.Cache.TtlMinutes = 15
-
-	workflow.Settings.DotEnvFiles = []string{".env"}
-
-	// expand env var references
-	tempChannelIds := []string{}
-	for _, channelId := range workflow.Settings.Notifications.Slack.ChannelIds {
-		tempChannelIds = append(tempChannelIds, os.ExpandEnv(channelId))
+	if workflow.Settings.Cache.TtlMinutes <= 0 {
+		workflow.Settings.Cache.TtlMinutes = 15
 	}
-	workflow.Settings.Notifications.Slack.ChannelIds = tempChannelIds
 
-	tempChatIds := []string{}
-	for _, chatID := range workflow.Settings.Notifications.Telegram.ChatIds {
-		tempChatIds = append(tempChatIds, os.ExpandEnv(chatID))
+	if len(workflow.Settings.DotEnvFiles) == 0 {
+		workflow.Settings.DotEnvFiles = []string{".env"}
 	}
-	workflow.Settings.Notifications.Telegram.ChatIds = tempChatIds
+
+	if len(workflow.Settings.Notifications.Slack.ChannelIds) > 0 {
+		tempChannelIds := []string{}
+		for _, channelId := range workflow.Settings.Notifications.Slack.ChannelIds {
+			tempChannelIds = append(tempChannelIds, os.ExpandEnv(channelId))
+		}
+		workflow.Settings.Notifications.Slack.ChannelIds = tempChannelIds
+	}
+
+	if len(workflow.Settings.Notifications.Telegram.ChatIds) > 0 {
+		tempChatIds := []string{}
+		for _, chatID := range workflow.Settings.Notifications.Telegram.ChatIds {
+			tempChatIds = append(tempChatIds, os.ExpandEnv(chatID))
+		}
+		workflow.Settings.Notifications.Telegram.ChatIds = tempChatIds
+	}
 
 	newHosts := []string{}
 	for _, host := range workflow.Settings.Domains.Hosts {
@@ -213,17 +204,15 @@ func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
 		}
 	}
 
-	workflow.Settings.Domains.Allowed = append(workflow.Settings.Domains.Allowed, newHosts...)
-	workflow.Settings.Domains.Allowed = utils.GetUniqueStrings(workflow.Settings.Domains.Allowed)
+	workflow.Settings.Domains.Allowed = utils.GetUniqueStrings(utils.CombineArrays(workflow.Settings.Domains.Allowed, newHosts))
 
-	// copy the default settings into each task if appropriate
+	workflow.setDefaultOptionsForTasks()
+}
+
+// copy the default task settings into each task if the settings are not already set
+func (workflow *StackupWorkflow) setDefaultOptionsForTasks() {
 	for _, task := range workflow.Tasks {
-		if task.Path == "" && len(workflow.Settings.Defaults.Tasks.Path) > 0 {
-			task.Path = workflow.Settings.Defaults.Tasks.Path
-		}
-
-		task.Silent = workflow.Settings.Defaults.Tasks.Silent
-		copy(task.Platforms, workflow.Settings.Defaults.Tasks.Platforms)
+		task.SetDefaultSetttings(workflow.Settings)
 	}
 }
 
@@ -244,37 +233,76 @@ func (workflow *StackupWorkflow) processEnvSection() {
 // ProcessIncludes loads the includes and processes all included files in the workflow asynchronously,
 // so the order in which they are loaded is not guaranteed.
 func (workflow *StackupWorkflow) ProcessIncludes() {
-	for _, inc := range workflow.Includes {
-		inc.Initialize(workflow)
-	}
+	var wgPreload sync.WaitGroup
 
-	// load the includes asynchronously
-	var wg sync.WaitGroup
+	// cache requests so async loading doesn't cause the same file to be loaded multiple times
+	for _, url := range workflow.GetPossibleIncludedChecksumUrls() {
+		wgPreload.Add(1)
+		go func(s string) {
+			defer wgPreload.Done()
+			fmt.Printf("url == %s\n", s)
+			workflow.Gateway.GetUrl(s)
+		}(url)
+	}
+	wgPreload.Wait()
+
+	var wgLoadIncludes sync.WaitGroup
 	for _, include := range workflow.Includes {
-		wg.Add(1)
+		wgLoadIncludes.Add(1)
 		go func(inc WorkflowInclude) {
-			defer wg.Done()
+			defer wgLoadIncludes.Done()
 			workflow.ProcessInclude(&inc)
 		}(include)
 	}
-	wg.Wait()
+	wgLoadIncludes.Wait()
+
+	workflow.InitializeSections()
 }
 
-func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) *cache.CacheEntry {
-	if !workflow.Cache.Has(include.Identifier()) {
-		return nil
+func (workflow *StackupWorkflow) GetIncludedUrls() []string {
+	result := []string{}
+
+	for _, include := range workflow.Includes {
+		result = append(result, include.FullUrl())
 	}
 
-	var data *cache.CacheEntry
-	data, include.FromCache = workflow.Cache.Get(include.Identifier())
+	return utils.GetUniqueStrings(result)
+}
 
-	if include.FromCache {
+func (workflow *StackupWorkflow) GetPossibleIncludedChecksumUrls() []string {
+	result := []string{}
+
+	for _, wi := range workflow.Includes {
+		checksumUrls := []string{
+			wi.FullUrlPath() + "/checksums.txt",
+			wi.FullUrlPath() + "/checksums.sha256.txt",
+			wi.FullUrlPath() + "/checksums.sha512.txt",
+			wi.FullUrlPath() + "/sha256sum",
+			wi.FullUrlPath() + "/sha512sum",
+			wi.FullUrl() + ".sha256",
+			wi.FullUrl() + ".sha512",
+		}
+		result = utils.CombineArrays(result, checksumUrls)
+	}
+
+	return utils.GetUniqueStrings(result)
+}
+
+func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) (*cache.CacheEntry, bool) {
+	if !workflow.Cache.Has(include.Identifier()) {
+		return nil, false
+	}
+
+	data, loaded := workflow.Cache.Get(include.Identifier())
+
+	if loaded {
+		include.FromCache = true
 		include.Hash = data.Hash
 		include.HashAlgorithm = data.Algorithm
 		include.Contents = data.Value
 	}
 
-	return data
+	return data, loaded
 }
 
 func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude) error {
@@ -284,32 +312,10 @@ func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude)
 		return err
 	}
 
-	if err := workflow.loadAndImportInclude(include); err != nil {
-		return err
-	}
-
-	workflow.cacheFetchedRemoteInclude(include)
+	include.UpdateHash()
+	workflow.Cache.Set(include.Identifier(), include.NewCacheEntry(), workflow.Settings.Cache.TtlMinutes)
 
 	return nil
-}
-
-func (workflow *StackupWorkflow) cacheFetchedRemoteInclude(include *WorkflowInclude) *cache.CacheEntry {
-	include.Hash = checksums.CalculateSha256Hash(include.Contents)
-	include.HashAlgorithm = "sha256"
-	expires := carbon.Now().AddMinutes(workflow.Settings.Cache.TtlMinutes)
-
-	item := workflow.Cache.CreateEntry(
-		include.Identifier(),
-		include.Contents,
-		&expires,
-		include.Hash,
-		include.HashAlgorithm,
-		nil,
-	)
-
-	workflow.Cache.Set(include.Identifier(), item, workflow.Settings.Cache.TtlMinutes)
-
-	return item
 }
 
 func (workflow *StackupWorkflow) handleChecksumVerification(include *WorkflowInclude) bool {
@@ -321,18 +327,9 @@ func (workflow *StackupWorkflow) handleChecksumVerification(include *WorkflowInc
 		return true
 	}
 
-	include.ValidationState = ""
-	_, include.FoundChecksum, _ = include.ValidateChecksum(include.Contents)
+	include.ValidateChecksum()
 
-	if include.ChecksumValidated {
-		include.ValidationState = "verified"
-	}
-
-	if !include.ChecksumValidated && include.FoundChecksum != "" {
-		include.ValidationState = "verification failed"
-	}
-
-	if !include.ChecksumValidated && workflow.Settings.ExitOnChecksumMismatch {
+	if include.ValidationState == ChecksumVerificationStateMismatch && workflow.Settings.ExitOnChecksumMismatch {
 		support.FailureMessageWithXMark("Exiting due to checksum mismatch.")
 		workflow.ExitAppFunc()
 		return false
@@ -356,35 +353,35 @@ func (workflow *StackupWorkflow) handleChecksumVerification(include *WorkflowInc
 // 	workflow.Preconditions = utils.ReverseArray(workflow.Preconditions)
 // }
 
-func (workflow *StackupWorkflow) loadAndImportInclude(include *WorkflowInclude) error {
+func (workflow *StackupWorkflow) loadAndImportInclude(rawYaml string) error {
 	var template IncludedTemplate
 
-	if err := yaml.Unmarshal([]byte(include.Contents), &template); err != nil {
+	if err := yaml.Unmarshal([]byte(rawYaml), &template); err != nil {
 		return err
 	}
 
 	for _, task := range template.Tasks {
-		task.JsEngine = workflow.JsEngine
+		task.Initialize(workflow.JsEngine, workflow.CommandStartCb, workflow.State.SetCurrent)
 		workflow.Tasks = append(workflow.Tasks, task)
 	}
 
 	for _, precondition := range template.Preconditions {
-		precondition.Workflow = workflow
+		precondition.Initialize(workflow, workflow.JsEngine)
 		workflow.Preconditions = append(workflow.Preconditions, precondition)
 	}
 
 	for _, startup := range template.Startup {
-		startup.Workflow = workflow
+		startup.Initialize(workflow, workflow.JsEngine)
 		workflow.Startup = append(workflow.Startup, startup)
 	}
 
 	for _, shutdown := range template.Shutdown {
-		shutdown.Workflow = workflow
+		shutdown.Initialize(workflow, workflow.JsEngine)
 		workflow.Shutdown = append(workflow.Shutdown, shutdown)
 	}
 
 	for _, server := range template.Servers {
-		server.Workflow = workflow
+		server.Initialize(workflow, workflow.JsEngine)
 		workflow.Servers = append(workflow.Servers, server)
 	}
 
@@ -396,25 +393,25 @@ func (workflow *StackupWorkflow) loadAndImportInclude(include *WorkflowInclude) 
 }
 
 func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) error {
-	include.Workflow = workflow
+	include.Initialize(workflow)
 
-	data := workflow.tryLoadingCachedData(include)
-	loaded := data != nil
-
-	if loaded {
-		if err := workflow.loadAndImportInclude(include); err != nil {
-			support.FailureMessageWithXMark("include from cache failed: (" + err.Error() + "): " + include.DisplayName())
-			return err
-		}
-	}
+	_, loaded := workflow.tryLoadingCachedData(include)
 
 	if !loaded {
+		fmt.Printf("not loaded from cache: %s\n", include.DisplayUrl())
+
 		if err := workflow.loadRemoteFileInclude(include); err != nil {
 			support.FailureMessageWithXMark("remote include (rejected: " + err.Error() + "): " + include.DisplayName())
 			return err
 		}
-
 		loaded = true
+	}
+
+	if loaded {
+		if err := workflow.loadAndImportInclude(include.Contents); err != nil {
+			support.FailureMessageWithXMark("include from cache failed: (" + err.Error() + "): " + include.DisplayName())
+			return err
+		}
 	}
 
 	if !loaded {
@@ -422,7 +419,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) error 
 		return fmt.Errorf("unable to load remote include: %s", include.DisplayName())
 	}
 
-	if loaded && !workflow.handleChecksumVerification(include) {
+	if !workflow.handleChecksumVerification(include) {
 		support.FailureMessageWithXMark("checksum verification failed: " + include.DisplayName())
 		return fmt.Errorf("checksum verification failed: %s", include.DisplayName())
 	}

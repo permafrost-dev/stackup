@@ -14,6 +14,7 @@ import (
 	"github.com/emirpasic/gods/stacks/linkedliststack"
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
+	"github.com/stackup-app/stackup/lib/cache"
 	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/gateway"
 	"github.com/stackup-app/stackup/lib/scripting"
@@ -51,17 +52,31 @@ type Application struct {
 }
 
 func NewApplication() *Application {
-	result := &Application{}
-	result.init()
+	result := &Application{
+		scheduledTaskMap: &sync.Map{},
+		ProcessMap:       &sync.Map{},
+		Vars:             &sync.Map{},
+		flags: AppFlags{
+			DisplayHelp:    flag.Bool("help", false, "Display help"),
+			DisplayVersion: flag.Bool("version", false, "Display version"),
+			NoUpdateCheck:  flag.Bool("no-update-check", false, "Disable update check"),
+			ConfigFile:     flag.String("config", "", "Load a specific config file"),
+		},
+		ConfigFilename: support.FindExistingFile([]string{"stackup.dist.yaml", "stackup.yaml"}, "stackup.yaml"),
+		Gateway:        gateway.New(nil),
+		cronEngine:     cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger))),
+	}
+
+	result.Workflow = CreateWorkflow(result.Gateway, result.ProcessMap)
 
 	return result
 }
 
 func (a *Application) loadWorkflowFile(filename string, wf *StackupWorkflow) {
-	wf.CommandStartCb = a.CmdStartCallback
 	wf.ExitAppFunc = a.exitApp
 	wf.Gateway = a.Gateway
 	wf.ProcessMap = a.ProcessMap
+	wf.CommandStartCb = a.CmdStartCallback
 
 	contents, err := os.ReadFile(filename)
 	if err != nil {
@@ -74,39 +89,24 @@ func (a *Application) loadWorkflowFile(filename string, wf *StackupWorkflow) {
 		return
 	}
 
-	for _, task := range wf.Tasks {
-		task.CommandStartCb = a.CmdStartCallback
-	}
-
-	wf.State = StackupWorkflowState{
+	wf.State = WorkflowState{
 		CurrentTask: nil,
 		Stack:       linkedliststack.New(),
 		History:     linkedliststack.New(),
 	}
+
+	wf.ConfigureDefaultSettings()
 }
 
-func (a *Application) init() {
-	a.scheduledTaskMap = &sync.Map{}
-	a.ProcessMap = &sync.Map{}
-	a.Vars = &sync.Map{}
-	a.ConfigFilename = support.FindExistingFile([]string{"stackup.dist.yaml", "stackup.yaml"}, "stackup.yaml")
-	a.Gateway = gateway.New()
-	a.Workflow = CreateWorkflow(a.Gateway, a.ProcessMap)
-
-	a.flags = AppFlags{
-		DisplayHelp:    flag.Bool("help", false, "Display help"),
-		DisplayVersion: flag.Bool("version", false, "Display version"),
-		NoUpdateCheck:  flag.Bool("no-update-check", false, "Disable update check"),
-		ConfigFile:     flag.String("config", "", "Load a specific config file"),
-	}
+// parse command-line flags, load the workflow file, load .env files,
+// initialize the workflow, gateway and js engine
+func (a *Application) Initialize() {
+	utils.EnsureConfigDirExists(consts.APP_CONFIG_PATH_BASE_NAME)
 
 	flag.Parse()
 	if a.flags.ConfigFile != nil && *a.flags.ConfigFile != "" {
 		a.ConfigFilename = *a.flags.ConfigFile
 	}
-
-	a.loadWorkflowFile(a.ConfigFilename, a.Workflow)
-	a.Workflow.ConfigureDefaultSettings()
 
 	a.JsEngine = scripting.CreateNewJavascriptEngine(
 		a.Vars,
@@ -117,12 +117,21 @@ func (a *Application) init() {
 		},
 		a.GetApplicationIconPath,
 	)
-	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
 
-	for _, task := range a.Workflow.Tasks {
-		task.JsEngine = a.JsEngine
-		task.Initialize()
-	}
+	a.handleFlagOptions()
+
+	a.loadWorkflowFile(a.ConfigFilename, a.Workflow)
+	a.Analytics = telemetry.New(a.Workflow.Settings.AnonymousStatistics, a.Gateway)
+	godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
+
+	a.Gateway.Initialize(a.Workflow.Settings, a.JsEngine.AsContract(), nil)
+	a.Workflow.Cache = cache.New("stackup", a.GetConfigurationPath(), a.Workflow.Settings.Cache.TtlMinutes)
+	a.Gateway.Cache = a.Workflow.Cache
+	a.Workflow.Initialize(a.JsEngine, a.GetConfigurationPath())
+	a.JsEngine.Initialize(a.Vars, os.Environ())
+
+	a.Analytics.EventOnly("app.start")
+	a.checkForApplicationUpdates(!*a.flags.NoUpdateCheck)
 }
 
 func (a *Application) hookSignals() {
@@ -157,16 +166,22 @@ func (a *Application) exitApp() {
 	support.StatusMessageLine("Running shutdown tasks...", true)
 	a.runShutdownTasks()
 
-	// for _, i := range a.Workflow.State.History.Values() {
-	// 	// task := i.task
-	// 	// runs := fmt.Sprintf("%v", task.RunCount)
-	// 	//support.StatusMessageLine("[task history] task ran: "+task.GetDisplayName()+" ("+runs+" executions)", true)
-	// }
+	for _, uid := range a.Workflow.State.History.Values() {
+		task := a.Workflow.FindTaskByUuid(uid.(string))
+		if task == nil {
+			continue
+		}
+
+		runs := fmt.Sprintf("runs: %v", task.RunCount)
+		support.StatusMessageLine("[task history] task: "+task.GetDisplayName()+" ("+runs+")", true)
+	}
 
 	os.Exit(1)
 }
 
 func (a *Application) createScheduledTasks() {
+	support.StatusMessage("Creating scheduled tasks...", false)
+
 	for _, def := range a.Workflow.Scheduler {
 		def.Workflow = a.Workflow
 		def.JsEngine = a.JsEngine
@@ -184,7 +199,7 @@ func (a *Application) createScheduledTasks() {
 		a.cronEngine.AddFunc(cron, func() {
 			task, found := a.Workflow.FindTaskById(taskId)
 			if found {
-				task.Run(true)
+				task.RunSync()
 			}
 		})
 
@@ -192,6 +207,7 @@ func (a *Application) createScheduledTasks() {
 	}
 
 	a.cronEngine.Start()
+	support.PrintCheckMarkLine()
 }
 
 func (a *Application) stopServerProcesses() {
@@ -212,6 +228,8 @@ func (a *Application) stopServerProcesses() {
 }
 
 func (a *Application) runEventLoop() {
+	support.StatusMessageLine("Running event loop...", true)
+
 	for {
 		utils.WaitForStartOfNextMinute()
 	}
@@ -228,11 +246,13 @@ func (a *Application) runTaskReferences(refs []*TaskReference) {
 			continue
 		}
 
-		task.Run(true)
+		task.RunSync()
 	}
 }
 
 func (a *Application) runStartupTasks() {
+	support.StatusMessageLine("Running startup tasks...", true)
+
 	a.runTaskReferences(a.Workflow.Startup)
 }
 
@@ -241,6 +261,8 @@ func (a *Application) runShutdownTasks() {
 }
 
 func (a *Application) runServerTasks() {
+	support.StatusMessageLine("Starting server processes...", true)
+
 	for _, def := range a.Workflow.Servers {
 		task, found := a.Workflow.FindTaskById(def.TaskId())
 
@@ -249,13 +271,15 @@ func (a *Application) runServerTasks() {
 			continue
 		}
 
-		task.Run(false)
+		task.RunAsync()
 	}
 }
 
 func (a Application) runPreconditions() {
+	support.StatusMessageLine("Running precondition checks...", true)
+
 	for _, c := range a.Workflow.Preconditions {
-		c.Initialize(a.Workflow, a.JsEngine)
+
 		if !c.Run() {
 			support.FailureMessageWithXMark(c.Name)
 			os.Exit(1)
@@ -285,12 +309,12 @@ func (a *Application) createNewConfigFile() {
 	os.WriteFile(filename, []byte(contents), 0644)
 }
 
-func (a *Application) checkForApplicationUpdates() {
-	updateAvailable, release := updater.
-		New(a.Workflow.Cache, a.Gateway).
-		IsUpdateAvailable(consts.APP_REPOSITORY, version.APP_VERSION)
+func (a *Application) checkForApplicationUpdates(canCheck bool) {
+	if !canCheck {
+		return
+	}
 
-	if updateAvailable {
+	if hasUpdate, release := updater.New(a.Gateway).IsUpdateAvailable(consts.APP_REPOSITORY, version.APP_VERSION); hasUpdate {
 		support.WarningMessage("A new version of StackUp is available, released " + release.TimeSinceRelease())
 	}
 }
@@ -337,86 +361,23 @@ func (a *Application) GetApplicationIconPath() string {
 	return path.Join(a.GetConfigurationPath(), "/stackup-icon.png")
 }
 
-func (a *Application) Run() {
-	utils.EnsureConfigDirExists(consts.APP_CONFIG_PATH_BASE_NAME)
-	godotenv.Load()
-	a.handleFlagOptions()
-
-	if len(a.Workflow.Settings.DotEnvFiles) > 0 {
-		godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
-	}
-
-	a.JsEngine.CreateEnvironmentVariables(os.Environ())
-	a.JsEngine.CreateAppVariables(a.Vars)
-
-	a.Workflow.Initialize(a.GetConfigurationPath())
-
-	a.Gateway.Initialize(a.Workflow.Settings, a.JsEngine.AsContract(), nil)
-	a.Analytics = telemetry.New(a.Workflow.Settings.AnonymousStatistics, a.Gateway)
-	a.Gateway.AllowedDomains = []string{"*"}
-	a.Workflow.IsPrimaryWorkflow = true
-
-	a.Workflow.ProcessIncludes()
-
-	a.JsEngine.CreateEnvironmentVariables(os.Environ())
-	a.JsEngine.CreateAppVariables(a.Vars)
-
-	for _, t := range a.Workflow.Tasks {
-		t.Uuid = utils.GenerateTaskUuid()
-		t.JsEngine = a.JsEngine
-		t.CommandStartCb = a.CmdStartCallback
-		t.Initialize()
-	}
-
-	for _, t := range a.Workflow.Startup {
-		t.Workflow = a.Workflow
-		t.JsEngine = a.JsEngine
-		t.Initialize(a.Workflow)
-	}
-
-	for _, t := range a.Workflow.Shutdown {
-		t.Workflow = a.Workflow
-		t.JsEngine = a.JsEngine
-		t.Initialize(a.Workflow)
-	}
-
-	for _, st := range a.Workflow.Servers {
-		st.Workflow = a.Workflow
-		st.JsEngine = a.JsEngine
-		st.Initialize(a.Workflow)
-	}
-
-	for _, st := range a.Workflow.Scheduler {
-		st.Initialize(a.Workflow, a.JsEngine)
-	}
-
-	if a.Analytics.IsEnabled {
-		a.Analytics.EventOnly("app.start")
-	}
-
-	if !*a.flags.NoUpdateCheck {
-		a.checkForApplicationUpdates()
-	}
+func (a *Application) runInitScript() {
+	support.StatusMessageLine("Running init script...", true)
 
 	a.JsEngine.Evaluate(a.Workflow.Init)
+}
+
+func (a *Application) Run() {
+	a.Initialize()
 
 	a.hookSignals()
 	a.hookKeyboard()
 
-	support.StatusMessageLine("Running precondition checks...", true)
+	a.runInitScript()
 	a.runPreconditions()
-
-	support.StatusMessageLine("Running startup tasks...", true)
-	a.runStartupTasks()
-
-	support.StatusMessageLine("Starting server processes...", true)
-	a.runServerTasks()
-
-	support.StatusMessage("Creating scheduled tasks...", false)
-	a.createScheduledTasks()
-	support.PrintCheckMarkLine()
-
-	utils.WaitForStartOfNextMinute()
+	// a.runStartupTasks()
+	// a.runServerTasks()
+	// a.createScheduledTasks()
 
 	a.runEventLoop()
 }

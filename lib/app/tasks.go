@@ -6,6 +6,7 @@ import (
 
 	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/scripting"
+	"github.com/stackup-app/stackup/lib/settings"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
@@ -26,13 +27,14 @@ type Task struct {
 	FromRemote     bool
 	CommandStartCb types.CommandCallback
 	//Workflow   *StackupWorkflow //*types.AppWorkflowContract
-	JsEngine *scripting.JavaScriptEngine
+	JsEngine  *scripting.JavaScriptEngine
+	setActive SetActiveTaskCallback
 	// types.AppWorkflowTaskContract
 }
 
 type TaskReferenceContract interface {
 	TaskId() string
-	Initialize(wf *StackupWorkflow)
+	Initialize(wf *StackupWorkflow, jse *scripting.JavaScriptEngine)
 }
 
 type TaskReference struct {
@@ -72,7 +74,10 @@ func (task *Task) CanRunConditionally() bool {
 	return task.JsEngine.Evaluate(task.If).(bool)
 }
 
-func (task *Task) Initialize() {
+func (task *Task) Initialize(engine *scripting.JavaScriptEngine, cmdStartCb types.CommandCallback, setActive SetActiveTaskCallback) {
+	task.JsEngine = engine
+	task.setActive = setActive
+	task.CommandStartCb = cmdStartCb
 	task.Uuid = utils.GenerateTaskUuid()
 
 	task.RunCount = 0
@@ -80,45 +85,29 @@ func (task *Task) Initialize() {
 		task.MaxRuns = 999999999
 	}
 
-	engine := task.JsEngine
-
 	if len(task.Path) == 0 {
 		task.Path = engine.MakeStringEvaluatable(consts.DEFAULT_CWD_SETTING)
 	}
 
-	task.If = engine.MakeStringEvaluatable(task.If)
+	if task.If != "" {
+		task.If = engine.MakeStringEvaluatable(task.If)
+	}
 
 	if engine.IsEvaluatableScriptString(task.Name) {
 		task.Name = engine.Evaluate(task.Name).(string)
 	}
 }
 
-func (task *Task) runWithStatusMessagesSync(runningSilently bool) {
-	command := task.Command
-	engine := task.JsEngine
-
-	if engine.IsEvaluatableScriptString(command) {
-		command = engine.Evaluate(command).(string)
+func (task *Task) SetDefaultSetttings(s *settings.Settings) {
+	if task.Path == "" && len(s.Defaults.Tasks.Path) > 0 {
+		task.Path = s.Defaults.Tasks.Path
 	}
 
-	cmd, err := utils.RunCommandInPath(command, task.Path, runningSilently)
-
-	if err != nil {
-		support.FailureMessageWithXMark(task.GetDisplayName())
-		return
+	if len(task.Platforms) == 0 {
+		copy(task.Platforms, s.Defaults.Tasks.Platforms)
 	}
 
-	if cmd != nil && runningSilently {
-		support.PrintCheckMarkLine()
-	} else if cmd != nil {
-		support.SuccessMessageWithCheck(task.GetDisplayName())
-	}
-
-	if cmd == nil && runningSilently {
-		support.PrintXMarkLine()
-	} else if cmd == nil {
-		support.FailureMessageWithXMark(task.GetDisplayName())
-	}
+	task.Silent = s.Defaults.Tasks.Silent
 }
 
 func (task Task) GetDisplayName() string {
@@ -137,19 +126,26 @@ func (task Task) GetDisplayName() string {
 	return task.Uuid
 }
 
-func (task *Task) Run(synchronous bool) {
-	//cleanup :=
-	// task.Workflow.State.SetCurrent(task)
-	// if cleanup != nil {
-	// 	defer cleanup()
-	// }
+func (task *Task) getCommand() string {
+	result := task.Command
+
+	if task.JsEngine.IsEvaluatableScriptString(result) {
+		result = task.JsEngine.Evaluate(result).(string)
+	}
+
+	return result
+}
+
+func (task *Task) prepareRun() (bool, func()) {
+	result := task.setActive(task)
+
 	if task.Uuid == "" {
 		task.Uuid = utils.GenerateTaskUuid()
 	}
 
 	if task.RunCount >= task.MaxRuns && task.MaxRuns > 0 {
 		support.SkippedMessageWithSymbol(task.GetDisplayName())
-		return
+		return false, nil
 	}
 
 	task.RunCount++
@@ -165,38 +161,81 @@ func (task *Task) Run(synchronous bool) {
 
 	if !task.CanRunConditionally() {
 		support.SkippedMessageWithSymbol(task.GetDisplayName())
-		return
+		return false, nil
 	}
 
 	if !task.CanRunOnCurrentPlatform() {
 		support.SkippedMessageWithSymbol("Task '" + task.GetDisplayName() + "' is not supported on this operating system.")
-		return
-	}
-
-	command := task.Command
-	if task.JsEngine.IsEvaluatableScriptString(command) {
-		command = task.JsEngine.Evaluate(command).(string)
+		return false, nil
 	}
 
 	support.StatusMessage(task.GetDisplayName()+"...", false)
 
-	if synchronous {
-		task.runWithStatusMessagesSync(task.Silent)
+	return true, result
+}
+
+func (task *Task) RunSync() {
+	var canRun bool
+	var cleanup func()
+
+	if canRun, cleanup = task.prepareRun(); !canRun {
 		return
 	}
 
-	cmd := utils.StartCommand(command, task.Path, false)
-	task.CommandStartCb(cmd)
-	cmd.Start()
+	defer cleanup()
 
-	support.PrintCheckMarkLine()
+	cmd, err := utils.RunCommandInPath(task.getCommand(), task.Path, task.Silent)
+	if err != nil {
+		support.FailureMessageWithXMark(task.GetDisplayName())
+		return
+	}
+
+	if cmd != nil && task.Silent {
+		support.PrintCheckMarkLine()
+	} else if cmd != nil {
+		support.SuccessMessageWithCheck(task.GetDisplayName())
+	}
+
+	if cmd == nil && task.Silent {
+		support.PrintXMarkLine()
+	} else if cmd == nil {
+		support.FailureMessageWithXMark(task.GetDisplayName())
+	}
+}
+
+func (task *Task) RunAsync() {
+	var canRun bool
+	var cleanup func()
+
+	if canRun, cleanup = task.prepareRun(); !canRun {
+		return
+	}
+
+	defer cleanup()
+
+	command := task.getCommand()
+	cmd := utils.StartCommand(command, task.Path, false)
+
+	if cmd == nil {
+		support.FailureMessageWithXMark(task.GetDisplayName())
+		return
+	}
+
+	task.CommandStartCb(cmd)
+	err := cmd.Start()
+
+	if err != nil {
+		support.PrintXMarkLine()
+	} else {
+		support.PrintCheckMarkLine()
+	}
 
 	App.ProcessMap.Store(task.Uuid, cmd)
 }
 
-func (tr *TaskReference) Initialize(workflow *StackupWorkflow) {
+func (tr *TaskReference) Initialize(workflow *StackupWorkflow, jse *scripting.JavaScriptEngine) {
 	tr.Workflow = workflow
-	tr.JsEngine = workflow.JsEngine
+	tr.JsEngine = jse
 }
 
 func (tr *TaskReference) TaskId() string {

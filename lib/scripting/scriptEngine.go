@@ -23,11 +23,13 @@ type JavaScriptEngine struct {
 	FindTaskById           FindTaskByIdFunc
 	Registry               *sync.Map
 	InstalledExtensions    *sync.Map
+	initialized            bool
 	types.JavaScriptEngineContract
 }
 
 func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, findTaskFunc FindTaskByIdFunc, getAppIconFunc func() string) *JavaScriptEngine {
 	result := &JavaScriptEngine{
+		initialized:            false,
 		Vm:                     otto.New(),
 		AppVars:                vars,
 		AppGateway:             gateway,
@@ -37,7 +39,6 @@ func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, findTas
 		FindTaskById:           findTaskFunc,
 	}
 
-	result.Init()
 	return result
 }
 
@@ -70,15 +71,21 @@ func (e *JavaScriptEngine) AsContract() types.JavaScriptEngineContract {
 	return e.toInterface().(types.JavaScriptEngineContract)
 }
 
-func (e *JavaScriptEngine) Init() {
-	e.Vm = otto.New()
-	e.CreateJavascriptFunctions()
-	e.CreateScriptFsObject()
-	CreateScriptAppObject(e)
-	CreateScriptVarsObject(e)
-	CreateScriptDevObject(e)
-	CreateScriptNetObject(e)
-	// CreateScripNotificationsObject(workflow, e)
+func (e *JavaScriptEngine) Initialize(appVars *sync.Map, environ []string) {
+	if !e.initialized {
+		e.Vm = otto.New()
+		e.CreateJavascriptFunctions()
+		e.CreateScriptFsObject()
+		CreateScriptAppObject(e)
+		CreateScriptVarsObject(e)
+		CreateScriptDevObject(e)
+		CreateScriptNetObject(e)
+		// CreateScripNotificationsObject(workflow, e)
+		e.initialized = true
+	}
+
+	e.CreateAppVariables(appVars)
+	e.CreateEnvironmentVariables(environ)
 }
 
 func (e *JavaScriptEngine) CreateAppVariables(vars *sync.Map) {

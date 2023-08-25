@@ -22,8 +22,13 @@ func ParseChecksumFileContents(contents string) ([]*Checksum, error) {
 
 	// Parse each line into a Checksum struct
 	var checksums []*Checksum
+	lines = strings.Split(lines[0], "\n")
+
 	for _, line := range lines {
-		hash, fn, err := matchHashAndFilename(line)
+		line = strings.ReplaceAll(line, "\t", " ")
+		re, _ := regexp.Compile(`\s{2,}`)
+		line = re.ReplaceAllString(line, " ")
+		hash, fn, err := MatchHashAndFilename(line)
 		if err != nil {
 			continue
 		}
@@ -38,6 +43,39 @@ func ParseChecksumFileContents(contents string) ([]*Checksum, error) {
 	return checksums, nil
 }
 
+func FindChecksumForFilename(filename string, contents string) *Checksum {
+	// re := regexp.MustCompile(`([a-fA-F0-9]{48,})[\t\s]+(` + filename + `)`)
+	// matches := re.FindAllStringSubmatch(contents, -1)
+	mapped := ParseChecksumsIntoMap(contents)
+	result, ok := mapped[filename]
+
+	if !ok {
+		return nil
+	}
+
+	return result
+}
+
+func ParseChecksumsIntoMap(contents string) map[string]*Checksum {
+	contents = strings.ReplaceAll(contents, "\\n", "  # \n")
+
+	contents = strings.ReplaceAll(contents, "\t", " ")
+	lines := strings.Split(contents, "\\n")
+	lines = strings.Split(lines[0], "\n")
+
+	result := map[string]*Checksum{}
+
+	for _, line := range lines {
+		hash, fn, _ := MatchHashAndFilename(line)
+		if hash == "" || fn == "" {
+			continue
+		}
+		result[fn] = &Checksum{Hash: hash, Filename: fn}
+	}
+
+	return result
+}
+
 func FindChecksumForFileFromUrl(checksums []*Checksum, url string) *Checksum {
 	for _, checksum := range checksums {
 		if path.Base(checksum.Filename) == path.Base(url) {
@@ -48,9 +86,9 @@ func FindChecksumForFileFromUrl(checksums []*Checksum, url string) *Checksum {
 	return nil
 }
 
-func matchHashAndFilename(input string) (string, string, error) {
+func MatchHashAndFilename(input string) (string, string, error) {
 	// Define the regular expression pattern
-	pattern := `^([a-f0-9]{64})\s+(.+)$`
+	pattern := `([a-fA-F0-9]{48,})[\s\t]+([\w\d_\-\.\/\\]+)`
 
 	// Compile the regular expression
 	regex, err := regexp.Compile(pattern)

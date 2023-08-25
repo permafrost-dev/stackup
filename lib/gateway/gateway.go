@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/stackup-app/stackup/lib/cache"
 	"github.com/stackup-app/stackup/lib/settings"
 	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
@@ -23,6 +25,13 @@ type GatewayUrlResponseMiddleware struct {
 	Name    string
 	Handler func(g *Gateway, resp *http.Response) error
 }
+
+type GatewayHttpResponse struct {
+	Url      string `json:"url"`
+	Contents string `json:"contents"`
+	Code     int    `json:"code"`
+}
+
 type Gateway struct {
 	Enabled             bool
 	AllowedDomains      []string
@@ -38,10 +47,11 @@ type Gateway struct {
 	JsEngine            types.JavaScriptEngineContract
 	HttpClient          *http.Client
 	Settings            *settings.Settings
+	Cache               *cache.Cache
 }
 
 // New initializes the gateway with deny/allow lists
-func New() *Gateway {
+func New(cache *cache.Cache) *Gateway {
 	result := Gateway{
 		Enabled:             true,
 		DeniedDomains:       []string{},
@@ -54,6 +64,7 @@ func New() *Gateway {
 		DomainContentTypes:  &sync.Map{},
 		BlockedContentTypes: &sync.Map{},
 		HttpClient:          http.DefaultClient,
+		Cache:               cache,
 	}
 
 	result.Enable()
@@ -89,6 +100,8 @@ func (g *Gateway) Initialize(s *settings.Settings, jsEngine types.JavaScriptEngi
 	if g == nil {
 		return
 	}
+
+	g.AllowedDomains = []string{"*"}
 
 	g.DomainContentTypes = &sync.Map{}
 	g.BlockedContentTypes = &sync.Map{}
@@ -309,6 +322,10 @@ func (g *Gateway) Disable() {
 	g.Enabled = false
 }
 
+func (g *Gateway) HasCache() bool {
+	return g.Cache != nil
+}
+
 func (g *Gateway) checkArrayForDomainMatch(arr *[]string, domain string) bool {
 	for _, domainPattern := range *arr {
 		if strings.EqualFold(domain, domainPattern) || strings.EqualFold(strings.TrimPrefix(domainPattern, "*."), domain) {
@@ -348,6 +365,33 @@ func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 		return "", err
 	}
 
+	expireTtl := utils.Min(5, g.Cache.DefaultTtl)
+
+	var response *GatewayHttpResponse = &GatewayHttpResponse{
+		Url:      urlStr,
+		Code:     1,
+		Contents: "",
+	}
+
+	if g.HasCache() {
+		// fmt.Printf(" [gateway] checking cache for response to %s\n", urlStr)
+		entry, _ := g.Cache.Get(g.CacheKeyFor(urlStr))
+		if entry != nil {
+			err := json.Unmarshal([]byte(entry.Value), response)
+			// fmt.Printf(" [gateway] found cached response for %v\n", response)
+
+			if response != nil && response.Code > 1 {
+				if response.Code != 200 {
+					err = fmt.Errorf("HTTP request failed: error %d (url: %s)", response.Code, urlStr)
+				}
+
+				return response.Contents, err
+			}
+		}
+	}
+
+	fmt.Printf("gateway.get url == %s\n", urlStr)
+
 	var allHeaders []string = []string{"User-Agent: stackup/1.0"}
 
 	if g.DomainHeaders == nil {
@@ -382,6 +426,12 @@ func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 	}
 	defer resp.Body.Close()
 
+	response.Code = resp.StatusCode
+
+	if g.HasCache() {
+		g.Cache.Set(g.CacheKeyFor(urlStr), cache.NewCacheEntry(response, expireTtl), expireTtl)
+	}
+
 	if err = g.runResponsePipeline(resp); err != nil {
 		return "", err
 	}
@@ -395,5 +445,14 @@ func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 		return "", err
 	}
 
+	if g.HasCache() {
+		response.Contents = string(body)
+		g.Cache.Set(g.CacheKeyFor(urlStr), cache.NewCacheEntry(response, expireTtl), expireTtl)
+	}
+
 	return string(body), nil
+}
+
+func (g *Gateway) CacheKeyFor(url string) string {
+	return "gateway:" + url
 }
