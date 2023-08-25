@@ -91,12 +91,8 @@ func (ws *StackupWorkflowState) SetCurrent(task *Task) CleanupCallback {
 }
 
 func (workflow *StackupWorkflow) FindTaskById(id string) (*Task, bool) {
-	if len(id) == 0 {
-		return nil, false
-	}
-
 	for _, task := range workflow.Tasks {
-		if strings.EqualFold(task.Id, id) {
+		if strings.EqualFold(task.Id, id) && len(id) > 0 {
 			return task, true
 		}
 	}
@@ -251,7 +247,7 @@ func (workflow *StackupWorkflow) processEnvSection() {
 }
 
 // ProcessIncludes loads the includes and processes all included files in the workflow asynchronously,
-// so the order in which they loading is not guaranteed.
+// so the order in which they are loaded is not guaranteed.
 func (workflow *StackupWorkflow) ProcessIncludes() {
 	for _, inc := range workflow.Includes {
 		inc.Initialize(workflow)
@@ -352,17 +348,17 @@ func (workflow *StackupWorkflow) handleChecksumVerification(include *WorkflowInc
 // prepend the included preconditions; we reverse the order of the preconditions in the included file,
 // then reverse the existing preconditions, append them, then reverse the workflow preconditions again
 // to achieve the correct order.
-func (workflow *StackupWorkflow) importPreconditionsFromIncludedTemplate(template *StackupWorkflow) {
-	workflow.Preconditions = utils.ReverseArray(workflow.Preconditions)
-	template.Preconditions = utils.ReverseArray(template.Preconditions)
+// func (workflow *StackupWorkflow) importPreconditionsFromIncludedTemplate(template *StackupWorkflow) {
+// 	workflow.Preconditions = utils.ReverseArray(workflow.Preconditions)
+// 	template.Preconditions = utils.ReverseArray(template.Preconditions)
 
-	for _, p := range template.Preconditions {
-		p.FromRemote = true
-		workflow.Preconditions = append(workflow.Preconditions, p)
-	}
+// 	for _, p := range template.Preconditions {
+// 		p.FromRemote = true
+// 		workflow.Preconditions = append(workflow.Preconditions, p)
+// 	}
 
-	workflow.Preconditions = utils.ReverseArray(workflow.Preconditions)
-}
+// 	workflow.Preconditions = utils.ReverseArray(workflow.Preconditions)
+// }
 
 func (workflow *StackupWorkflow) loadAndImportInclude(include *WorkflowInclude) error {
 	var template IncludedTemplate

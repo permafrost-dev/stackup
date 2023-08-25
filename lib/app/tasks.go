@@ -3,7 +3,6 @@ package app
 import (
 	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/scripting"
@@ -25,7 +24,6 @@ type Task struct {
 	RunCount       int
 	Uuid           string
 	FromRemote     bool
-	ProcessMap     *sync.Map
 	CommandStartCb types.CommandCallback
 	//Workflow   *StackupWorkflow //*types.AppWorkflowContract
 	JsEngine *scripting.JavaScriptEngine
@@ -171,12 +169,11 @@ func (task *Task) Run(synchronous bool) {
 	}
 
 	command := task.Command
-	runningSilently := task.Silent == true
 
 	support.StatusMessage(task.GetDisplayName()+"...", false)
 
 	if synchronous {
-		task.runWithStatusMessagesSync(runningSilently)
+		task.runWithStatusMessagesSync(task.Silent)
 		return
 	}
 
@@ -190,7 +187,7 @@ func (task *Task) Run(synchronous bool) {
 
 	support.PrintCheckMarkLine()
 
-	task.ProcessMap.Store(task.Uuid, cmd)
+	App.ProcessMap.Store(task.Uuid, cmd)
 }
 
 func (tr *TaskReference) Initialize(workflow *StackupWorkflow) {

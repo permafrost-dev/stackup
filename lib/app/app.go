@@ -57,10 +57,6 @@ func NewApplication() *Application {
 	return result
 }
 
-func (a *Application) GetWorkflow() StackupWorkflow {
-	return *a.Workflow
-}
-
 func (a *Application) loadWorkflowFile(filename string, wf *StackupWorkflow) {
 	wf.CommandStartCb = a.CmdStartCallback
 	wf.ExitAppFunc = a.exitApp
@@ -80,7 +76,6 @@ func (a *Application) loadWorkflowFile(filename string, wf *StackupWorkflow) {
 
 	for _, task := range wf.Tasks {
 		task.CommandStartCb = a.CmdStartCallback
-		task.ProcessMap = a.ProcessMap
 	}
 
 	wf.State = StackupWorkflowState{
@@ -243,13 +238,12 @@ func (a *Application) runServerTasks() {
 	for _, def := range a.Workflow.Servers {
 		task, found := a.Workflow.FindTaskById(def.TaskId())
 
-		task.JsEngine = a.JsEngine
-
 		if !found {
 			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
 			continue
 		}
 
+		// task.JsEngine = a.JsEngine
 		task.Run(false)
 	}
 }
@@ -390,8 +384,6 @@ func (a *Application) Run() {
 		st.Initialize(a.Workflow, a.JsEngine)
 	}
 
-	a.JsEngine.Evaluate(a.Workflow.Init)
-
 	if a.Analytics.IsEnabled {
 		a.Analytics.EventOnly("app.start")
 	}
@@ -399,6 +391,8 @@ func (a *Application) Run() {
 	if !*a.flags.NoUpdateCheck {
 		a.checkForApplicationUpdates()
 	}
+
+	a.JsEngine.Evaluate(a.Workflow.Init)
 
 	a.hookSignals()
 	a.hookKeyboard()

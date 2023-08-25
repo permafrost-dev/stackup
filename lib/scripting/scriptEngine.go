@@ -90,7 +90,7 @@ func (e *JavaScriptEngine) CreateAppVariables(vars *sync.Map) {
 
 func (e *JavaScriptEngine) CreateEnvironmentVariables(vars []string) {
 	for _, env := range vars {
-		parts := strings.Split(env, "=")
+		parts := strings.SplitN(env, "=", 2)
 		e.Vm.Set("$"+parts[0], parts[1])
 	}
 }

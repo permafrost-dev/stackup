@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -199,17 +198,6 @@ func (wi *WorkflowInclude) Identifier() string {
 	}
 
 	return wi.FullUrl()
-}
-
-func (wi *WorkflowInclude) Domain() string {
-	urlStr := wi.FullUrl()
-	parsedUrl, err := url.Parse(urlStr)
-
-	if err != nil {
-		return urlStr
-	}
-
-	return parsedUrl.Hostname()
 }
 
 func (wi *WorkflowInclude) FullUrlPath() string {
