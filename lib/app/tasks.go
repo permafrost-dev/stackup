@@ -27,8 +27,9 @@ type Task struct {
 	FromRemote     bool
 	CommandStartCb types.CommandCallback
 	//Workflow   *StackupWorkflow //*types.AppWorkflowContract
-	JsEngine  *scripting.JavaScriptEngine
-	setActive SetActiveTaskCallback
+	JsEngine     *scripting.JavaScriptEngine
+	setActive    SetActiveTaskCallback
+	StoreProcess types.SetProcessCallback
 	// types.AppWorkflowTaskContract
 }
 
@@ -74,10 +75,11 @@ func (task *Task) CanRunConditionally() bool {
 	return task.JsEngine.Evaluate(task.If).(bool)
 }
 
-func (task *Task) Initialize(engine *scripting.JavaScriptEngine, cmdStartCb types.CommandCallback, setActive SetActiveTaskCallback) {
-	task.JsEngine = engine
-	task.setActive = setActive
-	task.CommandStartCb = cmdStartCb
+func (task *Task) Initialize(workflow *StackupWorkflow) { //} *scripting.JavaScriptEngine, cmdStartCb types.CommandCallback, setActive SetActiveTaskCallback, storeProcess types.SetProcessCallback) {
+	task.JsEngine = workflow.JsEngine
+	task.setActive = workflow.State.CurrentTask.setActive
+	task.CommandStartCb = workflow.CommandStartCb
+	task.StoreProcess = workflow.ProcessMap.Store
 	task.Uuid = utils.GenerateTaskUuid()
 
 	task.RunCount = 0
@@ -86,15 +88,15 @@ func (task *Task) Initialize(engine *scripting.JavaScriptEngine, cmdStartCb type
 	}
 
 	if len(task.Path) == 0 {
-		task.Path = engine.MakeStringEvaluatable(consts.DEFAULT_CWD_SETTING)
+		task.Path = task.JsEngine.MakeStringEvaluatable(consts.DEFAULT_CWD_SETTING)
 	}
 
 	if task.If != "" {
-		task.If = engine.MakeStringEvaluatable(task.If)
+		task.If = task.JsEngine.MakeStringEvaluatable(task.If)
 	}
 
-	if engine.IsEvaluatableScriptString(task.Name) {
-		task.Name = engine.Evaluate(task.Name).(string)
+	if task.JsEngine.IsEvaluatableScriptString(task.Name) {
+		task.Name = task.JsEngine.Evaluate(task.Name).(string)
 	}
 }
 
@@ -174,12 +176,12 @@ func (task *Task) prepareRun() (bool, func()) {
 	return true, result
 }
 
-func (task *Task) RunSync() {
+func (task *Task) RunSync() bool {
 	var canRun bool
 	var cleanup func()
 
 	if canRun, cleanup = task.prepareRun(); !canRun {
-		return
+		return false
 	}
 
 	defer cleanup()
@@ -187,7 +189,7 @@ func (task *Task) RunSync() {
 	cmd, err := utils.RunCommandInPath(task.getCommand(), task.Path, task.Silent)
 	if err != nil {
 		support.FailureMessageWithXMark(task.GetDisplayName())
-		return
+		return false
 	}
 
 	if cmd != nil && task.Silent {
@@ -201,6 +203,8 @@ func (task *Task) RunSync() {
 	} else if cmd == nil {
 		support.FailureMessageWithXMark(task.GetDisplayName())
 	}
+
+	return true
 }
 
 func (task *Task) RunAsync() {
@@ -230,12 +234,12 @@ func (task *Task) RunAsync() {
 		support.PrintCheckMarkLine()
 	}
 
-	App.ProcessMap.Store(task.Uuid, cmd)
+	task.StoreProcess(task.Uuid, cmd)
 }
 
-func (tr *TaskReference) Initialize(workflow *StackupWorkflow, jse *scripting.JavaScriptEngine) {
+func (tr *TaskReference) Initialize(workflow *StackupWorkflow) {
 	tr.Workflow = workflow
-	tr.JsEngine = jse
+	tr.JsEngine = workflow.JsEngine
 }
 
 func (tr *TaskReference) TaskId() string {
@@ -254,9 +258,9 @@ func (st *ScheduledTask) TaskId() string {
 	return st.Task
 }
 
-func (st *ScheduledTask) Initialize(workflow *StackupWorkflow, engine *scripting.JavaScriptEngine) {
+func (st *ScheduledTask) Initialize(workflow *StackupWorkflow) {
 	st.Workflow = workflow
-	st.JsEngine = engine
+	st.JsEngine = workflow.JsEngine
 
 	if workflow.JsEngine.IsEvaluatableScriptString(st.Task) {
 		st.Task = workflow.JsEngine.Evaluate(st.Task).(string)

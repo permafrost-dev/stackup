@@ -19,6 +19,14 @@ func TestGetUniqueStrings(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "c"}, utils.GetUniqueStrings([]string{"a", "b", "c"}))
 }
 
+func TestUnique(t *testing.T) {
+	assert.Equal(t, []string{"a", "b", "c"}, utils.Unique([]string{"a", "b", "c", "a", "b", "c"}))
+	assert.Equal(t, []string{"a", "b", "c"}, utils.Unique([]string{"a", "b", "c"}))
+
+	assert.Equal(t, []int{1, 2, 3}, utils.Unique([]int{1, 2, 3, 1, 2, 3}))
+	assert.Equal(t, []int{1, 2}, utils.Unique([]int{1, 2, 2, 1}))
+}
+
 func TestGenerateTaskUuid(t *testing.T) {
 	uid := utils.GenerateTaskUuid()
 	assert.LessOrEqual(t, 8, len(uid))

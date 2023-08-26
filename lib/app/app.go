@@ -16,6 +16,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/stackup-app/stackup/lib/cache"
 	"github.com/stackup-app/stackup/lib/consts"
+	"github.com/stackup-app/stackup/lib/debug"
 	"github.com/stackup-app/stackup/lib/gateway"
 	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/support"
@@ -29,18 +30,11 @@ import (
 
 var App *Application
 
-type AppFlags struct {
-	DisplayHelp    *bool
-	DisplayVersion *bool
-	NoUpdateCheck  *bool
-	ConfigFile     *string
-}
-
 type Application struct {
-	Workflow            *StackupWorkflow
-	JsEngine            *scripting.JavaScriptEngine
-	cronEngine          *cron.Cron
-	scheduledTaskMap    *sync.Map
+	Workflow   *StackupWorkflow
+	JsEngine   *scripting.JavaScriptEngine
+	cronEngine *cron.Cron
+	// scheduledTaskMap    *sync.Map
 	ProcessMap          *sync.Map
 	Vars                *sync.Map
 	flags               AppFlags
@@ -53,9 +47,8 @@ type Application struct {
 
 func NewApplication() *Application {
 	result := &Application{
-		scheduledTaskMap: &sync.Map{},
-		ProcessMap:       &sync.Map{},
-		Vars:             &sync.Map{},
+		ProcessMap: &sync.Map{},
+		Vars:       &sync.Map{},
 		flags: AppFlags{
 			DisplayHelp:    flag.Bool("help", false, "Display help"),
 			DisplayVersion: flag.Bool("version", false, "Display version"),
@@ -66,7 +59,7 @@ func NewApplication() *Application {
 		Gateway:        gateway.New(nil),
 		cronEngine:     cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger))),
 	}
-
+	result.flags.app = result
 	result.Workflow = CreateWorkflow(result.Gateway, result.ProcessMap)
 
 	return result
@@ -96,18 +89,17 @@ func (a *Application) loadWorkflowFile(filename string, wf *StackupWorkflow) {
 	}
 
 	wf.ConfigureDefaultSettings()
+
+	if !wf.Debug {
+		wf.Debug = os.Getenv("DEBUG") == "true" || os.Getenv("DEBUG") == "1"
+	}
 }
 
 // parse command-line flags, load the workflow file, load .env files,
 // initialize the workflow, gateway and js engine
 func (a *Application) Initialize() {
 	utils.EnsureConfigDirExists(utils.GetDefaultConfigurationBasePath("~", "."), consts.APP_CONFIG_PATH_BASE_NAME)
-
-	flag.Parse()
-	if a.flags.ConfigFile != nil && *a.flags.ConfigFile != "" {
-		a.ConfigFilename = *a.flags.ConfigFile
-	}
-
+	a.flags.Parse()
 	a.JsEngine = scripting.CreateNewJavascriptEngine(
 		a.Vars,
 		a.Gateway,
@@ -117,27 +109,24 @@ func (a *Application) Initialize() {
 		},
 		a.GetApplicationIconPath,
 	)
-
-	a.handleFlagOptions()
-
 	a.loadWorkflowFile(a.ConfigFilename, a.Workflow)
-
-	if !a.Workflow.Debug {
-		a.Workflow.Debug = os.Getenv("DEBUG") == "true" || os.Getenv("DEBUG") == "1"
-	}
-
-	a.Analytics = telemetry.New(a.Workflow.Settings.AnonymousStatistics, a.Gateway)
+	debug.Dbg.SetEnabled(a.Workflow.Debug)
 	godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
 
+	a.Analytics = telemetry.New(a.Workflow.Settings.AnonymousStatistics, a.Gateway)
 	a.Gateway.Initialize(a.Workflow.Settings, a.JsEngine.AsContract(), nil)
-	a.Workflow.Cache = cache.New("stackup", a.GetConfigurationPath(), a.Workflow.Settings.Cache.TtlMinutes)
-	a.Gateway.Cache = a.Workflow.Cache
+	a.initializeCache()
 	a.Workflow.Initialize(a.JsEngine, a.GetConfigurationPath())
 	a.JsEngine.Initialize(a.Vars, os.Environ())
-	a.Gateway.Debug = a.Workflow.Debug
+
 
 	a.Analytics.EventOnly("app.start")
 	a.checkForApplicationUpdates(!*a.flags.NoUpdateCheck)
+}
+
+func (a *Application) initializeCache() {
+	a.Workflow.Cache = cache.New("stackup", a.GetConfigurationPath(), a.Workflow.Settings.Cache.TtlMinutes)
+	a.Gateway.Cache = a.Workflow.Cache
 }
 
 func (a *Application) hookSignals() {
@@ -209,7 +198,7 @@ func (a *Application) createScheduledTasks() {
 			}
 		})
 
-		a.scheduledTaskMap.Store(def.TaskId(), &def)
+		// a.scheduledTaskMap.Store(def.TaskId(), &def)
 	}
 
 	a.cronEngine.Start()
@@ -322,23 +311,6 @@ func (a *Application) checkForApplicationUpdates(canCheck bool) {
 
 	if hasUpdate, release := updater.New(a.Gateway).IsUpdateAvailable(consts.APP_REPOSITORY, version.APP_VERSION); hasUpdate {
 		support.WarningMessage("A new version of StackUp is available, released " + release.TimeSinceRelease())
-	}
-}
-
-func (a *Application) handleFlagOptions() {
-	if *a.flags.DisplayHelp {
-		flag.Usage()
-		os.Exit(0)
-	}
-
-	if *a.flags.DisplayVersion {
-		fmt.Println("StackUp version " + version.APP_VERSION)
-		os.Exit(0)
-	}
-
-	if len(os.Args) > 1 && os.Args[1] == "init" {
-		a.createNewConfigFile()
-		os.Exit(0)
 	}
 }
 

@@ -8,6 +8,10 @@ const DEFAULT_CWD_SETTING = "{{ getCwd() }}"
 var ALL_PLATFORMS = []string{"windows", "linux", "darwin"}
 var DEFAULT_ALLOWED_DOMAINS = []string{"raw.githubusercontent.com", "api.github.com"}
 
+const MAX_TASK_RUNS = 99999999
+
+const DEFAULT_CACHE_TTL_MINUTES = 15
+
 var INIT_CONFIG_FILE_CONTENTS string = `name: my stack
 description: application stack
 version: 1.0.0

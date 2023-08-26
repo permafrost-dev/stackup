@@ -1,6 +1,9 @@
 package app
 
 import (
+	"reflect"
+
+	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/support"
 )
@@ -16,61 +19,84 @@ type WorkflowPrecondition struct {
 	Workflow   *StackupWorkflow
 }
 
-func (p *WorkflowPrecondition) Initialize(workflow *StackupWorkflow, engine *scripting.JavaScriptEngine) {
+func (p *WorkflowPrecondition) Initialize(workflow *StackupWorkflow) {
 	p.Workflow = workflow
-	p.JsEngine = engine
+	p.JsEngine = workflow.JsEngine
 	p.Attempts = 0
-	p.MaxRetries = 99999999999
+	p.MaxRetries = consts.MAX_TASK_RUNS
 }
 
 func (p *WorkflowPrecondition) HandleOnFailure() bool {
-	result := true
-
-	if p.OnFail == "" {
-		return result
-	}
-
 	if p.JsEngine.IsEvaluatableScriptString(p.OnFail) {
 		return p.JsEngine.Evaluate(p.OnFail).(bool)
 	}
 
-	task, found := (*p.Workflow).FindTaskById(p.OnFail)
-
-	if found {
-		task.RunSync()
+	if task, found := p.Workflow.FindTaskById(p.OnFail); found {
+		return task.RunSync()
 	}
+
+	return true
+}
+
+func (wp *WorkflowPrecondition) CanRun() bool {
+	return wp.Attempts < wp.MaxRetries
+}
+
+func (wp *WorkflowPrecondition) Run() bool {
+	if wp.Check == "" {
+		return true
+	}
+
+	result := wp.CanRun()
+	if !result {
+		support.FailureMessageWithXMark(wp.Name)
+		return result
+	}
+
+	wp.Attempts++
+
+	scriptResult := wp.JsEngine.Evaluate(wp.Check).(any)
+	resultType, resultValue, _ := wp.JsEngine.ResultType(scriptResult)
+
+	if resultType == reflect.String && resultValue != "" {
+		return wp.JsEngine.Evaluate(resultValue.(string)).(bool)
+	}
+
+	if resultType == reflect.Bool && resultValue == false {
+		if wp.handleOnFail() {
+			return result
+		}
+		support.FailureMessageWithXMark(wp.Name)
+	}
+
+	// if result.(bool) == false {
+	// 	if result = wp.handleOnFail(); result {
+	// 		return result
+	// 	}
+	// 	support.FailureMessageWithXMark(wp.Name)
+	// }
 
 	return result
 }
 
-func (wp *WorkflowPrecondition) Run() bool {
-	result := true
-
-	if wp.Check != "" {
-		if wp.Attempts >= wp.MaxRetries {
-			support.FailureMessageWithXMark(wp.Name)
-			return false
-		}
-
-		wp.Attempts++
-
-		result = wp.JsEngine.Evaluate(wp.Check).(bool)
-
-		if !result && len(wp.OnFail) > 0 {
-			support.FailureMessageWithXMark(wp.Name)
-
-			if wp.HandleOnFailure() {
-				return wp.Run()
-			}
-
-			result = false
-		}
-
-		if !result {
-			support.FailureMessageWithXMark(wp.Name)
-			return false
-		}
+func (wp *WorkflowPrecondition) handleOnFail() bool {
+	if len(wp.OnFail) == 0 {
+		return false
 	}
 
-	return result
+	support.FailureMessageWithXMark(wp.Name)
+
+	if wp.JsEngine.IsEvaluatableScriptString(wp.OnFail) {
+		return wp.JsEngine.Evaluate(wp.OnFail).(bool)
+	}
+
+	if task, found := wp.Workflow.FindTaskById(wp.OnFail); found {
+		return task.RunSync()
+	}
+
+	if wp.HandleOnFailure() {
+		return wp.Run()
+	}
+
+	return false
 }

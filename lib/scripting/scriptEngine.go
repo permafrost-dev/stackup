@@ -2,6 +2,7 @@ package scripting
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -144,6 +145,30 @@ func (e *JavaScriptEngine) ToValue(value otto.Value) any {
 	r, _ := value.ToString()
 
 	return r
+}
+
+func (e *JavaScriptEngine) ResultType(v any) (reflect.Kind, interface{}, error) {
+	var value any = reflect.ValueOf(v).Interface()
+	valueOf := reflect.ValueOf(v)
+	kind := reflect.TypeOf(v).Kind()
+
+	if kind == reflect.String {
+		value = valueOf.String()
+	} else if kind == reflect.Int {
+		value = valueOf.Int()
+	} else if kind == reflect.Bool {
+		value = valueOf.Bool()
+	} else if kind == reflect.Uint {
+		value = valueOf.Uint()
+	}
+
+	var err error = nil
+
+	if kind == reflect.Invalid {
+		err = fmt.Errorf("invalid type")
+	}
+
+	return kind, value, err
 }
 
 func (e *JavaScriptEngine) Evaluate(script string) any {

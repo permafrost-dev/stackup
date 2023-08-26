@@ -12,6 +12,7 @@ type Settings struct {
 	AnonymousStatistics    bool                          `yaml:"anonymous-stats"`
 	Gateway                WorkflowSettingsGateway       `yaml:"gateway"`
 	Notifications          WorkflowSettingsNotifications `yaml:"notifications"`
+	Debug                  bool                          `yaml:"debug"`
 }
 
 type GatewayBlockAllowListsContract interface {

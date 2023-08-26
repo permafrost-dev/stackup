@@ -370,12 +370,26 @@ func ReplaceFilenameInUrl(u string, newFilename string) string {
 }
 
 func GetUniqueStrings(items []string) []string {
-	result := []string{}
-	for _, item := range items {
-		if !StringArrayContains(result, item) {
+	return Unique(items)
+	// result := []string{}
+	// for _, item := range items {
+	// 	if !StringArrayContains(result, item) {
+	// 		result = append(result, item)
+	// 	}
+	// }
+	// return result
+}
+
+func Unique[T comparable](items ...[]T) []T {
+	var combined []T = CombineArrays(items...)
+	result := []T{}
+
+	for _, item := range combined {
+		if !ArrayContains(result, item) {
 			result = append(result, item)
 		}
 	}
+
 	return result
 }
 

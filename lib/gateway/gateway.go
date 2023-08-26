@@ -133,6 +133,7 @@ func (g *Gateway) Initialize(s *settings.Settings, jsEngine types.JavaScriptEngi
 	}
 
 	g.Settings = s
+    g.Debug = s.Debug
 	//g.AllowedDomains = []string{"*"}
 	// g.DomainContentTypes = &sync.Map{}
 	// g.BlockedContentTypes = &sync.Map{}

@@ -9,6 +9,7 @@ import (
 	"github.com/dotenv-org/godotenvvault"
 	"github.com/stackup-app/stackup/lib/cache"
 	"github.com/stackup-app/stackup/lib/consts"
+	"github.com/stackup-app/stackup/lib/debug"
 	"github.com/stackup-app/stackup/lib/gateway"
 	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/settings"
@@ -50,9 +51,8 @@ func CreateWorkflow(gw *gateway.Gateway, processMap *sync.Map) *StackupWorkflow 
 		Tasks:         []*Task{},
 		State:         WorkflowState{},
 		Includes:      []WorkflowInclude{},
-		//Cache:         cache.New("stackup", "", 60),
-		Gateway:    gw,
-		ProcessMap: processMap,
+		Gateway:       gw,
+		ProcessMap:    processMap,
 	}
 }
 
@@ -106,13 +106,6 @@ func (workflow *StackupWorkflow) GetAllTaskReferences() []*TaskReference {
 
 func (workflow *StackupWorkflow) Initialize(engine *scripting.JavaScriptEngine, configPath string) {
 	workflow.JsEngine = engine
-
-	// if workflow.Settings == nil {
-	// 	workflow.Settings = &settings.Settings{}
-	// }
-
-	// workflow.Cache.DefaultTtl = workflow.Settings.Cache.TtlMinutes
-
 	workflow.processEnvSection()
 	workflow.InitializeSections()
 	workflow.ProcessIncludes()
@@ -120,94 +113,86 @@ func (workflow *StackupWorkflow) Initialize(engine *scripting.JavaScriptEngine, 
 
 func (workflow *StackupWorkflow) InitializeSections() {
 	for _, t := range workflow.Tasks {
-		t.Initialize(workflow.JsEngine, workflow.CommandStartCb, workflow.State.SetCurrent)
+		t.Initialize(workflow) //.JsEngine, workflow.CommandStartCb, workflow.State.SetCurrent, workflow.ProcessMap.Store)
 		t.SetDefaultSetttings(workflow.Settings)
 	}
 
 	// init startup, shutdown, servers sections
 	for _, t := range workflow.GetAllTaskReferences() {
-		t.Initialize(workflow, workflow.JsEngine)
+		t.Initialize(workflow)
 	}
 
 	for _, st := range workflow.Scheduler {
-		st.Initialize(workflow, workflow.JsEngine)
+		st.Initialize(workflow)
 	}
 
 	for _, pc := range workflow.Preconditions {
-		pc.Initialize(workflow, workflow.JsEngine)
+		pc.Initialize(workflow)
 	}
 }
 
 func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
-	if workflow.Settings == nil {
-		workflow.Settings = &settings.Settings{
-			Defaults: settings.WorkflowSettingsDefaults{
-				Tasks: settings.WorkflowSettingsDefaultsTasks{},
-			},
-			Domains: settings.WorkflowSettingsDomains{
-				Allowed: []string{},
-				Blocked: []string{},
-				Hosts:   []settings.WorkflowSettingsDomainsHost{},
-			},
-			Notifications: settings.WorkflowSettingsNotifications{
-				Telegram: settings.WorkflowSettingsNotificationsTelegram{},
-				Slack:    settings.WorkflowSettingsNotificationsSlack{},
-			},
-		}
-	}
+    if workflow.Settings == nil {
+        workflow.Settings = &settings.Settings{
+            Defaults: settings.WorkflowSettingsDefaults{
+                Tasks: settings.WorkflowSettingsDefaultsTasks{},
+            },
+            Domains: settings.WorkflowSettingsDomains{
+                Allowed: []string{},
+                Blocked: []string{},
+                Hosts:   []settings.WorkflowSettingsDomainsHost{},
+            },
+            Notifications: settings.WorkflowSettingsNotifications{
+                Telegram: settings.WorkflowSettingsNotificationsTelegram{},
+                Slack:    settings.WorkflowSettingsNotificationsSlack{},
+            },
+        }
+    }
 
-	if len(workflow.Settings.Defaults.Tasks.Path) == 0 {
-		workflow.Settings.Defaults.Tasks.Path = consts.DEFAULT_CWD_SETTING
-	}
+    if len(workflow.Settings.Defaults.Tasks.Path) == 0 {
+        workflow.Settings.Defaults.Tasks.Path = consts.DEFAULT_CWD_SETTING
+    }
 
-	if len(workflow.Settings.Defaults.Tasks.Platforms) == 0 {
-		workflow.Settings.Defaults.Tasks.Platforms = consts.ALL_PLATFORMS
-	}
+    if len(workflow.Settings.Defaults.Tasks.Platforms) == 0 {
+        workflow.Settings.Defaults.Tasks.Platforms = consts.ALL_PLATFORMS
+    }
 
-	//workflow.Settings.ChecksumVerification = true
-	if len(workflow.Settings.Domains.Allowed) == 0 {
-		workflow.Settings.Domains.Allowed = consts.DEFAULT_ALLOWED_DOMAINS
-	}
+    if len(workflow.Settings.Domains.Allowed) == 0 {
+        workflow.Settings.Domains.Allowed = consts.DEFAULT_ALLOWED_DOMAINS
+    }
 
-	workflow.Settings.Gateway.Middleware = []string{"validateUrl", "verifyFileType", "validateContentType"}
+    if workflow.Settings.Cache.TtlMinutes <= 0 {
+        workflow.Settings.Cache.TtlMinutes = consts.DEFAULT_CACHE_TTL_MINUTES
+    }
 
-	if workflow.Settings.Cache.TtlMinutes <= 0 {
-		workflow.Settings.Cache.TtlMinutes = 15
-	}
+    if len(workflow.Settings.DotEnvFiles) == 0 {
+        workflow.Settings.DotEnvFiles = []string{".env"}
+    }
 
-	if len(workflow.Settings.DotEnvFiles) == 0 {
-		workflow.Settings.DotEnvFiles = []string{".env"}
-	}
+    workflow.Settings.Gateway.Middleware = []string{"validateUrl", "verifyFileType", "validateContentType"}
 
-	if len(workflow.Settings.Notifications.Slack.ChannelIds) > 0 {
-		tempChannelIds := []string{}
-		for _, channelId := range workflow.Settings.Notifications.Slack.ChannelIds {
-			tempChannelIds = append(tempChannelIds, os.ExpandEnv(channelId))
-		}
-		workflow.Settings.Notifications.Slack.ChannelIds = tempChannelIds
-	}
+    workflow.expandEnvVars(workflow.Settings.Notifications.Slack.ChannelIds)
+    workflow.expandEnvVars(workflow.Settings.Notifications.Telegram.ChatIds)
 
-	if len(workflow.Settings.Notifications.Telegram.ChatIds) > 0 {
-		tempChatIds := []string{}
-		for _, chatID := range workflow.Settings.Notifications.Telegram.ChatIds {
-			tempChatIds = append(tempChatIds, os.ExpandEnv(chatID))
-		}
-		workflow.Settings.Notifications.Telegram.ChatIds = tempChatIds
-	}
+    newHosts := []string{}
+    for _, host := range workflow.Settings.Domains.Hosts {
+        if host.Gateway == "allow" || host.Gateway == "" {
+            newHosts = append(newHosts, host.Hostname)
+        }
+        if len(host.Headers) > 0 {
+            workflow.Gateway.DomainHeaders.Store(host.Hostname, host.Headers)
+        }
+    }
 
-	newHosts := []string{}
-	for _, host := range workflow.Settings.Domains.Hosts {
-		if host.Gateway == "allow" || host.Gateway == "" {
-			newHosts = append(newHosts, host.Hostname)
-		}
-		if len(host.Headers) > 0 {
-			workflow.Gateway.DomainHeaders.Store(host.Hostname, host.Headers)
-		}
-	}
+    workflow.Settings.Domains.Allowed = utils.Unique(workflow.Settings.Domains.Allowed, newHosts)
 
-	workflow.Settings.Domains.Allowed = utils.GetUniqueStrings(utils.CombineArrays(workflow.Settings.Domains.Allowed, newHosts))
+    workflow.setDefaultOptionsForTasks()
+}
 
-	workflow.setDefaultOptionsForTasks()
+func (workflow *StackupWorkflow) expandEnvVars(items []string) {
+    for i, item := range items {
+        items[i] = os.ExpandEnv(item)
+    }
 }
 
 // copy the default task settings into each task if the settings are not already set
@@ -300,15 +285,16 @@ func (workflow *StackupWorkflow) tryLoadingCachedData(include *WorkflowInclude) 
 }
 
 func (workflow *StackupWorkflow) loadRemoteFileInclude(include *WorkflowInclude) error {
-	var err error
+	var err error = nil
 
 	if include.Contents, err = workflow.Gateway.GetUrl(include.FullUrl()); err != nil {
 		return err
 	}
 
+	include.UpdateHash()
 	workflow.Cache.Set(include.Identifier(), include.NewCacheEntry(), workflow.Settings.Cache.TtlMinutes)
 
-	return nil
+	return err
 }
 
 func (workflow *StackupWorkflow) handleChecksumVerification(include *WorkflowInclude) bool {
@@ -323,21 +309,6 @@ func (workflow *StackupWorkflow) handleChecksumVerification(include *WorkflowInc
 	return result
 }
 
-// prepend the included preconditions; we reverse the order of the preconditions in the included file,
-// then reverse the existing preconditions, append them, then reverse the workflow preconditions again
-// to achieve the correct order.
-// func (workflow *StackupWorkflow) importPreconditionsFromIncludedTemplate(template *StackupWorkflow) {
-// 	workflow.Preconditions = utils.ReverseArray(workflow.Preconditions)
-// 	template.Preconditions = utils.ReverseArray(template.Preconditions)
-
-// 	for _, p := range template.Preconditions {
-// 		p.FromRemote = true
-// 		workflow.Preconditions = append(workflow.Preconditions, p)
-// 	}
-
-// 	workflow.Preconditions = utils.ReverseArray(workflow.Preconditions)
-// }
-
 func (workflow *StackupWorkflow) loadAndImportInclude(rawYaml string) error {
 	var template IncludedTemplate
 
@@ -346,27 +317,27 @@ func (workflow *StackupWorkflow) loadAndImportInclude(rawYaml string) error {
 	}
 
 	for _, task := range template.Tasks {
-		task.Initialize(workflow.JsEngine, workflow.CommandStartCb, workflow.State.SetCurrent)
+		task.Initialize(workflow) // workflow.JsEngine, workflow.CommandStartCb, workflow.State.SetCurrent, workflow.ProcessMap.Store)
 		workflow.Tasks = append(workflow.Tasks, task)
 	}
 
 	for _, precondition := range template.Preconditions {
-		precondition.Initialize(workflow, workflow.JsEngine)
+		precondition.Initialize(workflow)
 		workflow.Preconditions = append(workflow.Preconditions, precondition)
 	}
 
 	for _, startup := range template.Startup {
-		startup.Initialize(workflow, workflow.JsEngine)
+		startup.Initialize(workflow)
 		workflow.Startup = append(workflow.Startup, startup)
 	}
 
 	for _, shutdown := range template.Shutdown {
-		shutdown.Initialize(workflow, workflow.JsEngine)
+		shutdown.Initialize(workflow)
 		workflow.Shutdown = append(workflow.Shutdown, shutdown)
 	}
 
 	for _, server := range template.Servers {
-		server.Initialize(workflow, workflow.JsEngine)
+		server.Initialize(workflow)
 		workflow.Servers = append(workflow.Servers, server)
 	}
 
@@ -383,9 +354,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) error 
 	loaded := workflow.tryLoadingCachedData(include)
 
 	if !loaded {
-		if workflow.Debug {
-			fmt.Printf(" [debug] include not loaded from cache: %s\n", include.DisplayUrl())
-		}
+		debug.Logf("include not loaded from cache: %s", include.DisplayUrl())
 
 		if err := workflow.loadRemoteFileInclude(include); err != nil {
 			support.FailureMessageWithXMark("remote include (rejected: " + err.Error() + "): " + include.DisplayName())

@@ -9,6 +9,8 @@ import (
 
 type CommandCallback func(cmd *exec.Cmd)
 
+type SetProcessCallback func(key, value any)
+
 type JavaScriptEngineContract interface {
 	IsEvaluatableScriptString(s string) bool
 	GetEvaluatableScriptString(s string) string
