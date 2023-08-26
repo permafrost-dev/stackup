@@ -1,9 +1,12 @@
 package gateway_test
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stackup-app/stackup/lib/gateway"
+	"github.com/stackup-app/stackup/lib/scripting"
+	"github.com/stackup-app/stackup/lib/settings"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,6 +22,28 @@ func TestGatewayDisable(t *testing.T) {
 	g.Enabled = true
 	g.Disable()
 	assert.False(t, g.Enabled, "gateway should be disabled")
+}
+
+func TestGatewayInitialize(t *testing.T) {
+	s := &settings.Settings{
+		Domains: settings.WorkflowSettingsDomains{
+			Allowed: []string{"*.example.com", "*.one.example.net", "api.**.com"},
+			Blocked: []string{},
+			Hosts:   []settings.WorkflowSettingsDomainsHost{},
+		},
+		Gateway: settings.WorkflowSettingsGateway{
+			Middleware: []string{"validateUrl"},
+		},
+	}
+
+	g := gateway.New(nil)
+	findTask := func(id string) (any, error) { return nil, nil }
+	engine := scripting.CreateNewJavascriptEngine(&sync.Map{}, g, findTask, func() string { return "." })
+	g.Initialize(s, engine, nil)
+
+	assert.True(t, g.Enabled, "gateway should be enabled")
+	assert.Equal(t, 3, len(g.AllowedDomains), "gateway should have 3 allowed domains")
+	assert.NotNil(t, g.HttpClient, "gateway should have a valid HttpClient property")
 }
 
 // func TestGatewayAllowed(t *testing.T) {

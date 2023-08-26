@@ -1,5 +1,7 @@
 package settings
 
+import "reflect"
+
 type Settings struct {
 	Defaults               WorkflowSettingsDefaults      `yaml:"defaults"`
 	ExitOnChecksumMismatch bool                          `yaml:"exit-on-checksum-mismatch"`
@@ -12,9 +14,22 @@ type Settings struct {
 	Notifications          WorkflowSettingsNotifications `yaml:"notifications"`
 }
 
-type GatewayContentTypes struct {
+type GatewayBlockAllowListsContract interface {
+	GetAllowed() []string
+	GetBlocked() []string
+	SetAllowed(items []string)
+	SetBlocked(items []string)
+}
+
+type GatewayBlockAllowLists struct {
 	Blocked []string `yaml:"blocked"`
 	Allowed []string `yaml:"allowed"`
+
+	GatewayBlockAllowListsContract
+}
+
+type GatewayContentTypes struct {
+	GatewayBlockAllowLists
 }
 
 type WorkflowSettingsGateway struct {
@@ -66,4 +81,61 @@ type WorkflowSettingsNotificationsTelegram struct {
 type WorkflowSettingsNotificationsSlack struct {
 	WebhookUrl string   `yaml:"webhook-url"`
 	ChannelIds []string `yaml:"channel-ids"`
+}
+
+func arrayContains[T comparable](array1 []T, array2 any) bool {
+	// Create a map to store the items in array1
+	items := make(map[T]bool)
+	for _, item := range array1 {
+		items[item] = true
+	}
+
+	var arr2 []T
+	if reflect.TypeOf(array2).Kind() != reflect.Slice {
+		arr2 = []T{array2.(T)}
+	} else {
+		arr2 = array2.([]T)
+	}
+
+	for _, item := range arr2 {
+		if !items[item] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func getUniqueStrings(items []string) []string {
+	result := []string{}
+	for _, item := range items {
+		if !arrayContains(result, item) {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func (gba *GatewayBlockAllowLists) GetAllowed() []string {
+	return gba.Allowed
+}
+
+func (gba *GatewayBlockAllowLists) GetBlocked() []string {
+	return gba.Blocked
+}
+
+func (gba *GatewayBlockAllowLists) SetAllowed(items []string) {
+	gba.Allowed = getUniqueStrings(items)
+}
+
+func (gba *GatewayBlockAllowLists) SetBlocked(items []string) {
+	gba.Blocked = getUniqueStrings(items)
+}
+
+func (gba *GatewayBlockAllowLists) Allow(item string) {
+	gba.SetAllowed(append(gba.Allowed, item))
+}
+
+func (gba *GatewayBlockAllowLists) Block(item string) {
+	gba.SetBlocked(append(gba.Blocked, item))
 }

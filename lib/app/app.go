@@ -101,7 +101,7 @@ func (a *Application) loadWorkflowFile(filename string, wf *StackupWorkflow) {
 // parse command-line flags, load the workflow file, load .env files,
 // initialize the workflow, gateway and js engine
 func (a *Application) Initialize() {
-	utils.EnsureConfigDirExists(consts.APP_CONFIG_PATH_BASE_NAME)
+	utils.EnsureConfigDirExists(utils.GetDefaultConfigurationBasePath("~", "."), consts.APP_CONFIG_PATH_BASE_NAME)
 
 	flag.Parse()
 	if a.flags.ConfigFile != nil && *a.flags.ConfigFile != "" {
@@ -343,7 +343,10 @@ func (a *Application) handleFlagOptions() {
 }
 
 func (a *Application) GetConfigurationPath() string {
-	pathname, _ := utils.EnsureConfigDirExists(consts.APP_CONFIG_PATH_BASE_NAME)
+	pathname, _ := utils.EnsureConfigDirExists(
+		utils.GetDefaultConfigurationBasePath("~", "."),
+		consts.APP_CONFIG_PATH_BASE_NAME,
+	)
 
 	return pathname
 }

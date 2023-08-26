@@ -77,14 +77,14 @@ func (jsf *JavaScriptFunctions) createSetTimeoutFunction(call otto.FunctionCall)
 }
 
 func (jsf *JavaScriptFunctions) createFetchFunction(call otto.FunctionCall) otto.Value {
-	result, _ := utils.GetUrlContents(call.Argument(0).String())
+	result, _ := utils.GetUrlContents(call.Argument(0).String(), jsf.Engine.GetGateway())
 
 	return getResult(call, result)
 }
 
 func (jsf *JavaScriptFunctions) createFetchJsonFunction(call otto.FunctionCall) otto.Value {
 	var result interface{}
-	utils.GetUrlJson(call.Argument(0).String(), &result)
+	utils.GetUrlJson(call.Argument(0).String(), &result, jsf.Engine.GetGateway())
 
 	return getResult(call, result)
 }

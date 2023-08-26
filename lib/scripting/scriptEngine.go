@@ -24,6 +24,7 @@ type JavaScriptEngine struct {
 	Registry               *sync.Map
 	InstalledExtensions    *sync.Map
 	initialized            bool
+
 	types.JavaScriptEngineContract
 }
 
@@ -40,6 +41,11 @@ func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, findTas
 	}
 
 	return result
+}
+
+func (e *JavaScriptEngine) GetGateway() *types.GatewayContract {
+	var result types.GatewayContract = e.AppGateway
+	return &result
 }
 
 func (e *JavaScriptEngine) RegisterExtension(name string, value types.ScriptExtensionContract) {

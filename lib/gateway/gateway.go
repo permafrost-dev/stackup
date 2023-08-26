@@ -49,6 +49,8 @@ type Gateway struct {
 	Settings            *settings.Settings
 	Cache               *cache.Cache
 	Debug               bool
+
+	types.GatewayContract
 }
 
 // New initializes the gateway with deny/allow lists
@@ -66,6 +68,7 @@ func New(cache *cache.Cache) *Gateway {
 		BlockedContentTypes: &sync.Map{},
 		HttpClient:          http.DefaultClient,
 		Cache:               cache,
+		Debug:               false,
 	}
 
 	result.Enable()
@@ -102,36 +105,48 @@ func (g *Gateway) Initialize(s *settings.Settings, jsEngine types.JavaScriptEngi
 		return
 	}
 
-	g.AllowedDomains = []string{"*"}
-
-	g.DomainContentTypes = &sync.Map{}
-	g.BlockedContentTypes = &sync.Map{}
+	if s == nil {
+		panic("gateway.Initialize(): settings arg cannot be nil")
+	}
 
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
-	g.Settings = s
-
-	g.Middleware = []*GatewayUrlRequestMiddleware{
-		&ValidateUrlMiddleware,
-	}
 
 	if s.Gateway.FileExtensions == nil {
 		s.Gateway.FileExtensions = &settings.WorkflowSettingsGatewayFileExtensions{
-			Allow: []string{"*"},
-			Block: []string{"*"},
+			Allow: []string{},
+			Block: []string{},
 		}
 	}
+	if len(s.Gateway.FileExtensions.Allow) == 0 {
+		s.Gateway.FileExtensions.Allow = []string{"*"}
+	}
+	if len(s.Gateway.FileExtensions.Block) == 0 {
+		s.Gateway.FileExtensions.Allow = []string{"*"}
+	}
+	if len(s.Domains.Allowed) == 0 {
+		s.Domains.Allowed = []string{"*"}
+	}
+	if len(s.Domains.Blocked) == 0 {
+		s.Domains.Blocked = []string{"*"}
+	}
+
+	g.Settings = s
+	//g.AllowedDomains = []string{"*"}
+	// g.DomainContentTypes = &sync.Map{}
+	// g.BlockedContentTypes = &sync.Map{}
 
 	g.HttpClient = httpClient
 	g.JsEngine = jsEngine
+	g.Middleware = []*GatewayUrlRequestMiddleware{&ValidateUrlMiddleware}
 	g.SetAllowedDomains(s.Domains.Allowed)
-	g.SetDeniedDomains([]string{"*"})
+	g.SetDeniedDomains(s.Domains.Blocked)
 	g.SetAllowedFileExts(s.Gateway.FileExtensions.Allow)
 	g.SetBlockedFileExts(s.Gateway.FileExtensions.Block)
-	g.EnabledMiddleware = s.Gateway.Middleware
-	g.DeniedDomains = g.normalizeDomainArray(g.DeniedDomains)
-	g.AllowedDomains = g.normalizeDomainArray(g.AllowedDomains)
+	g.EnabledMiddleware = append(g.EnabledMiddleware, s.Gateway.Middleware...)
+	// g.DeniedDomains = g.NormalizeDomainArray(g.DeniedDomains)
+	// g.AllowedDomains = g.NormalizeDomainArray(g.AllowedDomains)
 
 	//g.SetDefaults()
 
@@ -159,11 +174,11 @@ func (g *Gateway) SetDefaults() {
 }
 
 func (g *Gateway) SetAllowedDomains(domains []string) {
-	//g.AllowedDomains = g.normalizeDomainArray(domains)
+	g.AllowedDomains = g.NormalizeDomainArray(domains)
 }
 
 func (g *Gateway) SetDeniedDomains(domains []string) {
-	g.DeniedDomains = g.normalizeDomainArray(domains)
+	g.DeniedDomains = g.NormalizeDomainArray(domains)
 }
 
 func (g *Gateway) SetDomainHeaders(domain string, headers []string) {
@@ -293,20 +308,20 @@ func (g *Gateway) Allowed(link string) bool {
 	return g.runUrlRequestPipeline(link) == nil
 }
 
-// processes an array of domains and remove any empty strings and extracts hostnames from URLs if
-// they are present, then returns a new array without the removed items
-func (g *Gateway) normalizeDomainArray(arr []string) []string {
+// processes an array of domains and removes empty strings, extracts hostnames from URLs if
+// they are present, and returns a new array without the removed items
+func (g *Gateway) NormalizeDomainArray(arr []string) []string {
 	result := []string{}
 
 	for _, domain := range arr {
-		if len(strings.TrimSpace(domain)) == 0 {
-			continue
-		}
 		if strings.Contains(domain, "://") {
-			parsedUrl, err := url.Parse(domain)
-			if err == nil {
+			if parsedUrl, err := url.Parse(domain); err == nil {
 				domain = parsedUrl.Host
 			}
+		}
+
+		if len(strings.TrimSpace(domain)) == 0 {
+			continue
 		}
 
 		result = append(result, domain)

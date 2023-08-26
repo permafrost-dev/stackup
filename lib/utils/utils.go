@@ -12,11 +12,13 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gobwas/glob"
+	"github.com/stackup-app/stackup/lib/types"
 )
 
 func BinaryExistsInPath(binary string) bool {
@@ -92,7 +94,15 @@ func FindFirstExistingFile(filenames []string) (string, error) {
 	return "", os.ErrNotExist
 }
 
-func GetUrlContents(url string) (string, error) {
+func GetUrlContents(url string, gw *types.GatewayContract) (string, error) {
+	if gw != nil {
+		content, err := (*gw).GetUrl(url)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
+	}
+
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
@@ -113,8 +123,8 @@ func GetUrlContents(url string) (string, error) {
 	return string(body), nil
 }
 
-func GetUrlJson(url string, result any) error {
-	body, err := GetUrlContents(url)
+func GetUrlJson(url string, result any, gw *types.GatewayContract) error {
+	body, err := GetUrlContents(url, gw)
 	if err != nil {
 		return err
 	}
@@ -184,14 +194,111 @@ func MatchesPattern(s string, pattern string) bool {
 }
 
 func StringArrayContains(arr []string, s string) bool {
+	return ArrayContains(arr, s)
+}
+
+func Swap[T any](a, b T) (T, T) {
+	// if a == nil || b == nil {
+	// 	return nil, nil
+	// }
+
+	result := []T{a, b}
+	// result = ReverseArray(result)
+
+	return result[1], result[0]
+
+	// *a, *b = *b, *a
+}
+
+func ArrayContainsSubset[T comparable](arr []T, containsItems []T) bool {
+	result := false
 	for _, item := range arr {
-		if item == s {
-			return true
+		if !ArrayContains(containsItems, item) {
+			result = false
+			break
+		}
+		result = true
+	}
+
+	fmt.Printf("subset.result == %v\n", result)
+	return result
+}
+
+func ArrayContains[T comparable](array1 []T, array2 any) bool {
+	// Create a map to store the items in array1
+	items := make(map[T]bool)
+	for _, item := range array1 {
+		items[item] = true
+	}
+
+	var arr2 []T
+	if reflect.TypeOf(array2).Kind() != reflect.Slice {
+		arr2 = []T{array2.(T)}
+	} else {
+		arr2 = array2.([]T)
+	}
+
+	// Check if each item in array2 is present in the items map
+	for _, item := range arr2 {
+		if !items[item] {
+			return false
 		}
 	}
 
-	return false
+	return true
 }
+
+func Ptr[T any](value T) *T {
+	var result any = value
+	var resultPtr T = result.(T)
+	return &resultPtr
+}
+
+func Ptrs[T any](arr ...T) []*T {
+	var result []*T = []*T{} //make([]*T, len(arr))
+
+	// mapped := Map(arr, Ptr[*interface{}].(func(v any) interface{}))
+
+	//  func(v any) interface{} {
+	// 	return Ptr(v)
+	// })
+
+	// for idx, item := range mapped {
+	// 	var itemAny any = item
+	// 	result[idx] = itemAny.(*T)
+	// }
+
+	// return result
+	// var castresult1 []*T = result.(*[]*T)
+	// return castresult1
+
+	for _, item := range arr {
+		result = append(result, Ptr(item))
+	}
+
+	//	for i, v := range mapped {
+	//		result[i] = v.(*T)
+	//	}
+	//
+	return result
+}
+
+func Map[T any](arr []T, fn func(arg any) interface{}) []any {
+	result := []any{}
+	for _, item := range arr {
+		var intf interface{} = fn(item)
+		result = append(result, intf)
+	}
+	return result
+}
+
+// func ArrayPtr[T any](arr ...T) *[]T {
+// 	result := []T{}
+// 	for _, item := range arr {
+// 		result = append(result, item)
+// 	}
+// 	return &result
+// }
 
 func SaveStringToFile(contents string, filename string) error {
 	return os.WriteFile(filename, []byte(contents), 0644)
@@ -263,15 +370,59 @@ func ReplaceFilenameInUrl(u string, newFilename string) string {
 }
 
 func GetUniqueStrings(items []string) []string {
-	uniqueItems := make([]string, 0)
-
+	result := []string{}
 	for _, item := range items {
-		if !StringArrayContains(uniqueItems, item) {
-			uniqueItems = append(uniqueItems, item)
+		if !StringArrayContains(result, item) {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func Except[T any](items []T, excludeItems []T) []T {
+	if len(excludeItems) == 0 {
+		return items
+	}
+
+	return Difference(items, excludeItems)
+}
+
+// opposite of Intersect:
+
+func Difference[T any](arr1 []T, arr2 []T) []T {
+	result := []T{}
+	mapped := mapKeys(arr2)
+	for _, item := range arr1 {
+		if _, ok := mapped[fmt.Sprintf("%v", item)]; !ok {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func mapKeys[T any](arr []T) map[string]bool {
+	items := make(map[string]bool)
+	for _, item := range arr {
+		items[fmt.Sprintf("%v", item)] = true
+	}
+	return items
+}
+
+func Intersect[T any](arr1 []T, arr2 []T) []T {
+	result := []T{}
+	items := mapKeys(arr1)
+
+	for _, item := range arr2 {
+		if items[fmt.Sprintf("%v", item)] {
+			result = append(result, item)
 		}
 	}
 
-	return uniqueItems
+	return result
+}
+
+func Only[T any](items []T, includeItems []T) []T {
+	return Intersect(items, includeItems)
 }
 
 func GetDefaultConfigurationBasePath(path string, defaultPath string) string {

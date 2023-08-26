@@ -32,6 +32,10 @@ type AppWorkflowContract interface {
 
 type AppWorkflowContractPtr *AppWorkflowContract
 
+type GatewayContract interface {
+	GetUrl(url string, headers ...string) (string, error)
+}
+
 type ScriptExtensionContract interface {
 	Install()
 	GetName() string

@@ -60,6 +60,14 @@ var _ChecksumAlgorithmValue = map[string]ChecksumAlgorithm{
 	_ChecksumAlgorithmName[27:32]: ChecksumAlgorithmError,
 }
 
+var _ChecksumAlgorithmLengths = map[ChecksumAlgorithm]int{
+	//:   ChecksumAlgorithmSha1,
+	ChecksumAlgorithmSha256: 64,
+	ChecksumAlgorithmSha512: 128,
+	// _ChecksumAlgorithmName[16:27]: ChecksumAlgorithmUnsupported,
+	// _ChecksumAlgorithmName[27:32]: ChecksumAlgorithmError,
+}
+
 // ParseChecksumAlgorithm attempts to convert a string to a ChecksumAlgorithm.
 func ParseChecksumAlgorithm(name string) ChecksumAlgorithm {
 	if x, ok := _ChecksumAlgorithmValue[name]; ok {
@@ -68,6 +76,15 @@ func ParseChecksumAlgorithm(name string) ChecksumAlgorithm {
 
 	return ChecksumAlgorithmUnsupported
 	// return ChecksumAlgorithm(0), fmt.Errorf("%s is %w", name, ErrInvalidChecksumAlgorithm)
+}
+
+func (x ChecksumAlgorithm) GetHashLength() int {
+	result, ok := _ChecksumAlgorithmLengths[x]
+	if !ok {
+		return 0
+	}
+
+	return result
 }
 
 // MarshalText implements the text marshaller method.

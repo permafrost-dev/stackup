@@ -22,7 +22,7 @@ func (net *ScriptNet) Fetch(url string) any {
 		return ""
 	}
 
-	result, _ := utils.GetUrlContents(url)
+	result, _ := utils.GetUrlContents(url, net.engine.GetGateway())
 
 	return result
 }
@@ -34,7 +34,7 @@ func (net *ScriptNet) FetchJson(url string) any {
 	}
 
 	var result interface{} = nil
-	utils.GetUrlJson(url, result)
+	utils.GetUrlJson(url, result, net.engine.GetGateway())
 
 	return result
 }
