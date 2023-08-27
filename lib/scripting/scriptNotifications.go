@@ -1,21 +1,18 @@
 package scripting
 
-// import (
-// 	"strconv"
+import (
+	"github.com/stackup-app/stackup/lib/settings"
+	"github.com/stackup-app/stackup/lib/types"
+)
 
-// 	"github.com/stackup-app/stackup/lib/notifications"
-// 	"github.com/stackup-app/stackup/lib/settings"
-// 	"github.com/stackup-app/stackup/lib/types"
-// )
-
-// type ScriptNotifications struct {
-// 	engine                 *JavaScriptEngine
-// 	settings               *settings.Settings
-// 	telegramObj            *ScriptNotificationsTelegram
-// 	slackObj               *ScriptNotificationsSlack
-// 	desktopObj             *DesktopNotification
-// 	GetApplicationIconPath func() string
-// }
+type ScriptNotifications struct {
+	engine                 *JavaScriptEngine
+	settings               *settings.Settings
+	telegramObj            *ScriptNotificationsTelegram
+	slackObj               *ScriptNotificationsSlack
+	desktopObj             *DesktopNotification
+	GetApplicationIconPath func() string
+}
 
 // type DesktopNotification struct {
 // 	state struct {
@@ -45,29 +42,36 @@ package scripting
 // 	sn *ScriptNotifications
 // }
 
-// func CreateScripNotificationsObject(wf *types.AppWorkflowContract, e *JavaScriptEngine) {
+func CreateScripNotificationsObject(wf *types.AppWorkflowContract, e *JavaScriptEngine) {
+	return
+}
+
+// 	return
+
 // 	// wc := e.GetWorkflowContract()
 // 	// fmt.Printf("wc: %v\n", (*wc).GetSettings())
 
-// 	ptr := (*wf)
+// 	// if wf == nil {
+// 	//     return
+// 	// }
 
-// 	obj := &ScriptNotifications{
-// 		engine:   e,
-// 		settings: (ptr).GetSettings(),
-// 		telegramObj: &ScriptNotificationsTelegram{
-// 			APIToken: "",
-// 		},
-// 		slackObj: &ScriptNotificationsSlack{
-// 			WebhookUrl: "",
-// 		},
-// 		desktopObj:             &DesktopNotification{},
-// 		GetApplicationIconPath: e.GetApplicationIconPath,
-// 	}
-// 	obj.desktopObj.sn = obj
-// 	obj.telegramObj.sn = obj
-// 	obj.slackObj.sn = obj
+// 	// obj := &ScriptNotifications{
+// 	// 	engine:   e,
+// 	// 	settings: (*wf).GetSettings(),
+// 	// 	telegramObj: &ScriptNotificationsTelegram{
+// 	// 		APIToken: "",
+// 	// 	},
+// 	// 	slackObj: &ScriptNotificationsSlack{
+// 	// 		WebhookUrl: "",
+// 	// 	},
+// 	// 	desktopObj:             &DesktopNotification{},
+// 	// 	GetApplicationIconPath: e.GetApplicationIconPath,
+// 	// }
+// 	// obj.desktopObj.sn = obj
+// 	// obj.telegramObj.sn = obj
+// 	// obj.slackObj.sn = obj
 
-// 	e.Vm.Set("notifications", obj)
+// 	// e.Vm.Set("notifications", obj)
 // }
 
 // func (dn *DesktopNotification) create() *DesktopNotification {
@@ -105,15 +109,15 @@ package scripting
 // }
 
 // func (sn *ScriptNotifications) Telegram() *ScriptNotificationsTelegram {
+// 	return nil
 // 	// token := sn.settings().Notifications.Telegram.APIKey
 // 	// return sn.telegramObj.create(token)
-// 	return nil
 // }
 
 // func (sn *ScriptNotifications) Slack() *ScriptNotificationsSlack {
+// 	return nil
 // 	// webhookUrl := sn.settings().Notifications.Slack.WebhookUrl
 // 	// return sn.slackObj.create(webhookUrl)
-// 	return nil
 // }
 
 // func (sns *ScriptNotificationsSlack) create(webhookUrl string) *ScriptNotificationsSlack {
@@ -138,16 +142,16 @@ package scripting
 // }
 
 // func (sns *ScriptNotificationsSlack) Send() bool {
-// 	return false
 // 	// temp := (*sns.sn.engine).toInterface()
 
-// 	// sns.To(temp.(JavaScriptEngine).GetWorkflowContract()).GetSettings().Notifications.Slack.ChannelIds...)
+// 	// sns.To(temp.(JavaScriptEngine).GetWorkflowContract()).GetSettings().Notifications.Slack)
 // 	// webhookUrl := sns.sn.engine.Evaluate((*temp).GetSettings().Notifications.Slack.WebhookUrl).(string)
 
 // 	// result := notifications.NewSlackNotification(webhookUrl, sns.state.channelIds...).
 // 	// 	Send(sns.state.title, sns.state.message)
 
 // 	// sns.resetState()
+// 	return false
 // 	// return result == nil
 // }
 
@@ -190,6 +194,7 @@ package scripting
 // // Send is a method of the `ScriptNotificationsTelegram` struct. It takes three
 // // parameters: `chatId` of type `int64`, `title` of type `string`, and `message` of type `string`.
 // func (snt *ScriptNotificationsTelegram) Send() bool {
+// 	return false
 // 	// if len(snt.state.chatIds) == 0 {
 // 	// 	snt.To(snt.sn.settings().Notifications.Telegram.ChatIds...)
 // 	// }
@@ -201,5 +206,5 @@ package scripting
 
 // 	// snt.resetState()
 
-// 	return false //result == nil
+// 	// return result == nil
 // }
