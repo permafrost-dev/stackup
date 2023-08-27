@@ -119,7 +119,6 @@ func (a *Application) Initialize() {
 	a.Workflow.Initialize(a.JsEngine, a.GetConfigurationPath())
 	a.JsEngine.Initialize(a.Vars, os.Environ())
 
-
 	a.Analytics.EventOnly("app.start")
 	a.checkForApplicationUpdates(!*a.flags.NoUpdateCheck)
 }
@@ -357,9 +356,9 @@ func (a *Application) Run() {
 
 	a.runInitScript()
 	a.runPreconditions()
-	// a.runStartupTasks()
-	// a.runServerTasks()
-	// a.createScheduledTasks()
+	a.runStartupTasks()
+	a.runServerTasks()
+	a.createScheduledTasks()
 
 	a.runEventLoop()
 }
