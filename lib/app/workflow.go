@@ -114,7 +114,7 @@ func (workflow *StackupWorkflow) Initialize(engine *scripting.JavaScriptEngine, 
 func (workflow *StackupWorkflow) InitializeSections() {
 	for _, t := range workflow.Tasks {
 		t.Initialize(workflow) //.JsEngine, workflow.CommandStartCb, workflow.State.SetCurrent, workflow.ProcessMap.Store)
-		t.SetDefaultSetttings(workflow.Settings)
+		t.SetDefaultSettings(workflow.Settings)
 	}
 
 	// init startup, shutdown, servers sections
@@ -132,73 +132,73 @@ func (workflow *StackupWorkflow) InitializeSections() {
 }
 
 func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
-    if workflow.Settings == nil {
-        workflow.Settings = &settings.Settings{
-            Defaults: settings.WorkflowSettingsDefaults{
-                Tasks: settings.WorkflowSettingsDefaultsTasks{},
-            },
-            Domains: settings.WorkflowSettingsDomains{
-                Allowed: []string{},
-                Blocked: []string{},
-                Hosts:   []settings.WorkflowSettingsDomainsHost{},
-            },
-            Notifications: settings.WorkflowSettingsNotifications{
-                Telegram: settings.WorkflowSettingsNotificationsTelegram{},
-                Slack:    settings.WorkflowSettingsNotificationsSlack{},
-            },
-        }
-    }
+	if workflow.Settings == nil {
+		workflow.Settings = &settings.Settings{
+			Defaults: settings.WorkflowSettingsDefaults{
+				Tasks: settings.WorkflowSettingsDefaultsTasks{},
+			},
+			Domains: settings.WorkflowSettingsDomains{
+				Allowed: []string{},
+				Blocked: []string{},
+				Hosts:   []settings.WorkflowSettingsDomainsHost{},
+			},
+			Notifications: settings.WorkflowSettingsNotifications{
+				Telegram: settings.WorkflowSettingsNotificationsTelegram{},
+				Slack:    settings.WorkflowSettingsNotificationsSlack{},
+			},
+		}
+	}
 
-    if len(workflow.Settings.Defaults.Tasks.Path) == 0 {
-        workflow.Settings.Defaults.Tasks.Path = consts.DEFAULT_CWD_SETTING
-    }
+	if len(workflow.Settings.Defaults.Tasks.Path) == 0 {
+		workflow.Settings.Defaults.Tasks.Path = consts.DEFAULT_CWD_SETTING
+	}
 
-    if len(workflow.Settings.Defaults.Tasks.Platforms) == 0 {
-        workflow.Settings.Defaults.Tasks.Platforms = consts.ALL_PLATFORMS
-    }
+	if len(workflow.Settings.Defaults.Tasks.Platforms) == 0 {
+		workflow.Settings.Defaults.Tasks.Platforms = consts.ALL_PLATFORMS
+	}
 
-    if len(workflow.Settings.Domains.Allowed) == 0 {
-        workflow.Settings.Domains.Allowed = consts.DEFAULT_ALLOWED_DOMAINS
-    }
+	if len(workflow.Settings.Domains.Allowed) == 0 {
+		workflow.Settings.Domains.Allowed = consts.DEFAULT_ALLOWED_DOMAINS
+	}
 
-    if workflow.Settings.Cache.TtlMinutes <= 0 {
-        workflow.Settings.Cache.TtlMinutes = consts.DEFAULT_CACHE_TTL_MINUTES
-    }
+	if workflow.Settings.Cache.TtlMinutes <= 0 {
+		workflow.Settings.Cache.TtlMinutes = consts.DEFAULT_CACHE_TTL_MINUTES
+	}
 
-    if len(workflow.Settings.DotEnvFiles) == 0 {
-        workflow.Settings.DotEnvFiles = []string{".env"}
-    }
+	if len(workflow.Settings.DotEnvFiles) == 0 {
+		workflow.Settings.DotEnvFiles = []string{".env"}
+	}
 
-    workflow.Settings.Gateway.Middleware = []string{"validateUrl", "verifyFileType", "validateContentType"}
+	workflow.Settings.Gateway.Middleware = []string{"validateUrl", "verifyFileType", "validateContentType"}
 
-    workflow.expandEnvVars(workflow.Settings.Notifications.Slack.ChannelIds)
-    workflow.expandEnvVars(workflow.Settings.Notifications.Telegram.ChatIds)
+	workflow.expandEnvVars(workflow.Settings.Notifications.Slack.ChannelIds)
+	workflow.expandEnvVars(workflow.Settings.Notifications.Telegram.ChatIds)
 
-    newHosts := []string{}
-    for _, host := range workflow.Settings.Domains.Hosts {
-        if host.Gateway == "allow" || host.Gateway == "" {
-            newHosts = append(newHosts, host.Hostname)
-        }
-        if len(host.Headers) > 0 {
-            workflow.Gateway.DomainHeaders.Store(host.Hostname, host.Headers)
-        }
-    }
+	newHosts := []string{}
+	for _, host := range workflow.Settings.Domains.Hosts {
+		if host.Gateway == "allow" || host.Gateway == "" {
+			newHosts = append(newHosts, host.Hostname)
+		}
+		if len(host.Headers) > 0 {
+			workflow.Gateway.DomainHeaders.Store(host.Hostname, host.Headers)
+		}
+	}
 
-    workflow.Settings.Domains.Allowed = utils.Unique(workflow.Settings.Domains.Allowed, newHosts)
+	workflow.Settings.Domains.Allowed = utils.Unique(workflow.Settings.Domains.Allowed, newHosts)
 
-    workflow.setDefaultOptionsForTasks()
+	workflow.setDefaultOptionsForTasks()
 }
 
 func (workflow *StackupWorkflow) expandEnvVars(items []string) {
-    for i, item := range items {
-        items[i] = os.ExpandEnv(item)
-    }
+	for i, item := range items {
+		items[i] = os.ExpandEnv(item)
+	}
 }
 
 // copy the default task settings into each task if the settings are not already set
 func (workflow *StackupWorkflow) setDefaultOptionsForTasks() {
 	for _, task := range workflow.Tasks {
-		task.SetDefaultSetttings(workflow.Settings)
+		task.SetDefaultSettings(workflow.Settings)
 	}
 }
 

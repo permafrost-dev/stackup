@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestWorkflowIncdeGetChecksumAlforithm(t *testing.T) {
+func TestWorkflowIncludeGetChecksumAlgorithm(t *testing.T) {
 	hashUrls := map[string]checksums.ChecksumAlgorithm{
 		"https://test/sha256sum":     checksums.ChecksumAlgorithmSha256,
 		"https://test/sha256sum.txt": checksums.ChecksumAlgorithmSha256,

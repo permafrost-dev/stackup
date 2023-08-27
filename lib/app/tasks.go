@@ -100,7 +100,7 @@ func (task *Task) Initialize(workflow *StackupWorkflow) { //} *scripting.JavaScr
 	}
 }
 
-func (task *Task) SetDefaultSetttings(s *settings.Settings) {
+func (task *Task) SetDefaultSettings(s *settings.Settings) {
 	if task.Path == "" && len(s.Defaults.Tasks.Path) > 0 {
 		task.Path = s.Defaults.Tasks.Path
 	}
