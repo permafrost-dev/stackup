@@ -2,7 +2,6 @@ package cache
 
 import (
 	"encoding/base64"
-	"fmt"
 
 	carbon "github.com/golang-module/carbon/v2"
 )
@@ -23,8 +22,6 @@ func (ce *CacheEntry) IsExpired() bool {
 	}
 
 	return ce.ExpiresAtTs.IsPast()
-
-	//return carbon.Parse(ce.ExpiresAt).IsPast()
 }
 
 func (ce *CacheEntry) EncodeValue() {
@@ -32,9 +29,6 @@ func (ce *CacheEntry) EncodeValue() {
 }
 
 func (ce *CacheEntry) DecodeValue() {
-	fmt.Printf(" [trace] ==> CacheEntry.DecodeValue()\n")
-	defer fmt.Printf(" [trace] <== CacheEntry.DecodeValue()\n")
-
 	if ce.Value == "" {
 		return
 	}
@@ -48,8 +42,6 @@ func (ce *CacheEntry) DecodeValue() {
 }
 
 func (ce *CacheEntry) UpdateTimestampsFromStrings() error {
-	//func (ce *CacheEntry) UnmarshalJson(data []byte) error {
-	//if ce.ExpiresAt != "" {
 	if parsed := carbon.Parse(ce.ExpiresAt); parsed.Error == nil {
 		ce.ExpiresAtTs = parsed
 	} else {

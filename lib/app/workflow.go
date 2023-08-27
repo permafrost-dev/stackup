@@ -97,11 +97,7 @@ func (workflow *StackupWorkflow) TryLoadDotEnvVaultFile(value string) {
 
 func (workflow *StackupWorkflow) GetAllTaskReferences() []*TaskReference {
 	refs := []*TaskReference{}
-	refs = utils.CombineArrays(refs, workflow.Startup)
-	refs = utils.CombineArrays(refs, workflow.Shutdown)
-	refs = utils.CombineArrays(refs, workflow.Servers)
-
-	return refs
+	return utils.CombineArrays(refs, workflow.Startup, workflow.Shutdown, workflow.Servers)
 }
 
 func (workflow *StackupWorkflow) Initialize(engine *scripting.JavaScriptEngine, configPath string) {
@@ -132,22 +128,22 @@ func (workflow *StackupWorkflow) InitializeSections() {
 }
 
 func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
-	if workflow.Settings == nil {
-		workflow.Settings = &settings.Settings{
-			Defaults: settings.WorkflowSettingsDefaults{
-				Tasks: settings.WorkflowSettingsDefaultsTasks{},
-			},
-			Domains: settings.WorkflowSettingsDomains{
-				Allowed: []string{},
-				Blocked: []string{},
-				Hosts:   []settings.WorkflowSettingsDomainsHost{},
-			},
-			Notifications: settings.WorkflowSettingsNotifications{
-				Telegram: settings.WorkflowSettingsNotificationsTelegram{},
-				Slack:    settings.WorkflowSettingsNotificationsSlack{},
-			},
-		}
-	}
+	// if workflow.Settings == nil {
+	// 	workflow.Settings = &settings.Settings{
+	// 		Defaults: settings.WorkflowSettingsDefaults{
+	// 			Tasks: settings.WorkflowSettingsDefaultsTasks{},
+	// 		},
+	// 		Domains: settings.WorkflowSettingsDomains{
+	// 			Allowed: []string{},
+	// 			Blocked: []string{},
+	// 			Hosts:   []settings.WorkflowSettingsDomainsHost{},
+	// 		},
+	// 		Notifications: settings.WorkflowSettingsNotifications{
+	// 			Telegram: settings.WorkflowSettingsNotificationsTelegram{},
+	// 			Slack:    settings.WorkflowSettingsNotificationsSlack{},
+	// 		},
+	// 	}
+	// }
 
 	if len(workflow.Settings.Defaults.Tasks.Path) == 0 {
 		workflow.Settings.Defaults.Tasks.Path = consts.DEFAULT_CWD_SETTING
@@ -174,17 +170,16 @@ func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
 	workflow.expandEnvVars(workflow.Settings.Notifications.Slack.ChannelIds)
 	workflow.expandEnvVars(workflow.Settings.Notifications.Telegram.ChatIds)
 
-	newHosts := []string{}
 	for _, host := range workflow.Settings.Domains.Hosts {
 		if host.Gateway == "allow" || host.Gateway == "" {
-			newHosts = append(newHosts, host.Hostname)
+			workflow.Settings.Domains.Allowed = append(workflow.Settings.Domains.Allowed, host.Hostname)
 		}
 		if len(host.Headers) > 0 {
 			workflow.Gateway.DomainHeaders.Store(host.Hostname, host.Headers)
 		}
 	}
 
-	workflow.Settings.Domains.Allowed = utils.Unique(workflow.Settings.Domains.Allowed, newHosts)
+	workflow.Settings.Domains.Allowed = utils.Unique(workflow.Settings.Domains.Allowed)
 
 	workflow.setDefaultOptionsForTasks()
 }
@@ -316,34 +311,14 @@ func (workflow *StackupWorkflow) loadAndImportInclude(rawYaml string) error {
 		return err
 	}
 
-	for _, task := range template.Tasks {
-		task.Initialize(workflow) // workflow.JsEngine, workflow.CommandStartCb, workflow.State.SetCurrent, workflow.ProcessMap.Store)
-		workflow.Tasks = append(workflow.Tasks, task)
-	}
+	template.Initialize(workflow)
 
-	for _, precondition := range template.Preconditions {
-		precondition.Initialize(workflow)
-		workflow.Preconditions = append(workflow.Preconditions, precondition)
-	}
-
-	for _, startup := range template.Startup {
-		startup.Initialize(workflow)
-		workflow.Startup = append(workflow.Startup, startup)
-	}
-
-	for _, shutdown := range template.Shutdown {
-		shutdown.Initialize(workflow)
-		workflow.Shutdown = append(workflow.Shutdown, shutdown)
-	}
-
-	for _, server := range template.Servers {
-		server.Initialize(workflow)
-		workflow.Servers = append(workflow.Servers, server)
-	}
-
-	if len(template.Init) > 0 {
-		workflow.Init += "\n" + template.Init
-	}
+	workflow.Tasks = append(workflow.Tasks, template.Tasks...)
+	workflow.Preconditions = append(workflow.Preconditions, template.Preconditions...)
+	workflow.Startup = append(workflow.Startup, template.Startup...)
+	workflow.Shutdown = append(workflow.Shutdown, template.Shutdown...)
+	workflow.Servers = append(workflow.Servers, template.Servers...)
+	workflow.Init = strings.TrimSpace(workflow.Init + "\n" + template.Init)
 
 	return nil
 }
@@ -377,8 +352,10 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) error 
 	}
 
 	if !workflow.handleChecksumVerification(include) {
-		// support.FailureMessageWithXMark("checksum verification failed: " + include.DisplayName())
-		// return fmt.Errorf("remote include checksum verification failed: %s", include.DisplayName())
+		// the app terminiates during handleChecksumVerification if the 'exit-on-checksum-mismatch' setting is enabled
+        // so we can only show a wanring message here.
+        support.WarningMessage("checksum verification failed: " + include.DisplayName())
+        return nil
 	}
 
 	support.SuccessMessageWithCheck("remote include (" + include.LoadedStatusText() + "): " + include.DisplayName())

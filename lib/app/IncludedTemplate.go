@@ -17,3 +17,25 @@ type IncludedTemplate struct {
 	Shutdown      []*TaskReference        `yaml:"shutdown"`
 	Servers       []*TaskReference        `yaml:"servers"`
 }
+
+func (template *IncludedTemplate) Initialize(workflow *StackupWorkflow) {
+	for _, task := range template.Tasks {
+		task.Initialize(workflow)
+	}
+
+	for _, precondition := range template.Preconditions {
+		precondition.Initialize(workflow)
+	}
+
+	for _, startup := range template.Startup {
+		startup.Initialize(workflow)
+	}
+
+	for _, shutdown := range template.Shutdown {
+		shutdown.Initialize(workflow)
+	}
+
+	for _, server := range template.Servers {
+		server.Initialize(workflow)
+	}
+}

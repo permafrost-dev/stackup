@@ -77,7 +77,12 @@ func (task *Task) CanRunConditionally() bool {
 
 func (task *Task) Initialize(workflow *StackupWorkflow) { //} *scripting.JavaScriptEngine, cmdStartCb types.CommandCallback, setActive SetActiveTaskCallback, storeProcess types.SetProcessCallback) {
 	task.JsEngine = workflow.JsEngine
-	task.setActive = workflow.State.CurrentTask.setActive
+	if workflow.State.CurrentTask != nil {
+		task.setActive = workflow.State.CurrentTask.setActive
+	} else {
+		var fn SetActiveTaskCallback = func(task *Task) CleanupCallback { return func() {} }
+		task.setActive = fn
+	}
 	task.CommandStartCb = workflow.CommandStartCb
 	task.StoreProcess = workflow.ProcessMap.Store
 	task.Uuid = utils.GenerateTaskUuid()

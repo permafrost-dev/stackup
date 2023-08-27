@@ -75,7 +75,6 @@ func (wp *WorkflowPrecondition) Run() bool {
 	// 	}
 	// 	support.FailureMessageWithXMark(wp.Name)
 	// }
-
 	return result
 }
 
