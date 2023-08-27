@@ -1,18 +1,17 @@
 package scripting
 
 import (
-	"github.com/stackup-app/stackup/lib/settings"
 	"github.com/stackup-app/stackup/lib/types"
 )
 
-type ScriptNotifications struct {
-	engine                 *JavaScriptEngine
-	settings               *settings.Settings
-	telegramObj            *ScriptNotificationsTelegram
-	slackObj               *ScriptNotificationsSlack
-	desktopObj             *DesktopNotification
-	GetApplicationIconPath func() string
-}
+// type ScriptNotifications struct {
+// 	engine                 *JavaScriptEngine
+// 	settings               *settings.Settings
+// 	telegramObj            *ScriptNotificationsTelegram
+// 	slackObj               *ScriptNotificationsSlack
+// 	desktopObj             *DesktopNotification
+// 	GetApplicationIconPath func() string
+// }
 
 // type DesktopNotification struct {
 // 	state struct {
