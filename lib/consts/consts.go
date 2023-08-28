@@ -1,8 +1,9 @@
 package consts
 
+var DISPLAY_URLS_REMOVABLE = []string{"https://", "github.com", "raw.githubusercontent.com", "s3:"}
+
 const APP_CONFIG_PATH_BASE_NAME = "stackup"
 const APP_REPOSITORY = "permafrost-dev/stackup"
-
 const DEFAULT_CWD_SETTING = "{{ getCwd() }}"
 
 var ALL_PLATFORMS = []string{"windows", "linux", "darwin"}

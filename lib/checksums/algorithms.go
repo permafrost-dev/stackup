@@ -48,6 +48,13 @@ func (x ChecksumAlgorithm) IsValid() bool {
 	return ok
 }
 
+func (x ChecksumAlgorithm) UnsupportedError() error {
+	if x.IsSupportedAlgorithm() {
+		return nil
+	}
+	return fmt.Errorf("algorithm %s is not supported", x.String())
+}
+
 func (x ChecksumAlgorithm) IsSupportedAlgorithm() bool {
 	return x == ChecksumAlgorithmSha256 || x == ChecksumAlgorithmSha512
 }

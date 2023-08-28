@@ -4,6 +4,8 @@ package app
 import (
 	"errors"
 	"fmt"
+
+	"github.com/stackup-app/stackup/lib/utils"
 )
 
 // ENUM(not verified, pending, verified, mismatch, error)
@@ -21,6 +23,19 @@ const (
 	// ChecksumVerificationStateError is a ChecksumVerificationState of type Error.
 	ChecksumVerificationStateError
 )
+
+type ChecksumVerificationStates []ChecksumVerificationState
+
+var AllFinalCHecksumVerificationStates = ChecksumVerificationStates{
+	ChecksumVerificationStateVerified,
+	ChecksumVerificationStateMismatch,
+	ChecksumVerificationStateError,
+}
+
+var NonErrorFinalChecksumVerificationStates = ChecksumVerificationStates{
+	ChecksumVerificationStateVerified,
+	ChecksumVerificationStateMismatch,
+}
 
 var ErrInvalidChecksumVerificationState = errors.New("not a valid ChecksumVerificationState")
 
@@ -73,12 +88,49 @@ var _ChecksumVerificationStateValue = map[string]ChecksumVerificationState{
 	_ChecksumVerificationStateName[35:40]: ChecksumVerificationStateError,
 }
 
+var _ChecksumVerificationStateTransitionMap = map[ChecksumVerificationState]ChecksumVerificationStates{
+	ChecksumVerificationStateNotVerified: {ChecksumVerificationStatePending},
+	ChecksumVerificationStatePending:     AllFinalCHecksumVerificationStates, // {ChecksumVerificationStateVerified, ChecksumVerificationStateMismatch, ChecksumVerificationStateError},
+	ChecksumVerificationStateVerified:    {},
+	ChecksumVerificationStateMismatch:    {},
+	ChecksumVerificationStateError:       {},
+}
+
 // ParseChecksumVerificationState attempts to convert a string to a ChecksumVerificationState.
 func ParseChecksumVerificationState(name string) (ChecksumVerificationState, error) {
 	if x, ok := _ChecksumVerificationStateValue[name]; ok {
 		return x, nil
 	}
 	return ChecksumVerificationState(0), fmt.Errorf("%s is %w", name, ErrInvalidChecksumVerificationState)
+}
+
+func (x *ChecksumVerificationState) IsInFinalState() bool {
+	return utils.ArrayContains(AllFinalCHecksumVerificationStates, *x)
+}
+
+func (x *ChecksumVerificationState) TransitionToNext(err error, matched bool) bool {
+	possibleStates := _ChecksumVerificationStateTransitionMap[*x]
+
+	if len(possibleStates) == 0 {
+		return false
+	}
+
+	if len(possibleStates) == 1 {
+		*x = possibleStates[0]
+		return true
+	}
+
+	if err != nil && utils.ArrayContains(possibleStates, ChecksumVerificationStateError) {
+		*x = ChecksumVerificationStateError
+		return true
+	}
+
+	if utils.ArrayContains(possibleStates, NonErrorFinalChecksumVerificationStates) {
+		x.SetVerified(matched)
+		return true
+	}
+
+	return false
 }
 
 // MarshalText implements the text marshaller method.
@@ -110,4 +162,10 @@ func (x *ChecksumVerificationState) SetVerified(value bool) {
 
 func (x *ChecksumVerificationState) Reset() {
 	*x = ChecksumVerificationStateNotVerified
+}
+
+func (x *ChecksumVerificationState) ResetIf(value bool) {
+	if value {
+		x.Reset()
+	}
 }

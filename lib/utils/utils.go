@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -564,5 +565,52 @@ func Min(args ...int) int {
 		}
 	}
 
+	return result
+}
+
+func ImportEnvDefsIntoEnvironment(defs []string) {
+	for _, str := range defs {
+		if strings.Contains(str, "=") {
+			parts := strings.SplitN(str, "=", 2)
+			os.Setenv(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+		}
+	}
+}
+
+func RemoveSubStrings(from string, remove ...string) string {
+	result := from
+	for _, v := range remove {
+		result = strings.Replace(result, v, "", -1)
+	}
+	return result
+}
+
+func RemovePrefixes(prefix string, remove ...string) string {
+	result := prefix
+	for _, v := range remove {
+		result = strings.TrimPrefix(result, v)
+	}
+	return result
+}
+
+func ConsistentUniqueId(input string) string {
+	var hashValue int64
+	const multiplier int64 = int64(31)
+
+	for _, char := range input {
+		hashValue = (hashValue*(multiplier) + int64(char)) % 1e12
+	}
+
+	// Convert the hash value to a string and ensure it's alphanumeric
+	return strconv.FormatInt(hashValue, 36)
+}
+
+func RemoveEmptyValues(arr ...string) []string {
+	result := []string{}
+	for _, item := range arr {
+		if strings.TrimSpace(item) != "" {
+			result = append(result, item)
+		}
+	}
 	return result
 }

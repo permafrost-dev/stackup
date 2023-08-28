@@ -76,8 +76,8 @@ func (workflow *StackupWorkflow) FindTaskByUuid(uuid string) *Task {
 	return nil
 }
 
-func (workflow *StackupWorkflow) TryLoadDotEnvVaultFile(value string) {
-	if !strings.EqualFold(value, "dotenv://vault") {
+func (workflow *StackupWorkflow) TryLoadDotEnvVaultFile() {
+	if !utils.ArrayContains(workflow.Env, "dotenv://vault") {
 		return
 	}
 
@@ -96,20 +96,21 @@ func (workflow *StackupWorkflow) TryLoadDotEnvVaultFile(value string) {
 }
 
 func (workflow *StackupWorkflow) GetAllTaskReferences() []*TaskReference {
-	refs := []*TaskReference{}
-	return utils.CombineArrays(refs, workflow.Startup, workflow.Shutdown, workflow.Servers)
+	return utils.CombineArrays([]*TaskReference{}, workflow.Startup, workflow.Shutdown, workflow.Servers)
 }
 
 func (workflow *StackupWorkflow) Initialize(engine *scripting.JavaScriptEngine, configPath string) {
 	workflow.JsEngine = engine
-	workflow.processEnvSection()
+
+	utils.ImportEnvDefsIntoEnvironment(workflow.Env)
+	workflow.TryLoadDotEnvVaultFile()
 	workflow.InitializeSections()
 	workflow.ProcessIncludes()
 }
 
 func (workflow *StackupWorkflow) InitializeSections() {
 	for _, t := range workflow.Tasks {
-		t.Initialize(workflow) //.JsEngine, workflow.CommandStartCb, workflow.State.SetCurrent, workflow.ProcessMap.Store)
+		t.Initialize(workflow)
 		t.SetDefaultSettings(workflow.Settings)
 	}
 
@@ -127,48 +128,75 @@ func (workflow *StackupWorkflow) InitializeSections() {
 	}
 }
 
+func setIfEmpty(target interface{}, defaultValues interface{}) {
+	switch t := target.(type) {
+	case *string:
+		if *t == "" {
+			*t = defaultValues.(string)
+		}
+	case *[]string:
+		if len(*t) == 0 {
+			*t = defaultValues.([]string)
+		}
+	case *int:
+		if *t == 0 {
+			*t = defaultValues.(int)
+		}
+	}
+}
+
+// func Map(items any, fn func(interface{}) any) any {
+// 	var result []interface{}
+// 	for _, item := range items.([]interface{}) {
+// 		result = append(result, fn(item))
+// 	}
+// 	return result
+// }
+
+func Filter[T any](items any, fn func(interface{}) bool) []any {
+	var result []interface{}
+	for _, item := range items.([]interface{}) {
+		if fn(item) {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
 func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
-	// if workflow.Settings == nil {
-	// 	workflow.Settings = &settings.Settings{
-	// 		Defaults: settings.WorkflowSettingsDefaults{
-	// 			Tasks: settings.WorkflowSettingsDefaultsTasks{},
-	// 		},
-	// 		Domains: settings.WorkflowSettingsDomains{
-	// 			Allowed: []string{},
-	// 			Blocked: []string{},
-	// 			Hosts:   []settings.WorkflowSettingsDomainsHost{},
-	// 		},
-	// 		Notifications: settings.WorkflowSettingsNotifications{
-	// 			Telegram: settings.WorkflowSettingsNotificationsTelegram{},
-	// 			Slack:    settings.WorkflowSettingsNotificationsSlack{},
-	// 		},
-	// 	}
+
+	setIfEmpty(&workflow.Settings.Defaults.Tasks.Path, consts.DEFAULT_CWD_SETTING)
+	setIfEmpty(&workflow.Settings.Defaults.Tasks.Platforms, consts.ALL_PLATFORMS)
+	setIfEmpty(&workflow.Settings.Domains.Allowed, consts.DEFAULT_ALLOWED_DOMAINS)
+	setIfEmpty(&workflow.Settings.Cache.TtlMinutes, consts.DEFAULT_CACHE_TTL_MINUTES)
+	setIfEmpty(&workflow.Settings.DotEnvFiles, []string{".env"})
+
+	// if len(workflow.Settings.Defaults.Tasks.Path) == 0 {
+	// 	workflow.Settings.Defaults.Tasks.Path = consts.DEFAULT_CWD_SETTING
 	// }
 
-	if len(workflow.Settings.Defaults.Tasks.Path) == 0 {
-		workflow.Settings.Defaults.Tasks.Path = consts.DEFAULT_CWD_SETTING
-	}
+	// if len(workflow.Settings.Defaults.Tasks.Platforms) == 0 {
+	// 	workflow.Settings.Defaults.Tasks.Platforms = consts.ALL_PLATFORMS
+	// }
 
-	if len(workflow.Settings.Defaults.Tasks.Platforms) == 0 {
-		workflow.Settings.Defaults.Tasks.Platforms = consts.ALL_PLATFORMS
-	}
+	// if len(workflow.Settings.Domains.Allowed) == 0 {
+	// 	workflow.Settings.Domains.Allowed = consts.DEFAULT_ALLOWED_DOMAINS
+	// }
 
-	if len(workflow.Settings.Domains.Allowed) == 0 {
-		workflow.Settings.Domains.Allowed = consts.DEFAULT_ALLOWED_DOMAINS
-	}
+	// if workflow.Settings.Cache.TtlMinutes <= 0 {
+	// 	workflow.Settings.Cache.TtlMinutes = consts.DEFAULT_CACHE_TTL_MINUTES
+	// }
 
-	if workflow.Settings.Cache.TtlMinutes <= 0 {
-		workflow.Settings.Cache.TtlMinutes = consts.DEFAULT_CACHE_TTL_MINUTES
-	}
-
-	if len(workflow.Settings.DotEnvFiles) == 0 {
-		workflow.Settings.DotEnvFiles = []string{".env"}
-	}
+	// if len(workflow.Settings.DotEnvFiles) == 0 {
+	// 	workflow.Settings.DotEnvFiles = []string{".env"}
+	// }
 
 	workflow.Settings.Gateway.Middleware = []string{"validateUrl", "verifyFileType", "validateContentType"}
 
 	workflow.expandEnvVars(workflow.Settings.Notifications.Slack.ChannelIds)
 	workflow.expandEnvVars(workflow.Settings.Notifications.Telegram.ChatIds)
+
+	// workflow.Settings.Domains.Hosts = append(workflow.Settings.Domains.Hosts, a.([]settings.WorkflowSettingsDomainsHost)...)
 
 	for _, host := range workflow.Settings.Domains.Hosts {
 		if host.Gateway == "allow" || host.Gateway == "" {
@@ -194,20 +222,6 @@ func (workflow *StackupWorkflow) expandEnvVars(items []string) {
 func (workflow *StackupWorkflow) setDefaultOptionsForTasks() {
 	for _, task := range workflow.Tasks {
 		task.SetDefaultSettings(workflow.Settings)
-	}
-}
-
-func (workflow *StackupWorkflow) processEnvSection() {
-	for _, str := range workflow.Env {
-		if strings.EqualFold(str, "dotenv://vault") {
-			workflow.TryLoadDotEnvVaultFile(str)
-			continue
-		}
-
-		if strings.Contains(str, "=") {
-			parts := strings.SplitN(str, "=", 2)
-			os.Setenv(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
-		}
 	}
 }
 
@@ -253,16 +267,7 @@ func (workflow *StackupWorkflow) GetPossibleIncludedChecksumUrls() []string {
 	result := []string{}
 
 	for _, wi := range workflow.Includes {
-		checksumUrls := []string{
-			wi.FullUrlPath() + "/checksums.txt",
-			wi.FullUrlPath() + "/checksums.sha256.txt",
-			wi.FullUrlPath() + "/checksums.sha512.txt",
-			wi.FullUrlPath() + "/sha256sum",
-			wi.FullUrlPath() + "/sha512sum",
-			wi.FullUrl() + ".sha256",
-			wi.FullUrl() + ".sha512",
-		}
-		result = utils.CombineArrays(result, checksumUrls)
+		result = utils.CombineArrays(result, GetChecksumUrls(wi.FullUrl()))
 	}
 
 	return utils.GetUniqueStrings(result)
@@ -329,7 +334,7 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) error 
 	loaded := workflow.tryLoadingCachedData(include)
 
 	if !loaded {
-		debug.Logf("include not loaded from cache: %s", include.DisplayUrl())
+		debug.Logf("include not loaded from cache: %s", include.DisplayName())
 
 		if err := workflow.loadRemoteFileInclude(include); err != nil {
 			support.FailureMessageWithXMark("remote include (rejected: " + err.Error() + "): " + include.DisplayName())
@@ -353,9 +358,9 @@ func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) error 
 
 	if !workflow.handleChecksumVerification(include) {
 		// the app terminiates during handleChecksumVerification if the 'exit-on-checksum-mismatch' setting is enabled
-        // so we can only show a wanring message here.
-        support.WarningMessage("checksum verification failed: " + include.DisplayName())
-        return nil
+		// so we can only show a wanring message here.
+		support.WarningMessage("checksum verification failed: " + include.DisplayName())
+		return nil
 	}
 
 	support.SuccessMessageWithCheck("remote include (" + include.LoadedStatusText() + "): " + include.DisplayName())

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -12,38 +13,93 @@ import (
 )
 
 type WorkflowInclude struct {
-	Url             string   `yaml:"url"`
-	Headers         []string `yaml:"headers"`
-	File            string   `yaml:"file"`
-	ChecksumUrl     string   `yaml:"checksum-url"`
-	VerifyChecksum  bool     `yaml:"verify,omitempty"`
-	AccessKey       string   `yaml:"access-key"`
-	SecretKey       string   `yaml:"secret-key"`
-	Secure          bool     `yaml:"secure"`
-	ChecksumIsValid *bool
-	ValidationState ChecksumVerificationState
-	Contents        string
-	Hash            string
-	FoundChecksum   string
-	HashAlgorithm   checksums.ChecksumAlgorithm
-	FromCache       bool
-	Workflow        *StackupWorkflow
+	Url              string   `yaml:"url"`
+	Headers          []string `yaml:"headers"`
+	File             string   `yaml:"file"`
+	ChecksumUrl      string   `yaml:"checksum-url"`
+	VerifyChecksum   bool     `yaml:"verify,omitempty"`
+	AccessKey        string   `yaml:"access-key"`
+	SecretKey        string   `yaml:"secret-key"`
+	Secure           bool     `yaml:"secure"`
+	identifierString string
+	ValidationState  ChecksumVerificationState
+	Contents         string
+	Hash             string
+	FoundChecksum    string
+	HashAlgorithm    checksums.ChecksumAlgorithm
+	FromCache        bool
+	Workflow         *StackupWorkflow
+}
+
+func expandUrlPrefixes(url string) string {
+	var mapppd = map[string]string{
+		"gh:": "https://raw.githubusercontent.com/",
+		"s3:": "https://s3.amazonaws.com/",
+	}
+
+	result := url
+
+	for k, v := range mapppd {
+		if strings.HasPrefix(url, k) {
+			result = strings.Replace(result, k, v, 1)
+		}
+	}
+
+	return result
+}
+
+func formatDisplayUrl(urlstr string) string {
+	parsed, _ := url.Parse(urlstr)
+
+	return parsed.Hostname() + "/" + parsed.Path
+}
+
+func GetChecksumUrls(fullUrl string) []string {
+	url, _ := url.Parse(fullUrl)
+	reqFn := path.Base(url.Path)
+	url.Path = path.Dir(url.Path)
+
+	return []string{
+		url.JoinPath("checksums.txt").String(),
+		url.JoinPath("checksums.sha256.txt").String(),
+		url.JoinPath("checksums.sha512.txt").String(),
+		url.JoinPath("sha256sum").String(),
+		url.JoinPath("sha512sum").String(),
+		url.JoinPath("sha512sum").String(),
+		url.JoinPath(reqFn + ".sha256").String(),
+		url.JoinPath(reqFn + ".sha512").String(),
+	}
+}
+
+func IsHashUrlForFileUrl(urlstr, filename string) bool {
+	return strings.HasSuffix(urlstr, filename+".sha256") || strings.HasSuffix(urlstr, filename+".sha512")
 }
 
 func (wi *WorkflowInclude) Initialize(workflow *StackupWorkflow) {
 	wi.Workflow = workflow
+	wi.expandHeaders()
+	wi.setDefaults()
+	wi.updateIdentifier()
+}
 
-	// expand environment variables in the include headers
+func (wi *WorkflowInclude) updateIdentifier() string {
+	wi.identifierString = utils.ConsistentUniqueId(wi.FullUrl() + wi.Filename())
+
+	return wi.identifierString
+}
+
+func (wi *WorkflowInclude) expandHeaders() {
 	for i, v := range wi.Headers {
 		if wi.Workflow.JsEngine.IsEvaluatableScriptString(v) {
 			wi.Headers[i] = wi.Workflow.JsEngine.Evaluate(v).(string)
 		}
 		wi.Headers[i] = os.ExpandEnv(v)
 	}
+}
 
+func (wi *WorkflowInclude) setDefaults() {
 	wi.VerifyChecksum = wi.Workflow.Settings.ChecksumVerification
 	wi.ValidationState = ChecksumVerificationStateNotVerified
-	wi.ChecksumIsValid = nil
 }
 
 func (wi *WorkflowInclude) LoadedStatusText() string {
@@ -78,54 +134,41 @@ func (wi *WorkflowInclude) UpdateChecksumFromChecksumsFile(url, contents string)
 	wi.UpdateChecksumAlgorithm()
 }
 
-func (wi *WorkflowInclude) GetChecksumUrls() []string {
-	return []string{
-		wi.FullUrlPath() + "/checksums.txt",
-		wi.FullUrlPath() + "/checksums.sha256.txt",
-		wi.FullUrlPath() + "/checksums.sha512.txt",
-		wi.FullUrlPath() + "sha256sum",
-		wi.FullUrlPath() + "sha512sum",
-		wi.FullUrl() + ".sha256",
-		wi.FullUrl() + ".sha512",
-	}
-}
-
 func (wi *WorkflowInclude) ValidateChecksum() bool {
 	wi.UpdateHash()
-	wi.ValidationState = ChecksumVerificationStateNotVerified
+	wi.ValidationState.Reset()
+	//wi.ValidationState = ChecksumVerificationStateNotVerified
 
 	if !wi.IsRemoteUrl() || !wi.VerifyChecksum || !wi.Workflow.Settings.ChecksumVerification {
 		return true
 	}
 
-	wi.ValidationState = ChecksumVerificationStatePending
+	wi.ValidationState.TransitionToNext(nil, false)
+	// wi.ValidationState = ChecksumVerificationStatePending
+	found := false
 
-	for _, url := range wi.GetChecksumUrls() {
-		temp, err := wi.Workflow.Gateway.GetUrl(url)
-
-		if err == nil && temp != "" {
-			// check if the contents of the checksum file contains the filename of the included file,
-			// OR if the url ends with .sha256 or .sha512 AND the url contains the filename of the included file
-			hasChecksum := strings.Contains(temp, path.Base(wi.FullUrl()))
-			if !hasChecksum {
-				hasChecksum = strings.HasSuffix(url, ".sha256") || strings.HasSuffix(url, ".sha512") && strings.Contains(url, path.Base(wi.FullUrl()))
-			}
-
-			if !hasChecksum {
-				continue
-			}
-
-			wi.ChecksumUrl = url
-			wi.UpdateChecksumFromChecksumsFile(url, temp)
-			break
+	for _, url := range GetChecksumUrls(wi.FullUrl()) {
+		urlText, err := wi.Workflow.Gateway.GetUrl(url)
+		if err != nil || urlText == "" {
+			continue
 		}
+
+		baseFn := path.Base(wi.FullUrl())
+		if !strings.Contains(urlText, baseFn) && !IsHashUrlForFileUrl(url, baseFn) {
+			continue
+		}
+
+		found = true
+		wi.ChecksumUrl = url
+		wi.UpdateChecksumFromChecksumsFile(url, urlText)
+		wi.ValidationState.TransitionToNext(wi.HashAlgorithm.UnsupportedError(), false)
+		// wi.ValidationState = ChecksumVerificationStateError
+
+		break
 	}
 
-	if !wi.HashAlgorithm.IsSupportedAlgorithm() {
-		wi.ValidationState = ChecksumVerificationStateError
-	}
-
-	wi.SetChecksumIsValid(checksums.HashesMatch(wi.Hash, wi.FoundChecksum))
+	wi.ValidationState.TransitionToNext(nil, found && !wi.ValidationState.IsError() && checksums.HashesMatch(wi.Hash, wi.FoundChecksum))
+	// wi.ValidationState.SetVerified(found && !wi.ValidationState.IsError() && checksums.HashesMatch(wi.Hash, wi.FoundChecksum))
 
 	return wi.ValidationState.IsVerified()
 }
@@ -143,70 +186,40 @@ func (wi *WorkflowInclude) IsS3Url() bool {
 }
 
 func (wi *WorkflowInclude) Filename() string {
+	if wi.File == "" {
+		return ""
+	}
 	return utils.AbsoluteFilePath(wi.File)
 }
 
 func (wi *WorkflowInclude) FullUrl() string {
-	if strings.HasPrefix(strings.TrimSpace(wi.Url), "gh:") {
-		return "https://raw.githubusercontent.com/" + strings.TrimPrefix(wi.Url, "gh:")
+	if wi.Url == "" {
+		return ""
 	}
-
-	return wi.Url
+	return expandUrlPrefixes(wi.Url)
 }
 
 func (wi *WorkflowInclude) Identifier() string {
-	if wi.IsLocalFile() {
-		return wi.Filename()
+	if wi.identifierString == "" {
+		return wi.updateIdentifier()
 	}
-
-	return wi.FullUrl()
-}
-
-func (wi *WorkflowInclude) FullUrlPath() string {
-	return utils.ReplaceFilenameInUrl(wi.FullUrl(), "")
-}
-
-func (wi *WorkflowInclude) DisplayUrl() string {
-	displayUrl := strings.Replace(wi.FullUrl(), "https://", "", -1)
-	displayUrl = strings.Replace(displayUrl, "github.com/", "", -1)
-	displayUrl = strings.Replace(displayUrl, "raw.githubusercontent.com/", "", -1)
-
-	return displayUrl
+	return wi.identifierString
 }
 
 func (wi WorkflowInclude) DisplayName() string {
-	if wi.IsRemoteUrl() || wi.IsS3Url() {
-		return wi.DisplayUrl()
-	}
-
-	if wi.IsLocalFile() {
-		return wi.Filename()
-	}
-
-	return "<unknown>"
+	return utils.RemoveEmptyValues(formatDisplayUrl(wi.FullUrl()), wi.Filename(), "<unknown>")[0]
 }
 
 func (wi *WorkflowInclude) UpdateChecksumAlgorithm() {
 	wi.HashAlgorithm = checksums.DetermineChecksumAlgorithm([]string{wi.FoundChecksum, wi.Hash}, wi.ChecksumUrl)
 }
 
-func (wi *WorkflowInclude) SetChecksumIsValid(value bool) bool {
-	wi.ChecksumIsValid = &value
-	wi.ValidationState.SetVerified(value)
-
-	return value
-}
-
 func (wi *WorkflowInclude) UpdateHash() {
 	originalHash := wi.Hash
 
 	wi.Hash = checksums.CalculateSha256Hash(wi.Contents)
-	wi.UpdateChecksumAlgorithm()
-
-	if wi.Hash != originalHash {
-		wi.SetChecksumIsValid(false)
-		wi.ValidationState.Reset()
-	}
+	wi.HashAlgorithm = checksums.ChecksumAlgorithmSha256
+	wi.ValidationState.ResetIf(wi.Hash != originalHash)
 }
 
 func (wi *WorkflowInclude) NewCacheEntry() *cache.CacheEntry {
