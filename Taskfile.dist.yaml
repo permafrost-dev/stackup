@@ -43,15 +43,11 @@ tasks:
     cmds:
       - task: lint-dotenv
       - task: lint-stackup
+      - task: lint-spell
 
   update-version-file:
-    # status:
-      # don't run this task in CI
-      # - '[ "$CI" == "" ]'
     cmds:
-      - printf "running update-version-file"
       - go run tools/generate-version-file.go
-      - printf "ran update-version-file"
 
   lint-dotenv:
     desc: Lints all dotenv files
@@ -59,6 +55,17 @@ tasks:
       - which dotenv-linter
     cmds:
       - dotenv-linter {{.DOTENV_FILES}}
+
+  lint-spell:
+    desc: Check for typos in filenames and source code
+    ignore_error: true
+    preconditions:
+      - which typos
+    vars:
+      SRC_DIRS:
+        sh: "/bin/ls -1F | grep '/' | egrep -v '(\\..+|build|dist|assets|tools)' | tr -s '\\n/' '  '"
+    cmds:
+      - typos ./lib ./templates ./README.md
 
   lint-stackup:
     desc: Runs golangci-lint
@@ -116,11 +123,6 @@ tasks:
   update-checksums:
     dir: templates/remote-includes
     cmds:
-      - sha256sum containers.yaml > containers.yaml.sha256
-      - sha256sum laravel.yaml > laravel.yaml.sha256
-      - sha256sum node.yaml > node.yaml.sha256
-      - sha256sum php.yaml > php.yaml.sha256
-      - sha256sum python.yaml > python.yaml.sha256
       - sha256sum *.yaml > checksums.sha256.txt
       - task: commit-updated-checksums
 
@@ -129,5 +131,13 @@ tasks:
     internal: true
     silent: true
     cmds:
-      - git add templates/remote-includes/*.sha256 templates/remote-includes/checksums.*.txt
+      - git add templates/remote-includes/checksums.*.txt
       - git commit -m "update checksum files"
+
+  autobuild:
+    interactive: true
+    desc: Watches for changes and automatically rebuilds the project binary, displays a minimal system notification on start/finish
+    preconditions:
+      - which watchexec
+    cmds:
+      - watchexec --exts go --fs-events create,modify,remove -N --debounce 300 -w ./lib -- task build -f
