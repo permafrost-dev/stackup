@@ -11,6 +11,7 @@ import (
 	appextension "github.com/stackup-app/stackup/lib/scripting/extensions/app_extension"
 	devextension "github.com/stackup-app/stackup/lib/scripting/extensions/dev_extension"
 	fsextension "github.com/stackup-app/stackup/lib/scripting/extensions/fs_extension"
+	functionsextension "github.com/stackup-app/stackup/lib/scripting/extensions/functions_extension"
 	netextension "github.com/stackup-app/stackup/lib/scripting/extensions/net_extension"
 	varsextension "github.com/stackup-app/stackup/lib/scripting/extensions/vars_extension"
 	"github.com/stackup-app/stackup/lib/support"
@@ -24,7 +25,6 @@ type JavaScriptEngine struct {
 	Vm                     *otto.Otto
 	AppVars                *sync.Map
 	AppGateway             *gateway.Gateway
-	Functions              *JavaScriptFunctions
 	GetApplicationIconPath func() string
 	FindTaskById           FindTaskByIdFunc
 	InstalledExtensions    *sync.Map
@@ -79,13 +79,20 @@ func (e *JavaScriptEngine) Initialize(appVars *sync.Map, environ []string) {
 	e.CreateEnvironmentVariables(environ)
 }
 
+func (e *JavaScriptEngine) GetFindTaskById(id string) (any, error) {
+	return e.FindTaskById(id)
+}
+
 func (e *JavaScriptEngine) initializeExtensions() {
-	devextension.Create().OnInstall(e)
-	varsextension.Create(e).OnInstall(e)
-	netextension.Create(e.AppGateway).OnInstall(e)
-	appextension.Create().OnInstall(e)
-	fsextension.Create().OnInstall(e)
-	createJavascriptFunctions(e).OnInstall(e)
+	var engineIntf interface{} = e
+	var engine types.JavaScriptEngineContract = engineIntf.(types.JavaScriptEngineContract)
+
+	devextension.Create().OnInstall(engine)
+	varsextension.Create(engine).OnInstall(engine)
+	netextension.Create(e.AppGateway).OnInstall(engine)
+	appextension.Create().OnInstall(engine)
+	fsextension.Create().OnInstall(engine)
+	functionsextension.Create(engine).OnInstall(engine)
 }
 
 func (e *JavaScriptEngine) CreateAppVariables(vars *sync.Map) {

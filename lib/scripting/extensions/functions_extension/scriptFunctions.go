@@ -1,4 +1,4 @@
-package scripting
+package functionsextension
 
 import (
 	"os"
@@ -15,11 +15,11 @@ import (
 )
 
 type JavaScriptFunctions struct {
-	Engine *JavaScriptEngine
+	Engine types.JavaScriptEngineContract
 	types.ScriptExtensionContract
 }
 
-func createJavascriptFunctions(engine *JavaScriptEngine) *JavaScriptFunctions {
+func Create(engine types.JavaScriptEngineContract) *JavaScriptFunctions {
 	return &JavaScriptFunctions{Engine: engine}
 }
 
@@ -28,35 +28,34 @@ func (jsf JavaScriptFunctions) GetName() string {
 }
 
 func (jsf JavaScriptFunctions) OnInstall(engine types.JavaScriptEngineContract) {
-	// engine.GetVm().Set(jsf.GetName(), jsf)
 	jsf.Register()
 }
 
 func (jsf *JavaScriptFunctions) Register() {
-	jsf.Engine.Vm.Set("binaryExists", jsf.createBinaryExists)
-	jsf.Engine.Vm.Set("composerJson", jsf.createComposerJsonFunction)
-	jsf.Engine.Vm.Set("env", jsf.createJavascriptFunctionEnv)
-	jsf.Engine.Vm.Set("exec", jsf.createJavascriptFunctionExec)
-	jsf.Engine.Vm.Set("exists", jsf.createJavascriptFunctionExists)
-	jsf.Engine.Vm.Set("fetch", jsf.createFetchFunction)
-	jsf.Engine.Vm.Set("fetchJson", jsf.createFetchJsonFunction)
-	jsf.Engine.Vm.Set("fileContains", jsf.createFileContainsFunction)
-	jsf.Engine.Vm.Set("getCwd", jsf.createGetCurrentWorkingDirectory)
-	jsf.Engine.Vm.Set("getVar", jsf.createGetVarFunction)
-	jsf.Engine.Vm.Set("hasEnv", jsf.createHasEnvFunction)
-	jsf.Engine.Vm.Set("hasFlag", jsf.createJavascriptFunctionHasFlag)
-	jsf.Engine.Vm.Set("hasVar", jsf.createHasVarFunction)
-	jsf.Engine.Vm.Set("outputOf", jsf.createOutputOfFunction)
-	jsf.Engine.Vm.Set("packageJson", jsf.createPackageJsonFunction)
-	jsf.Engine.Vm.Set("platform", jsf.createPlatformFunction)
-	jsf.Engine.Vm.Set("requirementsTxt", jsf.createRequirementsTxtFunction)
-	jsf.Engine.Vm.Set("script", jsf.createScriptFunction)
-	jsf.Engine.Vm.Set("selectTaskWhen", jsf.createSelectTaskWhen)
-	jsf.Engine.Vm.Set("semver", jsf.createSemverFunction)
-	jsf.Engine.Vm.Set("setVar", jsf.createSetVarFunction)
-	jsf.Engine.Vm.Set("setTimeout", jsf.createSetTimeoutFunction)
-	jsf.Engine.Vm.Set("statusMessage", jsf.createStatusMessageFunction)
-	jsf.Engine.Vm.Set("task", jsf.createTaskFunction)
+	jsf.Engine.GetVm().Set("binaryExists", jsf.createBinaryExists)
+	jsf.Engine.GetVm().Set("composerJson", jsf.createComposerJsonFunction)
+	jsf.Engine.GetVm().Set("env", jsf.createJavascriptFunctionEnv)
+	jsf.Engine.GetVm().Set("exec", jsf.createJavascriptFunctionExec)
+	jsf.Engine.GetVm().Set("exists", jsf.createJavascriptFunctionExists)
+	jsf.Engine.GetVm().Set("fetch", jsf.createFetchFunction)
+	jsf.Engine.GetVm().Set("fetchJson", jsf.createFetchJsonFunction)
+	jsf.Engine.GetVm().Set("fileContains", jsf.createFileContainsFunction)
+	jsf.Engine.GetVm().Set("getCwd", jsf.createGetCurrentWorkingDirectory)
+	jsf.Engine.GetVm().Set("getVar", jsf.createGetVarFunction)
+	jsf.Engine.GetVm().Set("hasEnv", jsf.createHasEnvFunction)
+	jsf.Engine.GetVm().Set("hasFlag", jsf.createJavascriptFunctionHasFlag)
+	jsf.Engine.GetVm().Set("hasVar", jsf.createHasVarFunction)
+	jsf.Engine.GetVm().Set("outputOf", jsf.createOutputOfFunction)
+	jsf.Engine.GetVm().Set("packageJson", jsf.createPackageJsonFunction)
+	jsf.Engine.GetVm().Set("platform", jsf.createPlatformFunction)
+	jsf.Engine.GetVm().Set("requirementsTxt", jsf.createRequirementsTxtFunction)
+	jsf.Engine.GetVm().Set("script", jsf.createScriptFunction)
+	jsf.Engine.GetVm().Set("selectTaskWhen", jsf.createSelectTaskWhen)
+	jsf.Engine.GetVm().Set("semver", jsf.createSemverFunction)
+	jsf.Engine.GetVm().Set("setVar", jsf.createSetVarFunction)
+	jsf.Engine.GetVm().Set("setTimeout", jsf.createSetTimeoutFunction)
+	jsf.Engine.GetVm().Set("statusMessage", jsf.createStatusMessageFunction)
+	jsf.Engine.GetVm().Set("task", jsf.createTaskFunction)
 }
 
 func getResult(call otto.FunctionCall, v any) otto.Value {
@@ -88,8 +87,7 @@ func (jsf *JavaScriptFunctions) createSetTimeoutFunction(call otto.FunctionCall)
 }
 
 func (jsf *JavaScriptFunctions) createFetchFunction(call otto.FunctionCall) otto.Value {
-	gw := jsf.Engine.GetGateway()
-	result, _ := utils.GetUrlContents(call.Argument(0).String(), &gw)
+	result, _ := jsf.Engine.GetGateway().GetUrl(call.Argument(0).String())
 
 	return getResult(call, result)
 }
@@ -145,19 +143,19 @@ func (jsf *JavaScriptFunctions) createStatusMessageFunction(call otto.FunctionCa
 }
 
 func (jsf *JavaScriptFunctions) createHasVarFunction(call otto.FunctionCall) otto.Value {
-	_, result := jsf.Engine.AppVars.Load(call.Argument(0).String())
+	_, result := jsf.Engine.GetAppVars().Load(call.Argument(0).String())
 
 	return getResult(call, result)
 }
 
 func (jsf *JavaScriptFunctions) createGetVarFunction(call otto.FunctionCall) otto.Value {
-	v, _ := jsf.Engine.AppVars.Load(call.Argument(0).String())
+	v, _ := jsf.Engine.GetAppVars().Load(call.Argument(0).String())
 
 	return v.(otto.Value)
 }
 
 func (jsf *JavaScriptFunctions) createSetVarFunction(call otto.FunctionCall) otto.Value {
-	jsf.Engine.AppVars.Store(call.Argument(0).String(), call.Argument(1))
+	jsf.Engine.GetAppVars().Store(call.Argument(0).String(), call.Argument(1))
 
 	return getResult(call, true)
 }
@@ -178,11 +176,11 @@ func (jsf *JavaScriptFunctions) createTaskFunction(call otto.FunctionCall) otto.
 	taskName := call.Argument(0).String()
 
 	if strings.HasPrefix(taskName, "$") && len(taskName) > 1 {
-		temp, _ := jsf.Engine.AppVars.Load(taskName[1:])
+		temp, _ := jsf.Engine.GetAppVars().Load(taskName[1:])
 		taskName = temp.(string)
 	}
 
-	task, _ := jsf.Engine.FindTaskById(taskName)
+	task, _ := jsf.Engine.GetFindTaskById(taskName)
 	return getResult(call, task)
 }
 
@@ -211,7 +209,7 @@ func (jsf *JavaScriptFunctions) createSelectTaskWhen(call otto.FunctionCall) ott
 		taskName = falseTaskName
 	}
 
-	t, _ := jsf.Engine.FindTaskById(taskName)
+	t, _ := jsf.Engine.GetFindTaskById(taskName)
 
 	return getResult(call, t)
 }

@@ -8,8 +8,6 @@ import (
 
 type ScriptNet struct {
 	gateway types.GatewayContract
-	// engine types.JavaScriptEngineContract
-	// types.ScriptExtensionContract
 }
 
 func Create(gw types.GatewayContract) *ScriptNet {
@@ -26,27 +24,35 @@ func (ex *ScriptNet) OnInstall(engine types.JavaScriptEngineContract) {
 	engine.GetVm().Set(ex.GetName(), ex)
 }
 
+func (net *ScriptNet) gatewayPtr() *types.GatewayContract {
+	return &net.gateway
+}
+
 func (net *ScriptNet) Fetch(url string) any {
-	if !net.gateway.Allowed(url) {
-		support.FailureMessageWithXMark("fetch failed: access to " + url + " is not allowed.")
+	// if !net.gateway.Allowed(url) {
+	// 	support.FailureMessageWithXMark(" [script] fetch failed: access to " + url + " is not allowed.")
+	// 	return ""
+	// }
+
+	// if not allowed by the gateway, an error message will be printed, see Gateway class
+	result, err := utils.GetUrlContents(url, net.gatewayPtr())
+
+	if err != nil {
 		return ""
 	}
-
-	gw := net.gateway
-	result, _ := utils.GetUrlContents(url, &gw)
 
 	return result
 }
 
 func (net *ScriptNet) FetchJson(url string) any {
+	var result interface{} = nil
+
 	if !net.gateway.Allowed(url) {
-		support.FailureMessageWithXMark("fetchJson failed: access to " + url + " is not allowed.")
-		return interface{}(nil)
+		support.FailureMessageWithXMark(" [script] fetchJson failed: access to " + url + " is not allowed.")
+		return result
 	}
 
-	var result interface{} = nil
-	gw := net.gateway
-	utils.GetUrlJson(url, result, &gw)
+	utils.GetUrlJson(url, result, net.gatewayPtr())
 
 	return result
 }
