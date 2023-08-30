@@ -21,6 +21,7 @@ type JavaScriptEngineContract interface {
 	GetVm() *otto.Otto
 	GetGateway() GatewayContract
 	GetAppVars() *sync.Map
+	GetFindTaskById(id string) (any, bool)
 }
 
 type AppWorkflowTaskContract interface {

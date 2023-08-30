@@ -357,8 +357,8 @@ func (a *Application) Run() {
 	a.runInitScript()
 	a.runPreconditions()
 	a.runStartupTasks()
-	// a.runServerTasks()
-	// a.createScheduledTasks()
+	a.runServerTasks()
+	a.createScheduledTasks()
 
 	a.runEventLoop()
 }

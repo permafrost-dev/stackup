@@ -7,6 +7,7 @@ import (
 	"github.com/stackup-app/stackup/lib/gateway"
 	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/settings"
+	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,7 +40,9 @@ func TestGatewayInitialize(t *testing.T) {
 	g := gateway.New(nil)
 	findTask := func(id string) (any, error) { return nil, nil }
 	engine := scripting.CreateNewJavascriptEngine(&sync.Map{}, g, findTask, func() string { return "." })
-	g.Initialize(s, engine, nil)
+	var engineIntf interface{} = engine
+	var engineContract types.JavaScriptEngineContract = engineIntf.(types.JavaScriptEngineContract)
+	g.Initialize(s, engineContract, nil)
 
 	assert.True(t, g.Enabled, "gateway should be enabled")
 	assert.Equal(t, 3, len(g.AllowedDomains), "gateway should have 3 allowed domains")
