@@ -16,6 +16,7 @@ import (
 	"github.com/stackup-app/stackup/lib/cache"
 	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/debug"
+	"github.com/stackup-app/stackup/lib/downloader"
 	"github.com/stackup-app/stackup/lib/gateway"
 	"github.com/stackup-app/stackup/lib/messages"
 	"github.com/stackup-app/stackup/lib/scripting"
@@ -115,6 +116,8 @@ func (a *Application) Initialize() {
 
 	a.Analytics.EventOnly("app.start")
 	a.checkForApplicationUpdates(!*a.flags.NoUpdateCheck)
+
+	downloader.NewDownloader(a.Gateway).DownloadApplicationIcon(a.GetApplicationIconPath())
 }
 
 func (a *Application) initializeCache() {
@@ -291,16 +294,6 @@ func (a *Application) GetConfigurationPath() string {
 	)
 
 	return pathname
-}
-
-func (a *Application) DownloadApplicationIcon() {
-	filename := a.GetApplicationIconPath()
-
-	if utils.IsFile(filename) {
-		return
-	}
-
-	a.Gateway.SaveUrlToFile(consts.APP_ICON_URL, filename)
 }
 
 func (a Application) GetWorkflowContract() *types.AppWorkflowContract {

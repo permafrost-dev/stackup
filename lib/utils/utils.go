@@ -147,6 +147,15 @@ func GetUrlJson(url string, result any, gw *types.GatewayContract) error {
 	return nil
 }
 
+func IsNonEmptyFile(filename string) bool {
+	info, err := os.Stat(filename)
+	if err != nil {
+		return false
+	}
+
+	return !info.IsDir() && info.Size() > 0
+}
+
 func IsFile(filename string) bool {
 	info, err := os.Stat(filename)
 	if err != nil {

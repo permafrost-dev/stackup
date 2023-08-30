@@ -9,7 +9,7 @@ import (
 	"time"
 
 	carbon "github.com/golang-module/carbon/v2"
-	"github.com/stackup-app/stackup/lib/projectinfo"
+	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/utils"
 	bolt "go.etcd.io/bbolt"
 )
@@ -136,8 +136,7 @@ func (c *Cache) Initialize() *Cache {
 	filename := utils.EnforceSuffix(utils.FsSafeName(c.Name), ".db")
 
 	if strings.TrimSuffix(filename, ".db") == "" {
-		cwd, _ := os.Getwd()
-		filename = utils.EnforceSuffix(projectinfo.New(os.Args[0], cwd).FsSafeName(), ".db")
+		filename = utils.EnforceSuffix(consts.APPLICATION_NAME, ".db")
 	}
 
 	if c.Name == "" {

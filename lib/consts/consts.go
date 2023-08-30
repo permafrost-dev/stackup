@@ -1,5 +1,7 @@
 package consts
 
+const APPLICATION_NAME = "stackup"
+
 var DISPLAY_URLS_REMOVABLE = []string{"https://", "github.com", "raw.githubusercontent.com", "s3:"}
 
 const APP_CONFIG_PATH_BASE_NAME = "stackup"
