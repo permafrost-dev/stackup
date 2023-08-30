@@ -143,8 +143,8 @@ func (wi *WorkflowInclude) ValidateChecksum() bool {
 		return true
 	}
 
-	wi.ValidationState.TransitionToNext(nil, false)
-	// wi.ValidationState = ChecksumVerificationStatePending
+	// wi.TransitionToNext(nil, false)
+	wi.ValidationState = ChecksumVerificationStatePending
 	found := false
 
 	for _, url := range GetChecksumUrls(wi.FullUrl()) {
@@ -161,14 +161,28 @@ func (wi *WorkflowInclude) ValidateChecksum() bool {
 		found = true
 		wi.ChecksumUrl = url
 		wi.UpdateChecksumFromChecksumsFile(url, urlText)
-		wi.ValidationState.TransitionToNext(wi.HashAlgorithm.UnsupportedError(), false)
+		// wi.TransitionToNext(wi.HashAlgorithm.UnsupportedError(), false)
 		// wi.ValidationState = ChecksumVerificationStateError
+		// test
+		//wi.ValidationState =
 
 		break
 	}
 
-	wi.ValidationState.TransitionToNext(nil, found && !wi.ValidationState.IsError() && checksums.HashesMatch(wi.Hash, wi.FoundChecksum))
-	// wi.ValidationState.SetVerified(found && !wi.ValidationState.IsError() && checksums.HashesMatch(wi.Hash, wi.FoundChecksum))
+	matched := found && !wi.ValidationState.IsError() && checksums.HashesMatch(wi.Hash, wi.FoundChecksum)
+
+	if !found {
+		wi.ValidationState = ChecksumVerificationStateError
+	}
+	if matched {
+		wi.ValidationState = ChecksumVerificationStateVerified
+	}
+
+	// wi.TransitionToNext(nil, matched)
+	//
+	wi.ValidationState.SetVerified(matched)
+
+	fmt.Printf("wi.ValidationState: %v\n", wi.ValidationState)
 
 	return wi.ValidationState.IsVerified()
 }
@@ -232,4 +246,33 @@ func (wi *WorkflowInclude) NewCacheEntry() *cache.CacheEntry {
 		wi.HashAlgorithm.String(),
 		cache.CreateCarbonNowPtr(),
 	)
+}
+
+func (wi *WorkflowInclude) TransitionToNext(err error, matched bool) {
+	possibleStates := _ChecksumVerificationStateTransitionMap[wi.ValidationState]
+
+	if len(possibleStates) == 0 {
+		return
+	}
+
+	if len(possibleStates) == 1 {
+		wi.ValidationState = possibleStates[0]
+		return
+	}
+
+	for _, state := range possibleStates {
+		if state == ChecksumVerificationStateError {
+			wi.ValidationState = ChecksumVerificationStateError
+			return
+		}
+	}
+
+	for _, state := range possibleStates {
+		for _, finalState := range AllFinalCHecksumVerificationStates {
+			if state == finalState {
+				wi.ValidationState.SetVerified(true)
+				return
+			}
+		}
+	}
 }

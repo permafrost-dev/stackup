@@ -1,11 +1,8 @@
-//go:generate go-enum --marshal
 package app
 
 import (
 	"errors"
 	"fmt"
-
-	"github.com/stackup-app/stackup/lib/utils"
 )
 
 // ENUM(not verified, pending, verified, mismatch, error)
@@ -105,32 +102,44 @@ func ParseChecksumVerificationState(name string) (ChecksumVerificationState, err
 }
 
 func (x *ChecksumVerificationState) IsInFinalState() bool {
-	return utils.ArrayContains(AllFinalCHecksumVerificationStates, *x)
+	for _, finalState := range AllFinalCHecksumVerificationStates {
+		if *x == finalState {
+			return true
+		}
+	}
+
+	return false
 }
 
-func (x *ChecksumVerificationState) TransitionToNext(err error, matched bool) bool {
+func (x *ChecksumVerificationState) TransitionToNext(err error, matched bool) *ChecksumVerificationState {
 	possibleStates := _ChecksumVerificationStateTransitionMap[*x]
 
 	if len(possibleStates) == 0 {
-		return false
+		return x
 	}
 
 	if len(possibleStates) == 1 {
 		*x = possibleStates[0]
-		return true
+		return x
 	}
 
-	if err != nil && utils.ArrayContains(possibleStates, ChecksumVerificationStateError) {
-		*x = ChecksumVerificationStateError
-		return true
+	for _, state := range possibleStates {
+		if state == ChecksumVerificationStateError {
+			*x = ChecksumVerificationStateError
+			return x
+		}
 	}
 
-	if utils.ArrayContains(possibleStates, NonErrorFinalChecksumVerificationStates) {
-		x.SetVerified(matched)
-		return true
+	for _, state := range possibleStates {
+		for _, finalState := range AllFinalCHecksumVerificationStates {
+			if state == finalState {
+				x.SetVerified(matched)
+				return x
+			}
+		}
 	}
 
-	return false
+	return x
 }
 
 // MarshalText implements the text marshaller method.

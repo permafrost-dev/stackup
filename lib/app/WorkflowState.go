@@ -32,7 +32,7 @@ func (ws *WorkflowState) SetCurrent(task *Task) CleanupCallback {
 		ws.CurrentTask = nil
 
 		value, ok := ws.Stack.Pop()
-		if ok {
+		if ok && value != nil {
 			ws.CurrentTask = value.(*Task)
 		}
 	}

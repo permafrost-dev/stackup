@@ -1,19 +1,28 @@
-package scripting
+package fsextension
 
 import (
 	"encoding/json"
 	"os"
 	"path/filepath"
 
+	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type ScriptFs struct {
+	types.ScriptExtensionContract
 }
 
-func (e *JavaScriptEngine) CreateScriptFsObject() {
-	obj := &ScriptFs{}
-	e.Vm.Set("fs", obj)
+func Create() *ScriptFs {
+	return &ScriptFs{}
+}
+
+func (fs *ScriptFs) GetName() string {
+	return "fs"
+}
+
+func (ex *ScriptFs) OnInstall(engine types.JavaScriptEngineContract) {
+	engine.GetVm().Set(ex.GetName(), ex)
 }
 
 func (fs *ScriptFs) ReadFile(filename string) (string, error) {

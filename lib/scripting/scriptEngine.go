@@ -8,6 +8,11 @@ import (
 
 	"github.com/robertkrimen/otto"
 	"github.com/stackup-app/stackup/lib/gateway"
+	appextension "github.com/stackup-app/stackup/lib/scripting/extensions/app_extension"
+	devextension "github.com/stackup-app/stackup/lib/scripting/extensions/dev_extension"
+	fsextension "github.com/stackup-app/stackup/lib/scripting/extensions/fs_extension"
+	netextension "github.com/stackup-app/stackup/lib/scripting/extensions/net_extension"
+	varsextension "github.com/stackup-app/stackup/lib/scripting/extensions/vars_extension"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
@@ -22,7 +27,6 @@ type JavaScriptEngine struct {
 	Functions              *JavaScriptFunctions
 	GetApplicationIconPath func() string
 	FindTaskById           FindTaskByIdFunc
-	Registry               *sync.Map
 	InstalledExtensions    *sync.Map
 	initialized            bool
 
@@ -36,7 +40,6 @@ func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, findTas
 		AppVars:                vars,
 		AppGateway:             gateway,
 		GetApplicationIconPath: getAppIconFunc,
-		Registry:               &sync.Map{},
 		InstalledExtensions:    &sync.Map{},
 		FindTaskById:           findTaskFunc,
 	}
@@ -44,30 +47,13 @@ func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, findTas
 	return result
 }
 
-func (e *JavaScriptEngine) GetGateway() *types.GatewayContract {
+func (e *JavaScriptEngine) GetGateway() types.GatewayContract {
 	var result types.GatewayContract = e.AppGateway
-	return &result
+	return result
 }
 
-func (e *JavaScriptEngine) RegisterExtension(name string, value types.ScriptExtensionContract) {
-	e.Registry.Store(name, value)
-}
-
-func (e *JavaScriptEngine) IsExtensionInstalled(name string) bool {
-	_, ok := e.InstalledExtensions.Load(name)
-	return ok
-}
-
-func (e *JavaScriptEngine) InstallRegistry() {
-	e.Registry.Range(func(key, value any) bool {
-		k := key.(string)
-		v := value.(types.ScriptExtensionContract)
-		if !e.IsExtensionInstalled(k) {
-			e.InstalledExtensions.Store(k, v)
-			v.Install()
-		}
-		return true
-	})
+func (e *JavaScriptEngine) GetAppVars() *sync.Map {
+	return e.AppVars
 }
 
 func (e *JavaScriptEngine) toInterface() interface{} {
@@ -79,20 +65,27 @@ func (e *JavaScriptEngine) AsContract() types.JavaScriptEngineContract {
 }
 
 func (e *JavaScriptEngine) Initialize(appVars *sync.Map, environ []string) {
-	if !e.initialized {
-		e.Vm = otto.New()
-		e.CreateJavascriptFunctions()
-		e.CreateScriptFsObject()
-		CreateScriptAppObject(e)
-		CreateScriptVarsObject(e)
-		CreateScriptDevObject(e)
-		CreateScriptNetObject(e)
-		// CreateScripNotificationsObject(workflow, e)
-		e.initialized = true
+	if e.initialized {
+		return
 	}
+
+	e.Vm = otto.New()
+	e.initializeExtensions()
+
+	// CreateScripNotificationsObject(workflow, e)
+	e.initialized = true
 
 	e.CreateAppVariables(appVars)
 	e.CreateEnvironmentVariables(environ)
+}
+
+func (e *JavaScriptEngine) initializeExtensions() {
+	devextension.Create().OnInstall(e)
+	varsextension.Create(e).OnInstall(e)
+	netextension.Create(e.AppGateway).OnInstall(e)
+	appextension.Create().OnInstall(e)
+	fsextension.Create().OnInstall(e)
+	createJavascriptFunctions(e).OnInstall(e)
 }
 
 func (e *JavaScriptEngine) CreateAppVariables(vars *sync.Map) {
@@ -259,4 +252,8 @@ func (e *JavaScriptEngine) MakeStringEvaluatable(script string) string {
 	}
 
 	return "{{ " + script + " }}"
+}
+
+func (e *JavaScriptEngine) GetVm() *otto.Otto {
+	return e.Vm
 }

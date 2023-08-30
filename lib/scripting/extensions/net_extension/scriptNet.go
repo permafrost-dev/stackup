@@ -1,49 +1,61 @@
-package scripting
+package netextension
 
 import (
 	"github.com/stackup-app/stackup/lib/support"
+	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type ScriptNet struct {
-	engine *JavaScriptEngine
+	gateway types.GatewayContract
+	// engine types.JavaScriptEngineContract
+	// types.ScriptExtensionContract
 }
 
-func CreateScriptNetObject(e *JavaScriptEngine) {
-	obj := &ScriptNet{
-		engine: e,
+func Create(gw types.GatewayContract) *ScriptNet {
+	return &ScriptNet{
+		gateway: gw,
 	}
-	e.Vm.Set("net", obj)
+}
+
+func (net *ScriptNet) GetName() string {
+	return "net"
+}
+
+func (ex *ScriptNet) OnInstall(engine types.JavaScriptEngineContract) {
+	engine.GetVm().Set(ex.GetName(), ex)
 }
 
 func (net *ScriptNet) Fetch(url string) any {
-	if !net.engine.AppGateway.Allowed(url) {
+	if !net.gateway.Allowed(url) {
 		support.FailureMessageWithXMark("fetch failed: access to " + url + " is not allowed.")
 		return ""
 	}
 
-	result, _ := utils.GetUrlContents(url, net.engine.GetGateway())
+	gw := net.gateway
+	result, _ := utils.GetUrlContents(url, &gw)
 
 	return result
 }
 
 func (net *ScriptNet) FetchJson(url string) any {
-	if !net.engine.AppGateway.Allowed(url) {
+	if !net.gateway.Allowed(url) {
 		support.FailureMessageWithXMark("fetchJson failed: access to " + url + " is not allowed.")
 		return interface{}(nil)
 	}
 
 	var result interface{} = nil
-	utils.GetUrlJson(url, result, net.engine.GetGateway())
+	gw := net.gateway
+	utils.GetUrlJson(url, result, &gw)
 
 	return result
 }
 
 func (net *ScriptNet) DownloadTo(url string, filename string) {
-	if !net.engine.AppGateway.Allowed(url) {
+	if !net.gateway.Allowed(url) {
 		support.FailureMessageWithXMark(" [script] DownloadTo() failed: access to '" + url + "' is not allowed.")
 		return
 	}
 
-	net.engine.AppGateway.SaveUrlToFile(url, filename)
+	net.gateway.SaveUrlToFile(url, filename)
 }

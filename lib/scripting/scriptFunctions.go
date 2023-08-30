@@ -7,17 +7,28 @@ import (
 	"time"
 
 	"github.com/robertkrimen/otto"
+	devextension "github.com/stackup-app/stackup/lib/scripting/extensions/dev_extension"
 	"github.com/stackup-app/stackup/lib/semver"
 	"github.com/stackup-app/stackup/lib/support"
+	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
 type JavaScriptFunctions struct {
 	Engine *JavaScriptEngine
+	types.ScriptExtensionContract
 }
 
-func (e *JavaScriptEngine) CreateJavascriptFunctions() {
-	jsf := JavaScriptFunctions{Engine: e}
+func createJavascriptFunctions(engine *JavaScriptEngine) *JavaScriptFunctions {
+	return &JavaScriptFunctions{Engine: engine}
+}
+
+func (jsf JavaScriptFunctions) GetName() string {
+	return "functions"
+}
+
+func (jsf JavaScriptFunctions) OnInstall(engine types.JavaScriptEngineContract) {
+	// engine.GetVm().Set(jsf.GetName(), jsf)
 	jsf.Register()
 }
 
@@ -77,32 +88,34 @@ func (jsf *JavaScriptFunctions) createSetTimeoutFunction(call otto.FunctionCall)
 }
 
 func (jsf *JavaScriptFunctions) createFetchFunction(call otto.FunctionCall) otto.Value {
-	result, _ := utils.GetUrlContents(call.Argument(0).String(), jsf.Engine.GetGateway())
+	gw := jsf.Engine.GetGateway()
+	result, _ := utils.GetUrlContents(call.Argument(0).String(), &gw)
 
 	return getResult(call, result)
 }
 
 func (jsf *JavaScriptFunctions) createFetchJsonFunction(call otto.FunctionCall) otto.Value {
 	var result interface{}
-	utils.GetUrlJson(call.Argument(0).String(), &result, jsf.Engine.GetGateway())
+	gw := jsf.Engine.GetGateway()
+	utils.GetUrlJson(call.Argument(0).String(), &result, &gw)
 
 	return getResult(call, result)
 }
 
 func (jsf *JavaScriptFunctions) createRequirementsTxtFunction(call otto.FunctionCall) otto.Value {
-	result, _ := LoadRequirementsTxt(call.Argument(0).String())
+	result, _ := devextension.LoadRequirementsTxt(call.Argument(0).String())
 
 	return getResult(call, result)
 }
 
 func (jsf *JavaScriptFunctions) createPackageJsonFunction(call otto.FunctionCall) otto.Value {
-	result, _ := LoadPackageJson(call.Argument(0).String())
+	result, _ := devextension.LoadPackageJson(call.Argument(0).String())
 
 	return getResult(call, result)
 }
 
 func (jsf *JavaScriptFunctions) createComposerJsonFunction(call otto.FunctionCall) otto.Value {
-	result, _ := LoadComposerJson(call.Argument(0).String())
+	result, _ := devextension.LoadComposerJson(call.Argument(0).String())
 
 	return getResult(call, result)
 }

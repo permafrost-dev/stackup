@@ -1,4 +1,4 @@
-package scripting
+package devextension
 
 import (
 	"encoding/json"

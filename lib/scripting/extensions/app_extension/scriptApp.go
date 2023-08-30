@@ -1,16 +1,29 @@
-package scripting
+package appextension
 
 import (
 	"github.com/stackup-app/stackup/lib/support"
-	"github.com/stackup-app/stackup/lib/version"
+	"github.com/stackup-app/stackup/lib/types"
+	appvers "github.com/stackup-app/stackup/lib/version"
 )
+
+const name = "app"
+
+// const version = "0.0.1"
+// const description = "Provides access to application methods."
 
 type ScriptApp struct {
 }
 
-func CreateScriptAppObject(e *JavaScriptEngine) {
-	obj := &ScriptApp{}
-	e.Vm.Set("app", obj)
+func Create() *ScriptApp {
+	return &ScriptApp{}
+}
+
+func (app *ScriptApp) GetName() string {
+	return name
+}
+
+func (ex *ScriptApp) OnInstall(engine types.JavaScriptEngineContract) {
+	engine.GetVm().Set(ex.GetName(), ex)
 }
 
 func (app *ScriptApp) StatusMessage(message string) {
@@ -34,5 +47,5 @@ func (app *ScriptApp) WarningMessage(message string) {
 }
 
 func (app *ScriptApp) Version() string {
-	return version.APP_VERSION
+	return appvers.APP_VERSION
 }
