@@ -13,6 +13,14 @@ type WorkflowState struct {
 type CleanupCallback = func()
 type SetActiveTaskCallback = func(task *Task) CleanupCallback
 
+func NewWorkflowState() WorkflowState {
+	return WorkflowState{
+		CurrentTask: nil,
+		Stack:       lls.New(),
+		History:     lls.New(),
+	}
+}
+
 // sets the current task, and pushes the previous task onto the stack if it was still running.
 // returns a cleanup function callback that restores the state to its previous value.
 func (ws *WorkflowState) SetCurrent(task *Task) CleanupCallback {

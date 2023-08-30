@@ -125,7 +125,7 @@ func (wi *WorkflowInclude) SetLoadedFromCache(loaded bool, data *cache.CacheEntr
 	wi.UpdateHash()
 }
 
-func (wi *WorkflowInclude) UpdateChecksumFromChecksumsFile(url, contents string) {
+func (wi *WorkflowInclude) UpdateChecksumFromChecksumsFile(contents string) {
 	cs := checksums.FindFilenameChecksum(path.Base(wi.FullUrl()), contents)
 	if cs != nil {
 		wi.FoundChecksum = cs.Hash
@@ -160,16 +160,13 @@ func (wi *WorkflowInclude) ValidateChecksum() bool {
 
 		found = true
 		wi.ChecksumUrl = url
-		wi.UpdateChecksumFromChecksumsFile(url, urlText)
-		// wi.TransitionToNext(wi.HashAlgorithm.UnsupportedError(), false)
-		// wi.ValidationState = ChecksumVerificationStateError
-		// test
-		//wi.ValidationState =
+		wi.UpdateChecksumFromChecksumsFile(urlText)
 
 		break
 	}
 
 	matched := found && !wi.ValidationState.IsError() && checksums.HashesMatch(wi.Hash, wi.FoundChecksum)
+	wi.ValidationState.SetVerified(matched)
 
 	if !found {
 		wi.ValidationState = ChecksumVerificationStateError
@@ -177,12 +174,6 @@ func (wi *WorkflowInclude) ValidateChecksum() bool {
 	if matched {
 		wi.ValidationState = ChecksumVerificationStateVerified
 	}
-
-	// wi.TransitionToNext(nil, matched)
-	//
-	wi.ValidationState.SetVerified(matched)
-
-	fmt.Printf("wi.ValidationState: %v\n", wi.ValidationState)
 
 	return wi.ValidationState.IsVerified()
 }

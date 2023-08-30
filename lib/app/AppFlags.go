@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/stackup-app/stackup/lib/app/commands"
 	"github.com/stackup-app/stackup/lib/version"
 )
 
@@ -38,7 +39,7 @@ func (af *AppFlags) handle() {
 	}
 
 	if len(os.Args) > 1 && os.Args[1] == "init" {
-		af.app.createNewConfigFile()
+		commands.CreateNewConfigFile()
 		os.Exit(0)
 	}
 }

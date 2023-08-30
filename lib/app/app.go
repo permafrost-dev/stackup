@@ -11,7 +11,6 @@ import (
 	"syscall"
 
 	"github.com/eiannone/keyboard"
-	"github.com/emirpasic/gods/stacks/linkedliststack"
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
 	"github.com/stackup-app/stackup/lib/cache"
@@ -31,10 +30,9 @@ import (
 var App *Application
 
 type Application struct {
-	Workflow   *StackupWorkflow
-	JsEngine   *scripting.JavaScriptEngine
-	cronEngine *cron.Cron
-	// scheduledTaskMap    *sync.Map
+	Workflow            *StackupWorkflow
+	JsEngine            *scripting.JavaScriptEngine
+	cronEngine          *cron.Cron
 	ProcessMap          *sync.Map
 	Vars                *sync.Map
 	flags               AppFlags
@@ -82,12 +80,7 @@ func (a *Application) loadWorkflowFile(filename string, wf *StackupWorkflow) {
 		return
 	}
 
-	wf.State = WorkflowState{
-		CurrentTask: nil,
-		Stack:       linkedliststack.New(),
-		History:     linkedliststack.New(),
-	}
-
+	wf.State = NewWorkflowState()
 	wf.ConfigureDefaultSettings()
 
 	if !wf.Debug {
@@ -196,8 +189,6 @@ func (a *Application) createScheduledTasks() {
 				task.RunSync()
 			}
 		})
-
-		// a.scheduledTaskMap.Store(def.TaskId(), &def)
 	}
 
 	a.cronEngine.Start()
@@ -280,27 +271,6 @@ func (a Application) runPreconditions() {
 		}
 		support.SuccessMessageWithCheck(c.Name)
 	}
-}
-
-func (a *Application) createNewConfigFile() {
-	if _, err := os.Stat("stackup.yaml"); err == nil {
-		fmt.Println("stackup.yaml already exists.")
-		return
-	}
-
-	var dependencyBin string = "php"
-
-	if utils.IsFile("composer.json") {
-		dependencyBin = "php"
-	} else if utils.IsFile("package.json") {
-		dependencyBin = "node"
-	} else if utils.IsFile("requirements.txt") {
-		dependencyBin = "python"
-	}
-
-	filename := "stackup.yaml"
-	contents := fmt.Sprintf(consts.INIT_CONFIG_FILE_CONTENTS, dependencyBin)
-	os.WriteFile(filename, []byte(contents), 0644)
 }
 
 func (a *Application) checkForApplicationUpdates(canCheck bool) {
