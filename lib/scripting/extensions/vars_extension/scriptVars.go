@@ -1,8 +1,6 @@
 package varsextension
 
 import (
-	"fmt"
-
 	"github.com/stackup-app/stackup/lib/types"
 )
 
@@ -14,7 +12,6 @@ func Create(e types.JavaScriptEngineContract) *ScriptVars {
 	return &ScriptVars{
 		engine: e,
 	}
-	// e.Vm.Set("vars", obj)
 }
 
 func (sv *ScriptVars) GetName() string {
@@ -22,7 +19,6 @@ func (sv *ScriptVars) GetName() string {
 }
 
 func (ex *ScriptVars) OnInstall(engine types.JavaScriptEngineContract) {
-	fmt.Printf("ex == %v\n", ex)
 	engine.GetVm().Set(ex.GetName(), ex)
 }
 
