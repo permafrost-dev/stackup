@@ -17,6 +17,7 @@ import (
 	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/debug"
 	"github.com/stackup-app/stackup/lib/gateway"
+	"github.com/stackup-app/stackup/lib/messages"
 	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/telemetry"
@@ -176,7 +177,7 @@ func (a *Application) createScheduledTasks() {
 		_, found := a.Workflow.FindTaskById(def.TaskId())
 
 		if !found {
-			support.FailureMessageWithXMark("Task " + def.TaskId() + " not found.")
+			support.FailureMessageWithXMark(messages.TaskNotFound(def.TaskId()))
 			continue
 		}
 
@@ -227,7 +228,7 @@ func (a *Application) runTaskReferences(refs []*TaskReference) {
 
 		task, found := a.Workflow.FindTaskById(def.TaskId())
 		if !found {
-			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
+			support.SkippedMessageWithSymbol(messages.TaskNotFound(def.TaskId()))
 			continue
 		}
 
@@ -252,7 +253,7 @@ func (a *Application) runServerTasks() {
 		task, found := a.Workflow.FindTaskById(def.TaskId())
 
 		if !found {
-			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
+			support.SkippedMessageWithSymbol(messages.TaskNotFound(def.TaskId()))
 			continue
 		}
 
@@ -299,7 +300,7 @@ func (a *Application) DownloadApplicationIcon() {
 		return
 	}
 
-	a.Gateway.SaveUrlToFile("https://raw.githubusercontent.com/"+consts.APP_REPOSITORY+"/main/assets/stackup-app-512px.png", filename)
+	a.Gateway.SaveUrlToFile(consts.APP_ICON_URL, filename)
 }
 
 func (a Application) GetWorkflowContract() *types.AppWorkflowContract {

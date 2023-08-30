@@ -3,6 +3,9 @@ package gateway
 import (
 	"errors"
 	"net/url"
+
+	"github.com/stackup-app/stackup/lib/messages"
+	"github.com/stackup-app/stackup/lib/types"
 )
 
 var ValidateUrlMiddleware = GatewayUrlRequestMiddleware{
@@ -22,9 +25,9 @@ var ValidateUrlMiddleware = GatewayUrlRequestMiddleware{
 		}
 
 		if g.checkArrayForDomainMatch(&g.DeniedDomains, parsedUrl.Host) {
-			return errors.New("access to domain" + parsedUrl.Host + " is blocked")
+			return errors.New(messages.AccessBlocked(types.AccessTypeDomain, parsedUrl.Host))
 		}
 
-		return errors.New("access to domain" + parsedUrl.Host + " has not been explicitly allowed")
+		return errors.New(messages.NotExplicitlyAllowed(types.AccessTypeDomain, parsedUrl.Host))
 	},
 }

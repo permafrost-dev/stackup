@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -37,38 +36,13 @@ func expandUrlPrefixes(url string) string {
 		"s3:": "https://s3.amazonaws.com/",
 	}
 
-	result := url
-
 	for k, v := range mapppd {
 		if strings.HasPrefix(url, k) {
-			result = strings.Replace(result, k, v, 1)
+			return strings.Replace(url, k, v, 1)
 		}
 	}
 
-	return result
-}
-
-func formatDisplayUrl(urlstr string) string {
-	parsed, _ := url.Parse(urlstr)
-
-	return parsed.Hostname() + "/" + parsed.Path
-}
-
-func GetChecksumUrls(fullUrl string) []string {
-	url, _ := url.Parse(fullUrl)
-	reqFn := path.Base(url.Path)
-	url.Path = path.Dir(url.Path)
-
-	return []string{
-		url.JoinPath("checksums.txt").String(),
-		url.JoinPath("checksums.sha256.txt").String(),
-		url.JoinPath("checksums.sha512.txt").String(),
-		url.JoinPath("sha256sum").String(),
-		url.JoinPath("sha512sum").String(),
-		url.JoinPath("sha512sum").String(),
-		url.JoinPath(reqFn + ".sha256").String(),
-		url.JoinPath(reqFn + ".sha512").String(),
-	}
+	return url
 }
 
 func IsHashUrlForFileUrl(urlstr, filename string) bool {
@@ -79,13 +53,19 @@ func (wi *WorkflowInclude) Initialize(workflow *StackupWorkflow) {
 	wi.Workflow = workflow
 	wi.expandHeaders()
 	wi.setDefaults()
-	wi.updateIdentifier()
 }
 
-func (wi *WorkflowInclude) updateIdentifier() string {
-	wi.identifierString = utils.ConsistentUniqueId(wi.FullUrl() + wi.Filename())
+func (wi *WorkflowInclude) IncludeType() IncludeType {
+	return DetermineIncludeType(wi.FullUrl(), wi.Filename())
+}
 
-	return wi.identifierString
+func (wi *WorkflowInclude) SetContents(contents string, storeInCache bool) {
+	wi.Contents = contents
+	wi.UpdateHash()
+
+	if storeInCache {
+		wi.Workflow.Cache.Set(wi.Identifier(), wi.NewCacheEntry(), wi.Workflow.Settings.Cache.TtlMinutes)
+	}
 }
 
 func (wi *WorkflowInclude) expandHeaders() {
@@ -102,7 +82,7 @@ func (wi *WorkflowInclude) setDefaults() {
 	wi.ValidationState = ChecksumVerificationStateNotVerified
 }
 
-func (wi *WorkflowInclude) LoadedStatusText() string {
+func (wi *WorkflowInclude) loadedStatusText() string {
 	result := "fetched"
 
 	if wi.FromCache {
@@ -112,7 +92,7 @@ func (wi *WorkflowInclude) LoadedStatusText() string {
 	return fmt.Sprintf("%s, %s", result, wi.ValidationState.String())
 }
 
-func (wi *WorkflowInclude) SetLoadedFromCache(loaded bool, data *cache.CacheEntry) {
+func (wi *WorkflowInclude) setLoadedFromCache(loaded bool, data *cache.CacheEntry) {
 	wi.FromCache = loaded
 
 	if !loaded {
@@ -121,8 +101,7 @@ func (wi *WorkflowInclude) SetLoadedFromCache(loaded bool, data *cache.CacheEntr
 
 	wi.Hash = data.Hash
 	wi.HashAlgorithm = checksums.ParseChecksumAlgorithm(data.Algorithm)
-	wi.Contents = data.Value
-	wi.UpdateHash()
+	wi.SetContents(data.Value, false)
 }
 
 func (wi *WorkflowInclude) UpdateChecksumFromChecksumsFile(contents string) {
@@ -134,20 +113,22 @@ func (wi *WorkflowInclude) UpdateChecksumFromChecksumsFile(contents string) {
 	wi.UpdateChecksumAlgorithm()
 }
 
+func (wi *WorkflowInclude) shouldVerifyChecksum() bool {
+	return wi.IncludeType() == IncludeTypeHttp || wi.VerifyChecksum || wi.Workflow.Settings.ChecksumVerification
+}
+
 func (wi *WorkflowInclude) ValidateChecksum() bool {
 	wi.UpdateHash()
 	wi.ValidationState.Reset()
-	//wi.ValidationState = ChecksumVerificationStateNotVerified
 
-	if !wi.IsRemoteUrl() || !wi.VerifyChecksum || !wi.Workflow.Settings.ChecksumVerification {
+	if !wi.shouldVerifyChecksum() {
 		return true
 	}
 
-	// wi.TransitionToNext(nil, false)
 	wi.ValidationState = ChecksumVerificationStatePending
 	found := false
 
-	for _, url := range GetChecksumUrls(wi.FullUrl()) {
+	for _, url := range wi.Workflow.getPossibleIncludedChecksumUrls() {
 		urlText, err := wi.Workflow.Gateway.GetUrl(url)
 		if err != nil || urlText == "" {
 			continue
@@ -171,48 +152,28 @@ func (wi *WorkflowInclude) ValidateChecksum() bool {
 	if !found {
 		wi.ValidationState = ChecksumVerificationStateError
 	}
-	if matched {
-		wi.ValidationState = ChecksumVerificationStateVerified
-	}
 
 	return wi.ValidationState.IsVerified()
 }
 
-func (wi *WorkflowInclude) IsLocalFile() bool {
-	return wi.Filename() != "" && !wi.IsRemoteUrl() && !wi.IsS3Url()
-}
-
-func (wi *WorkflowInclude) IsRemoteUrl() bool {
-	return strings.HasPrefix(wi.FullUrl(), "http")
-}
-
-func (wi *WorkflowInclude) IsS3Url() bool {
-	return strings.HasPrefix(wi.FullUrl(), "s3:")
-}
-
 func (wi *WorkflowInclude) Filename() string {
-	if wi.File == "" {
-		return ""
-	}
 	return utils.AbsoluteFilePath(wi.File)
 }
 
 func (wi *WorkflowInclude) FullUrl() string {
-	if wi.Url == "" {
-		return ""
-	}
 	return expandUrlPrefixes(wi.Url)
 }
 
 func (wi *WorkflowInclude) Identifier() string {
-	if wi.identifierString == "" {
-		return wi.updateIdentifier()
-	}
-	return wi.identifierString
+	return utils.ConsistentUniqueId(wi.FullUrl() + wi.Filename())
 }
 
 func (wi WorkflowInclude) DisplayName() string {
-	return utils.RemoveEmptyValues(formatDisplayUrl(wi.FullUrl()), wi.Filename(), "<unknown>")[0]
+	return utils.FirstNonEmpty(
+		utils.FormatDisplayUrl(wi.FullUrl()),
+		wi.Filename(),
+		"<unknown>",
+	)
 }
 
 func (wi *WorkflowInclude) UpdateChecksumAlgorithm() {
@@ -222,8 +183,7 @@ func (wi *WorkflowInclude) UpdateChecksumAlgorithm() {
 func (wi *WorkflowInclude) UpdateHash() {
 	originalHash := wi.Hash
 
-	wi.Hash = checksums.CalculateSha256Hash(wi.Contents)
-	wi.HashAlgorithm = checksums.ChecksumAlgorithmSha256
+	wi.Hash, wi.HashAlgorithm = checksums.CalculateSha256Hash(wi.Contents)
 	wi.ValidationState.ResetIf(wi.Hash != originalHash)
 }
 

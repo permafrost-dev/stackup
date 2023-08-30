@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/stackup-app/stackup/lib/cache"
+	"github.com/stackup-app/stackup/lib/messages"
 	"github.com/stackup-app/stackup/lib/settings"
 	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
@@ -76,15 +78,18 @@ func New(cache *cache.Cache) *Gateway {
 	return &result
 }
 
+func setMatchAllIfEmpty(arr *[]string) {
+	if len(*arr) == 0 {
+		*arr = []string{"*"}
+	}
+}
+
 func (g *Gateway) setup() {
 	// we need the `validateUrl` middleware no matter what, so prepend it to the list of enabled middleware.
 	// this middleware is the core functionality of the http gateway's allow/block lists.
-	// temp := []string{"validateUrl"}
 	g.EnabledMiddleware = []string{"validateUrl"}
 	g.EnabledMiddleware = append(g.EnabledMiddleware, "validateUrl")
 	GatewayMiddleware.AddPreMiddleware(&ValidateUrlMiddleware)
-
-	// fmt.Printf("enabled middleware: %v\n", g.EnabledMiddleware)
 
 	for _, name := range g.EnabledMiddleware {
 		if !GatewayMiddleware.HasMiddleware(name) {
@@ -119,24 +124,14 @@ func (g *Gateway) Initialize(s *settings.Settings, jsEngine types.JavaScriptEngi
 			Block: []string{},
 		}
 	}
-	if len(s.Gateway.FileExtensions.Allow) == 0 {
-		s.Gateway.FileExtensions.Allow = []string{"*"}
-	}
-	if len(s.Gateway.FileExtensions.Block) == 0 {
-		s.Gateway.FileExtensions.Allow = []string{"*"}
-	}
-	if len(s.Domains.Allowed) == 0 {
-		s.Domains.Allowed = []string{"*"}
-	}
-	if len(s.Domains.Blocked) == 0 {
-		s.Domains.Blocked = []string{"*"}
-	}
+
+	setMatchAllIfEmpty(&s.Gateway.FileExtensions.Allow)
+	setMatchAllIfEmpty(&s.Gateway.FileExtensions.Block)
+	setMatchAllIfEmpty(&s.Domains.Allowed)
+	setMatchAllIfEmpty(&s.Domains.Blocked)
 
 	g.Settings = s
-    g.Debug = s.Debug
-	//g.AllowedDomains = []string{"*"}
-	// g.DomainContentTypes = &sync.Map{}
-	// g.BlockedContentTypes = &sync.Map{}
+	g.Debug = s.Debug
 
 	g.HttpClient = httpClient
 	g.JsEngine = jsEngine
@@ -146,10 +141,6 @@ func (g *Gateway) Initialize(s *settings.Settings, jsEngine types.JavaScriptEngi
 	g.SetAllowedFileExts(s.Gateway.FileExtensions.Allow)
 	g.SetBlockedFileExts(s.Gateway.FileExtensions.Block)
 	g.EnabledMiddleware = append(g.EnabledMiddleware, s.Gateway.Middleware...)
-	// g.DeniedDomains = g.NormalizeDomainArray(g.DeniedDomains)
-	// g.AllowedDomains = g.NormalizeDomainArray(g.AllowedDomains)
-
-	//g.SetDefaults()
 
 	// `setup` must be called after the settings have been applied above
 	g.setup()
@@ -164,22 +155,19 @@ func (g *Gateway) SetBlockedFileExts(exts []string) {
 }
 
 func (g *Gateway) SetDefaults() {
-	if len(g.AllowedFileExts) == 0 {
-		g.AllowedFileExts = []string{"*"}
-	}
-	if len(g.BlockedFileExts) == 0 {
-		g.BlockedFileExts = []string{"*"}
-	}
+	setMatchAllIfEmpty(&g.AllowedFileExts)
+	setMatchAllIfEmpty(&g.BlockedFileExts)
+
 	g.SetDomainContentTypes("*", g.Settings.Gateway.ContentTypes.Allowed)
 	g.SetBlockedContentTypes("*", g.Settings.Gateway.ContentTypes.Blocked)
 }
 
 func (g *Gateway) SetAllowedDomains(domains []string) {
-	g.AllowedDomains = g.NormalizeDomainArray(domains)
+	g.AllowedDomains = g.normalizeDomainArray(domains)
 }
 
 func (g *Gateway) SetDeniedDomains(domains []string) {
-	g.DeniedDomains = g.NormalizeDomainArray(domains)
+	g.DeniedDomains = g.normalizeDomainArray(domains)
 }
 
 func (g *Gateway) SetDomainHeaders(domain string, headers []string) {
@@ -217,9 +205,6 @@ func (g *Gateway) GetBlockedContentTypes(domain string) []string {
 }
 
 func (g *Gateway) SetDomainContentTypes(domain string, contentTypes []string) {
-	// fmt.Printf("setting content types for domain %s: %v\n", domain, contentTypes)
-	// fmt.Printf("DomainContentTypes: %v\n", g)
-
 	if len(contentTypes) == 0 {
 		g.DomainContentTypes.Delete(domain)
 		return
@@ -277,13 +262,10 @@ func (g *Gateway) runUrlRequestPipeline(link string) error {
 		return nil
 	}
 
-	if !strings.Contains(link, "://") {
-		link = "https://" + link
-	}
+	link = utils.EnforcePrefix(link, "https://", "http://", "https://")
 
 	for _, mw := range g.Middleware {
 		if err := (*mw).Handler(g, link); err != nil {
-			fmt.Printf("error on mw: %v; %v\n", mw.Name, err)
 			return err
 		}
 	}
@@ -311,7 +293,7 @@ func (g *Gateway) Allowed(link string) bool {
 
 // processes an array of domains and removes empty strings, extracts hostnames from URLs if
 // they are present, and returns a new array without the removed items
-func (g *Gateway) NormalizeDomainArray(arr []string) []string {
+func (g *Gateway) normalizeDomainArray(arr []string) []string {
 	result := []string{}
 
 	for _, domain := range arr {
@@ -404,11 +386,10 @@ func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 		entry, _ := g.Cache.Get(g.CacheKeyFor(urlStr))
 		if entry != nil {
 			err := json.Unmarshal([]byte(entry.Value), response)
-			// fmt.Printf(" [gateway] found cached response for %v\n", response)
 
 			if response != nil && response.Code > 1 {
 				if response.Code != 200 {
-					err = fmt.Errorf("HTTP request failed: error %d (url: %s)", response.Code, urlStr)
+					err = errors.New(messages.HttpRequestFailed(urlStr, response.Code))
 				}
 
 				return response.Contents, err
@@ -420,32 +401,14 @@ func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 		fmt.Printf(" [debug] [gateway.GetUrl]: %s\n", urlStr)
 	}
 
-	var allHeaders []string = []string{"User-Agent: stackup/1.0"}
-
-	if g.DomainHeaders == nil {
-		g.DomainHeaders = &sync.Map{}
-	}
-
-	g.DomainHeaders.Range(func(key, value any) bool {
-		parsed, _ := url.Parse(urlStr)
-		if utils.DomainGlobMatch(key.(string), parsed.Hostname()) {
-			allHeaders = append(allHeaders, g.processHeaders(value.([]string))...)
-		}
-		return true
-	})
-
-	allHeaders = append(allHeaders, g.processHeaders(headers)...)
-
 	req, err := http.NewRequest("GET", urlStr, nil)
 	if err != nil {
 		return "", err
 	}
 
-	for _, header := range allHeaders {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) == 2 {
-			req.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
-		}
+	allHeaders := g.gatherAllHeadersForRequest(urlStr, headers)
+	for key, value := range allHeaders {
+		req.Header.Set(key, value)
 	}
 
 	resp, err := g.HttpClient.Do(req)
@@ -460,12 +423,12 @@ func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 		g.Cache.Set(g.CacheKeyFor(urlStr), cache.NewCacheEntry(response, expireTtl), expireTtl)
 	}
 
-	if err = g.runResponsePipeline(resp); err != nil {
-		return "", err
+	if resp.StatusCode >= 400 {
+		return "", errors.New(messages.HttpRequestFailed(urlStr, resp.StatusCode))
 	}
 
-	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("HTTP request failed: error %d (url: %s)", resp.StatusCode, urlStr)
+	if err = g.runResponsePipeline(resp); err != nil {
+		return "", err
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -479,6 +442,37 @@ func (g *Gateway) GetUrl(urlStr string, headers ...string) (string, error) {
 	}
 
 	return string(body), nil
+}
+
+func (g *Gateway) gatherAllHeadersForRequest(urlStr string, headers []string) map[string]string {
+	var result map[string]string = map[string]string{
+		"User-Agent": "stackup/1.0",
+	}
+
+	var headersArr []string = []string{}
+
+	if g.DomainHeaders == nil {
+		g.DomainHeaders = &sync.Map{}
+	}
+
+	g.DomainHeaders.Range(func(key, value any) bool {
+		parsed, _ := url.Parse(urlStr)
+		if utils.DomainGlobMatch(key.(string), parsed.Hostname()) {
+			headersArr = append(headersArr, g.processHeaders(value.([]string))...)
+		}
+		return true
+	})
+
+	headersArr = append(headersArr, g.processHeaders(headers)...)
+
+	for _, header := range headersArr {
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) == 2 {
+			result[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+		}
+	}
+
+	return result
 }
 
 func (g *Gateway) CacheKeyFor(url string) string {

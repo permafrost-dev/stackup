@@ -13,6 +13,8 @@ const MAX_TASK_RUNS = 99999999
 
 const DEFAULT_CACHE_TTL_MINUTES = 15
 
+const APP_ICON_URL string = "https://raw.githubusercontent.com/" + APP_REPOSITORY + "/main/assets/stackup-app-512px.png"
+
 var INIT_CONFIG_FILE_CONTENTS string = `name: my stack
 description: application stack
 version: 1.0.0

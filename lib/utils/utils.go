@@ -40,6 +40,14 @@ func WaitForStartOfNextInterval(interval time.Duration) {
 }
 
 func AbsoluteFilePath(path string) string {
+	if path == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(path, "~") {
+		path = strings.Replace(path, "~", os.Getenv("HOME"), 1)
+	}
+
 	path, _ = filepath.Abs(path)
 
 	return path
@@ -394,6 +402,12 @@ func Unique[T comparable](items ...[]T) []T {
 	return result
 }
 
+func UniqueInPlace[T comparable](items *[]T) {
+	var uniqueArr []T = Unique(*items)
+
+	*items = uniqueArr
+}
+
 func Except[T any](items []T, excludeItems []T) []T {
 	if len(excludeItems) == 0 {
 		return items
@@ -506,6 +520,20 @@ func EnforceSuffix(s string, suffix string) string {
 	return strings.TrimSuffix(s, suffix) + suffix
 }
 
+func EnforcePrefix(s string, defaultPrefix string, allowedPrefixes ...string) string {
+	if len(allowedPrefixes) == 0 && defaultPrefix == "" {
+		return s
+	}
+
+	for _, p := range allowedPrefixes {
+		if strings.HasPrefix(s, p) {
+			return s
+		}
+	}
+
+	return defaultPrefix + strings.TrimPrefix(s, defaultPrefix)
+}
+
 func ReverseArray[T any](items []T) []T {
 	length := len(items)
 	for i := 0; i < length/2; i++ {
@@ -613,4 +641,22 @@ func RemoveEmptyValues(arr ...string) []string {
 		}
 	}
 	return result
+}
+
+func FirstNonEmpty(arr ...string) string {
+	for _, item := range arr {
+		if strings.TrimSpace(item) != "" {
+			return item
+		}
+	}
+	return ""
+}
+
+func FormatDisplayUrl(urlstr string) string {
+	if urlstr == "" {
+		return ""
+	}
+
+	parsed, _ := url.Parse(urlstr)
+	return parsed.Hostname() + "/" + parsed.Path
 }

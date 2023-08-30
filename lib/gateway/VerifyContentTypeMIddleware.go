@@ -4,6 +4,9 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+
+	"github.com/stackup-app/stackup/lib/messages"
+	"github.com/stackup-app/stackup/lib/types"
 )
 
 var VerifyContentTypeMIddleware = GatewayUrlResponseMiddleware{
@@ -22,9 +25,9 @@ var VerifyContentTypeMIddleware = GatewayUrlResponseMiddleware{
 
 		blockedTypes := g.GetBlockedContentTypes(resp.Request.URL.Hostname())
 		if g.checkArrayForDomainMatch(&blockedTypes, contentType) {
-			return errors.New("content type blocked")
+			return errors.New(messages.AccessBlocked(types.AccessTypeContentType, contentType))
 		}
 
-		return errors.New("content type '" + contentType + "' has not been explicitly allowed")
+		return errors.New(messages.NotExplicitlyAllowed(types.AccessTypeContentType, contentType))
 	},
 }

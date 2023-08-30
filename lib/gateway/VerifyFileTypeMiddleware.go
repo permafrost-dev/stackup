@@ -6,6 +6,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/stackup-app/stackup/lib/messages"
+	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
@@ -35,10 +37,10 @@ var VerifyFileTypeMiddleware = GatewayUrlRequestMiddleware{
 
 		for _, ext := range g.BlockedFileExts {
 			if utils.GlobMatch(ext, fileExt, false) || strings.EqualFold(fileExt, ext) {
-				return errors.New("access to file extension '" + fileExt + "' is blocked")
+				return errors.New(messages.AccessBlocked(types.AccessTypeFileExtension, fileExt))
 			}
 		}
 
-		return errors.New("access to file extension '" + fileExt + "' has not been explicitly allowed")
+		return errors.New(messages.NotExplicitlyAllowed(types.AccessTypeFileExtension, fileExt))
 	},
 }
