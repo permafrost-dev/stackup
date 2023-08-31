@@ -45,6 +45,7 @@ type AppWorkflowContract interface {
 	FindTaskById(id string) (any, bool)
 	GetSettings() *settings.Settings
 	GetJsEngine() *JavaScriptEngineContract
+	GetEnvSection() []string
 }
 
 type AppWorkflowContractPtr *AppWorkflowContract

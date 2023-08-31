@@ -12,6 +12,7 @@ import (
 	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/debug"
 	"github.com/stackup-app/stackup/lib/gateway"
+	"github.com/stackup-app/stackup/lib/integrations"
 	"github.com/stackup-app/stackup/lib/messages"
 	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/settings"
@@ -40,6 +41,7 @@ type StackupWorkflow struct {
 	Cache          *cache.Cache
 	JsEngine       *scripting.JavaScriptEngine
 	Gateway        *gateway.Gateway
+	Integrations   map[string]integrations.Integration
 	ProcessMap     *sync.Map
 	CommandStartCb types.CommandCallback
 	ExitAppFunc    func()
@@ -47,7 +49,7 @@ type StackupWorkflow struct {
 }
 
 func CreateWorkflow(gw *gateway.Gateway, processMap *sync.Map) *StackupWorkflow {
-	return &StackupWorkflow{
+	result := &StackupWorkflow{
 		Settings:      &settings.Settings{},
 		Preconditions: []*WorkflowPrecondition{},
 		Tasks:         []*Task{},
@@ -55,7 +57,16 @@ func CreateWorkflow(gw *gateway.Gateway, processMap *sync.Map) *StackupWorkflow 
 		Includes:      []WorkflowInclude{},
 		Gateway:       gw,
 		ProcessMap:    processMap,
+		Integrations:  map[string]integrations.Integration{},
 	}
+
+	result.Integrations = integrations.List(result.AsContract)
+
+	return result
+}
+
+func (workflow *StackupWorkflow) AsContract() types.AppWorkflowContract {
+	return workflow
 }
 
 func (workflow *StackupWorkflow) FindTaskById(id string) (any, bool) {
@@ -80,6 +91,10 @@ func (workflow *StackupWorkflow) FindTaskByUuid(uuid string) *Task {
 	}
 
 	return nil
+}
+
+func (workflow *StackupWorkflow) GetEnvSection() []string {
+	return workflow.Env
 }
 
 func (workflow *StackupWorkflow) TryLoadDotEnvVaultFile() {
@@ -109,7 +124,9 @@ func (workflow *StackupWorkflow) Initialize(engine *scripting.JavaScriptEngine, 
 	workflow.JsEngine = engine
 
 	utils.ImportEnvDefsIntoEnvironment(workflow.Env)
-	workflow.TryLoadDotEnvVaultFile()
+	if workflow.Integrations["dotenv-vault"].IsEnabled() {
+		workflow.Integrations["dotenv-vault"].Run()
+	}
 	workflow.InitializeSections()
 	workflow.processIncludes()
 }
