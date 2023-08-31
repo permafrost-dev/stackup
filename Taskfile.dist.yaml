@@ -39,11 +39,14 @@ tasks:
   lint:
     preconditions:
       - which golangci-lint
+      - which .golangci.yaml
       - which dotenv-linter
       - which typos
+      - which actionlint
     cmds:
       - golangci-lint run
       - dotenv-linter --not-check-updates --recursive
+      - actionlint
       - typos
 
   update-version-file:
