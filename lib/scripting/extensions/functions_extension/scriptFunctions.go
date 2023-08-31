@@ -131,7 +131,7 @@ func (jsf *JavaScriptFunctions) createOutputOfFunction(call otto.FunctionCall) o
 }
 
 func (jsf *JavaScriptFunctions) createFileContainsFunction(call otto.FunctionCall) otto.Value {
-	result := support.SearchFileForString(call.Argument(0).String(), call.Argument(1).String())
+	result := utils.SearchFileForString(call.Argument(0).String(), call.Argument(1).String())
 
 	return getResult(call, result)
 }

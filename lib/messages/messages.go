@@ -7,7 +7,7 @@ import (
 )
 
 func TaskNotFound(name string) string {
-	return fmt.Sprintf("Task %s3 not found.", name)
+	return fmt.Sprintf("Task %s not found.", name)
 }
 
 func NotExplicitlyAllowed(at types.AccessType, str string) string {
