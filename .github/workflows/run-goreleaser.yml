@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      matrix:
+        os: [ubuntu-latest]
       fail-fast: false
 
     steps:
