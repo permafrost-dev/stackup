@@ -44,10 +44,12 @@ tasks:
       - which dotenv-linter
       - which typos
       - which actionlint
+      - which shellcheck
     cmds:
       - golangci-lint run
       - dotenv-linter --quiet --not-check-updates --recursive --exclude dist/.env
       - actionlint
+      - shellcheck ./.custom-hooks/*
       - typos
 
   update-version-file:
