@@ -1,43 +1,65 @@
-name: build
+name: build-and-test
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     tags:
-      - 'v*'
+      - v*
+  pull_request:
+  pull_request_target:
+    types: [opened, edited]
+
+env:
+  GO_VERSION: "~1.20"
+  GO111MODULE: "on"
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        go-version: [~1.20]
-        os: [ubuntu-latest]
-
-    runs-on: ${{ matrix.os }}
-
-    env:
-      GO111MODULE: "on"
+  test-build:
+    runs-on: ubuntu-latest
 
     steps:
-
       - name: Install Task
         uses: arduino/setup-task@v1
 
       - name: Install Go
         uses: actions/setup-go@v4
         with:
-          go-version: ${{ matrix.go-version }}
-          cache-dependency-path: ./go.sum
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Download Go modules
-        run: go mod download
+      - name: Download and tidy Go modules
+        run: task mod
 
       - name: Build Application
         id: build
-        run: task build
+        run: task build-stackup
 
-      - name: Run Tests
+  run-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Task
+        uses: arduino/setup-task@v1
+
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download and tidy Go modules
+        run: task mod
+
+      - name: Run Tests with Coverage
+        run: go test -cover -coverprofile coverage.out -v ./lib/**
+
+      - name: Upload coverage reports to Codecov
         if: ${{success()}}
-        run: go test ./...
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.out

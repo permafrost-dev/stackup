@@ -3,7 +3,6 @@ package app
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -12,12 +11,19 @@ import (
 	"syscall"
 
 	"github.com/eiannone/keyboard"
-	"github.com/emirpasic/gods/stacks/linkedliststack"
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
+	"github.com/stackup-app/stackup/lib/cache"
+	"github.com/stackup-app/stackup/lib/consts"
+	"github.com/stackup-app/stackup/lib/debug"
+	"github.com/stackup-app/stackup/lib/downloader"
 	"github.com/stackup-app/stackup/lib/gateway"
+	"github.com/stackup-app/stackup/lib/messages"
+	"github.com/stackup-app/stackup/lib/scripting"
+	"github.com/stackup-app/stackup/lib/settings"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/telemetry"
+	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/updater"
 	"github.com/stackup-app/stackup/lib/utils"
 	"github.com/stackup-app/stackup/lib/version"
@@ -26,76 +32,122 @@ import (
 
 var App *Application
 
-type CommandCallback func(cmd *exec.Cmd)
-type AppFlags struct {
-	DisplayHelp    *bool
-	DisplayVersion *bool
-	NoUpdateCheck  *bool
-	ConfigFile     *string
-}
-
 type Application struct {
 	Workflow            *StackupWorkflow
-	JsEngine            *JavaScriptEngine
+	JsEngine            *scripting.JavaScriptEngine
 	cronEngine          *cron.Cron
-	scheduledTaskMap    *sync.Map
 	ProcessMap          *sync.Map
 	Vars                *sync.Map
 	flags               AppFlags
-	CmdStartCallback    CommandCallback
-	KillCommandCallback CommandCallback
+	CmdStartCallback    types.CommandCallback
+	KillCommandCallback types.CommandCallback
 	ConfigFilename      string
 	Gateway             *gateway.Gateway
 	Analytics           *telemetry.Telemetry
+	// types.AppInterface
 }
 
-func (a *Application) loadWorkflowFile(filename string) *StackupWorkflow {
-	var result StackupWorkflow
-
-	contents, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return &StackupWorkflow{}
+func NewApplication() *Application {
+	result := &Application{
+		ProcessMap: &sync.Map{},
+		Vars:       &sync.Map{},
+		flags: AppFlags{
+			DisplayHelp:    flag.Bool("help", false, "Display help"),
+			DisplayVersion: flag.Bool("version", false, "Display version"),
+			NoUpdateCheck:  flag.Bool("no-update-check", false, "Disable update check"),
+			ConfigFile:     flag.String("config", "", "Load a specific config file"),
+		},
+		ConfigFilename: support.FindExistingFile([]string{"stackup.dist.yaml", "stackup.yaml"}, "stackup.yaml"),
+		Gateway:        gateway.New(nil),
+		cronEngine:     cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger))),
 	}
+	result.flags.app = result
+	result.Workflow = CreateWorkflow(result.Gateway, result.ProcessMap)
 
-	err = yaml.Unmarshal(contents, &result)
-	if err != nil {
-		return &StackupWorkflow{}
-	}
-
-	result.State = &StackupWorkflowState{
-		CurrentTask: nil,
-		Stack:       linkedliststack.New(),
-		History:     linkedliststack.New(),
-	}
-
-	return &result
+	return result
 }
 
-func (a *Application) init() {
-	a.Gateway = gateway.New([]string{}, []string{})
-	a.ConfigFilename = support.FindExistingFile([]string{"stackup.dist.yaml", "stackup.yaml"}, "stackup.yaml")
+func (app *Application) GetGateway() types.GatewayContract {
+	return app.Gateway
+}
 
-	a.flags = AppFlags{
-		DisplayHelp:    flag.Bool("help", false, "Display help"),
-		DisplayVersion: flag.Bool("version", false, "Display version"),
-		NoUpdateCheck:  flag.Bool("no-update-check", false, "Disable update check"),
-		ConfigFile:     flag.String("config", "", "Load a specific config file"),
+func (app *Application) GetJsEngine() types.JavaScriptEngineContract {
+	var result interface{} = app.JsEngine
+	return result.(types.JavaScriptEngineContract)
+}
+
+func (app *Application) GetSettings() *settings.Settings {
+	return app.Workflow.Settings
+}
+
+func (app *Application) GetVars() *sync.Map {
+	return app.Vars
+}
+
+func (app *Application) GetWorkflow() types.AppWorkflowContract {
+	var result interface{} = app.Workflow
+	return result.(types.AppWorkflowContract)
+}
+
+func (app *Application) ToInterface() *Application {
+	return app
+}
+
+func (app *Application) GetEnviron() []string {
+	return os.Environ()
+}
+
+func (a *Application) loadWorkflowFile(filename string, wf *StackupWorkflow) {
+	wf.ExitAppFunc = a.exitApp
+	wf.Gateway = a.Gateway
+	wf.ProcessMap = a.ProcessMap
+	wf.CommandStartCb = a.CmdStartCallback
+
+	contents, err := os.ReadFile(filename)
+	if err != nil {
+		return
 	}
 
-	flag.Parse()
-
-	if a.flags.ConfigFile != nil && *a.flags.ConfigFile != "" {
-		a.ConfigFilename = *a.flags.ConfigFile
+	err = yaml.Unmarshal(contents, wf)
+	if err != nil {
+		fmt.Printf("error loading configuration file: %v", err)
+		return
 	}
 
-	a.scheduledTaskMap = &sync.Map{}
-	a.ProcessMap = &sync.Map{}
-	a.Vars = &sync.Map{}
+	wf.State = NewWorkflowState()
+	wf.ConfigureDefaultSettings()
 
-	a.Workflow = a.loadWorkflowFile(a.ConfigFilename)
-	a.JsEngine = CreateNewJavascriptEngine()
-	a.cronEngine = cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
-    a.DownloadApplicationIcon()
+	if !wf.Debug {
+		wf.Debug = os.Getenv("DEBUG") == "true" || os.Getenv("DEBUG") == "1"
+	}
+}
+
+// parse command-line flags, load the workflow file, load .env files,
+// initialize the workflow, gateway and js engine
+func (a *Application) Initialize() {
+	utils.EnsureConfigDirExists(utils.GetDefaultConfigurationBasePath("~", "."), consts.APP_CONFIG_PATH_BASE_NAME)
+	a.flags.Parse()
+
+	a.loadWorkflowFile(a.ConfigFilename, a.Workflow)
+	godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
+	debug.Dbg.SetEnabled(a.Workflow.Debug)
+
+	a.JsEngine = scripting.CreateNewJavascriptEngine(a)
+	a.Analytics = telemetry.New(a.Workflow.Settings.AnonymousStatistics, a.Gateway)
+	a.Gateway.Initialize(a.Workflow.Settings, a.JsEngine.AsContract(), nil)
+	a.initializeCache()
+	a.Workflow.Initialize(a.JsEngine, a.GetConfigurationPath())
+	a.JsEngine.Initialize()
+
+	a.Analytics.EventOnly("app.start")
+	a.checkForApplicationUpdates(!*a.flags.NoUpdateCheck)
+
+	downloader.New(a.Gateway).Download(consts.APP_ICON_URL, a.GetApplicationIconPath())
+}
+
+func (a *Application) initializeCache() {
+	a.Workflow.Cache = cache.New("stackup", a.GetConfigurationPath(), a.Workflow.Settings.Cache.TtlMinutes)
+	a.Gateway.Cache = a.Workflow.Cache
 }
 
 func (a *Application) hookSignals() {
@@ -130,21 +182,30 @@ func (a *Application) exitApp() {
 	support.StatusMessageLine("Running shutdown tasks...", true)
 	a.runShutdownTasks()
 
-	// for _, i := range a.Workflow.State.History.Values() {
-	// 	// task := i.(*Task)
-	// 	// runs := fmt.Sprintf("%v", task.RunCount)
-	// 	//support.StatusMessageLine("[task history] task ran: "+task.GetDisplayName()+" ("+runs+" executions)", true)
-	// }
+	for _, uid := range a.Workflow.State.History.Values() {
+		task := a.Workflow.FindTaskByUuid(uid.(string))
+		if task == nil {
+			continue
+		}
+
+		runs := fmt.Sprintf("runs: %v", task.RunCount)
+		support.StatusMessageLine("[task history] task: "+task.GetDisplayName()+" ("+runs+")", true)
+	}
 
 	os.Exit(1)
 }
 
 func (a *Application) createScheduledTasks() {
-	for _, def := range a.Workflow.Scheduler {
-		task := a.Workflow.FindTaskById(def.TaskId())
+	support.StatusMessage("Creating scheduled tasks...", false)
 
-		if task == nil {
-			support.FailureMessageWithXMark("Task " + def.TaskId() + " not found.")
+	for _, def := range a.Workflow.Scheduler {
+		def.Workflow = a.Workflow
+		def.JsEngine = a.JsEngine
+
+		_, found := a.Workflow.GetTaskById(def.TaskId())
+
+		if !found {
+			support.FailureMessageWithXMark(messages.TaskNotFound(def.TaskId()))
 			continue
 		}
 
@@ -152,21 +213,28 @@ func (a *Application) createScheduledTasks() {
 		taskId := def.TaskId()
 
 		a.cronEngine.AddFunc(cron, func() {
-			task := a.Workflow.FindTaskById(taskId)
-			task.Run(true)
+			task, found := a.Workflow.GetTaskById(taskId)
+			if found {
+				task.RunSync()
+			}
 		})
-
-		a.scheduledTaskMap.Store(def.TaskId(), &def)
 	}
 
 	a.cronEngine.Start()
+	support.PrintCheckMarkLine()
 }
 
 func (a *Application) stopServerProcesses() {
 	a.ProcessMap.Range(func(key any, value any) bool {
 		t := a.Workflow.FindTaskByUuid(key.(string))
-		support.StatusMessage("Stopping "+t.GetDisplayName()+"...", false)
-		a.KillCommandCallback(value.(*exec.Cmd))
+		if t != nil {
+			support.StatusMessage("Stopping "+t.GetDisplayName()+"...", false)
+		}
+
+		if value != nil {
+			a.KillCommandCallback(value.(*exec.Cmd))
+		}
+
 		support.PrintCheckMarkLine()
 
 		return true
@@ -174,246 +242,106 @@ func (a *Application) stopServerProcesses() {
 }
 
 func (a *Application) runEventLoop() {
+	support.StatusMessageLine("Running event loop...", true)
+
 	for {
 		utils.WaitForStartOfNextMinute()
 	}
 }
 
-func (a *Application) runStartupTasks() {
+func (a *Application) runTaskReferences(refs []*TaskReference) {
+	for _, def := range refs {
+		def.Workflow = a.Workflow
+		def.JsEngine = a.JsEngine
 
-	for _, def := range a.Workflow.Startup {
-		task := a.Workflow.FindTaskById(def.TaskId())
-
-		if task == nil {
-			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
+		task, found := a.Workflow.GetTaskById(def.TaskId())
+		if !found {
+			support.SkippedMessageWithSymbol(messages.TaskNotFound(def.TaskId()))
 			continue
 		}
 
-		App.Workflow.State.CurrentTask = task
-
-		//GetState().Stack.Push(task)
-		task.Run(true)
-		//GetState().Stack.Pop()
+		task.RunSync()
 	}
+}
+
+func (a *Application) runStartupTasks() {
+	support.StatusMessageLine("Running startup tasks...", true)
+
+	a.runTaskReferences(a.Workflow.Startup)
 }
 
 func (a *Application) runShutdownTasks() {
-	for _, def := range a.Workflow.Shutdown {
-		task := a.Workflow.FindTaskById(def.TaskId())
-
-		if task == nil {
-			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
-			continue
-		}
-
-		App.Workflow.State.CurrentTask = task
-		task.Run(true)
-	}
+	a.runTaskReferences(a.Workflow.Shutdown)
 }
 
 func (a *Application) runServerTasks() {
-	for _, def := range a.Workflow.Servers {
-		task := a.Workflow.FindTaskById(def.TaskId())
+	support.StatusMessageLine("Starting server processes...", true)
 
-		if task == nil {
-			support.SkippedMessageWithSymbol("Task " + def.TaskId() + " not found.")
+	for _, def := range a.Workflow.Servers {
+		task, found := a.Workflow.GetTaskById(def.TaskId())
+
+		if !found {
+			support.SkippedMessageWithSymbol(messages.TaskNotFound(def.TaskId()))
 			continue
 		}
 
-		App.Workflow.State.CurrentTask = task
-		task.Run(false)
+		task.RunAsync()
 	}
 }
 
-func (a *Application) runPrecondition(c *WorkflowPrecondition) bool {
-	result := true
+func (a Application) runPreconditions() {
+	support.StatusMessageLine("Running precondition checks...", true)
 
-	if c.Check != "" {
-		if (c.Attempts - 1) > *c.MaxRetries {
-			support.FailureMessageWithXMark(c.Name)
-			return false
-		}
-
-		c.Attempts++
-
-		result = a.JsEngine.Evaluate(c.Check).(bool)
-
-		if !result && len(c.OnFail) > 0 {
-			support.FailureMessageWithXMark(c.Name)
-			rerunCheck := c.HandleOnFailure()
-
-			if rerunCheck {
-				return a.runPrecondition(c)
-			}
-
-			return false
-		}
-
-		if !result {
-			support.FailureMessageWithXMark(c.Name)
-			return false
-		}
-	}
-
-	return result
-}
-
-func (a *Application) runPreconditions() {
 	for _, c := range a.Workflow.Preconditions {
-		if !a.runPrecondition(c) {
+		if !c.Run() {
+			support.FailureMessageWithXMark(c.Name)
 			os.Exit(1)
 		}
 		support.SuccessMessageWithCheck(c.Name)
 	}
 }
 
-func (a *Application) createNewConfigFile() {
-	if _, err := os.Stat("stackup.yaml"); err == nil {
-		fmt.Println("stackup.yaml already exists.")
+func (a *Application) checkForApplicationUpdates(canCheck bool) {
+	if !canCheck {
 		return
 	}
 
-	dependencyBin := "php"
-
-	if utils.IsFile("composer.json") {
-		dependencyBin = "php"
-	} else if utils.IsFile("package.json") {
-		dependencyBin = "node"
-	} else if utils.IsFile("requirements.txt") {
-		dependencyBin = "python"
-	}
-
-	filename := "stackup.yaml"
-	contents := `name: my stack
-    description: application stack
-    version: 1.0.0
-
-    settings:
-      anonymous-statistics: false
-      exit-on-checksum-mismatch: false
-      dotenv: ['.env', '.env.local']
-      checksum-verification: true
-      cache:
-        ttl-minutes: 15
-      domains:
-        allowed:
-          - '*.githubusercontent.com'
-          - '*.github.com'
-      gateway:
-        content-types:
-          blocked:
-          allowed:
-            - application/json
-            - text/*
-
-    includes:
-      - url: gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
-      - url: gh:permafrost-dev/stackup/main/templates/remote-includes/` + dependencyBin + `.yaml
-
-    # project type preconditions are loaded from included file above
-    preconditions:
-
-    startup:
-      - task: start-containers
-
-    shutdown:
-      - task: stop-containers
-
-    servers:
-
-    scheduler:
-
-    # tasks are loaded from included files above
-    tasks:
-    `
-	os.WriteFile(filename, []byte(contents), 0644)
-}
-
-func (a *Application) checkForApplicationUpdates() {
-	updateAvailable, release := updater.IsLatestApplicationReleaseNewerThanCurrent(a.Workflow.Cache, version.APP_VERSION, "permafrost-dev/stackup")
-
-	if updateAvailable {
-		support.WarningMessage(fmt.Sprintf("A new version of StackUp is available, released %s.", release.TimeSinceRelease))
-	}
-}
-
-func (a *Application) handleFlagOptions() {
-	if *a.flags.DisplayHelp {
-		flag.Usage()
-		os.Exit(0)
-	}
-
-	if *a.flags.DisplayVersion {
-		fmt.Println("StackUp version " + version.APP_VERSION)
-		os.Exit(0)
-	}
-
-	if len(os.Args) > 1 && os.Args[1] == "init" {
-		a.createNewConfigFile()
-		os.Exit(0)
+	if hasUpdate, release := updater.New(a.Gateway).IsUpdateAvailable(consts.APP_REPOSITORY, version.APP_VERSION); hasUpdate {
+		support.WarningMessage("A new version of StackUp is available, released " + release.TimeSinceRelease())
 	}
 }
 
 func (a *Application) GetConfigurationPath() string {
-    pathname, _ := utils.EnsureConfigDirExists("stackup")
+	pathname, _ := utils.EnsureConfigDirExists(
+		utils.GetDefaultConfigurationBasePath("~", "."),
+		consts.APP_CONFIG_PATH_BASE_NAME,
+	)
 
-    return pathname
-}
-
-func (a *Application) DownloadApplicationIcon() {
-    filename := a.GetApplicationIconPath()
-
-    if utils.FileExists(filename) && utils.IsFile(filename) {
-        return
-    }
-
-    utils.SaveUrlToFile("https://raw.githubusercontent.com/permafrost-dev/stackup/main/assets/stackup-app-512px.png", filename)
+	return pathname
 }
 
 func (a *Application) GetApplicationIconPath() string {
-    return path.Join(a.GetConfigurationPath(), "/stackup-icon.png")
+	return path.Join(a.GetConfigurationPath(), "/stackup-icon.png")
+}
+
+func (a *Application) runInitScript() {
+	support.StatusMessageLine("Running init script...", true)
+
+	a.JsEngine.Evaluate(a.Workflow.Init)
 }
 
 func (a *Application) Run() {
-	godotenv.Load()
-	a.init()
-	a.handleFlagOptions()
-
-	a.Analytics = telemetry.New(true, a.Gateway)
-	a.Workflow.Initialize()
-	a.Gateway.SetAllowedDomains(a.Workflow.Settings.Domains.Allowed)
-
-	if *a.Workflow.Settings.AnonymousStatistics {
-		a.Analytics.EventOnly("app.start")
-	}
-
-	if len(a.Workflow.Settings.DotEnvFiles) > 0 {
-		godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
-	}
-	a.JsEngine.CreateEnvironmentVariables()
-	a.JsEngine.CreateAppVariables()
-
-	if !*a.flags.NoUpdateCheck {
-		a.checkForApplicationUpdates()
-	}
+	a.Initialize()
+	defer a.Workflow.Cache.Cleanup(false)
 
 	a.hookSignals()
 	a.hookKeyboard()
 
-	support.StatusMessageLine("Running precondition checks...", true)
+	a.runInitScript()
 	a.runPreconditions()
-
-	support.StatusMessageLine("Running startup tasks...", true)
 	a.runStartupTasks()
-
-	support.StatusMessageLine("Starting server processes...", true)
 	a.runServerTasks()
-
-	support.StatusMessage("Creating scheduled tasks...", false)
 	a.createScheduledTasks()
-	support.PrintCheckMarkLine()
-
-	utils.WaitForStartOfNextMinute()
 
 	a.runEventLoop()
 }

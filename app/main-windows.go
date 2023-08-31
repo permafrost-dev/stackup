@@ -10,11 +10,11 @@ import (
 )
 
 func main() {
-	app.App = &app.Application{
-		CmdStartCallback: func(cmd *exec.Cmd) {},
-		KillCommandCallback: func(cmd *exec.Cmd) {
-			utils.KillProcessOnWindows(cmd)
-		},
+	app.App = app.NewApplication()
+
+	app.App.CmdStartCallback = func(cmd *exec.Cmd) {}
+	app.App.KillCommandCallback = func(cmd *exec.Cmd) {
+		utils.KillProcessOnWindows(cmd)
 	}
 
 	app.App.Run()

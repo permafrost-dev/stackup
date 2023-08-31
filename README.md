@@ -56,7 +56,6 @@ Spin up your entire dev stack with one command.
     - [Initialization Script](#initialization-script)
   - [Setup](#setup)
   - [Building the project](#building-the-project)
-  - [Changelog](#changelog)
   - [Contributing](#contributing)
   - [Security Vulnerabilities](#security-vulnerabilities)
   - [Credits](#credits)
@@ -196,11 +195,12 @@ settings:
 
 The `domains` section of the configuration file is used to specify a list of domain names that can be accessed when downloading remote files
 or including remote files.  Wildcards are supported, such as `*.github.com`.  
-If the `domains` section is not specified, default values of `raw.githubusercontent.com` and `api.github.com` are used.
+If the `domains` section is not specified, default values of `raw.githubusercontent.com` and `api.github.com` are used for the allow list,
+and all other domains are blocked.
 
 The `hosts` section of `domains` allows the configuration of headers to send with requests to specific hosts. Hostnames may be fully-qualified
 hostnames, or may contain wildcards.  For example, `*.githubusercontent.com` will match `raw.githubusercontent.com` and `gist.githubusercontent.com`.
-If the `gateway` field is set to `allow`, the hostname will be added to the list of allowed domains automatically.
+If the `gateway` field is set to `allow`, the hostname will be added to the list of allowed domains automatically, and defaults to `true`.
 
 > The domain allow list is applied to all url access, including when `StackUp` checks to see if it is running the latest version,
 > or when sending anonymous opt-in analytics.
@@ -295,16 +295,21 @@ Included files can be specified with either a relative or absolute pathname.  Re
 
 ```yaml
 includes:
+  # include a remote file from github
   - url: gh:permafrost-dev/stackup/main/templates/remote-includes/containers.yaml
     verify: false # optional, defaults to true
 
   - url: gh:permafrost-dev/stackup/main/templates/remote-includes/node.yaml
     headers:
-      - 'Authorization: token $GITHUB_TOKEN' # headers to send with the request, can be javascript if wrapped in double braces
+      # headers to send with the request, javascript must be wrapped in double braces
+      - 'Authorization: token $GITHUB_TOKEN'
+      - '{{ "X-Some-Header: " + getEnv("GITHUB_TOKEN") }}'
 
-  - file: python.yaml # includes a local file
+  # include a local file
+  - file: python.yaml
 
-  - url: s3:127.0.0.1:9000/stackup-includes/python.yaml # includes a file from a minio bucket
+  # include a remote file from a minio/s3 bucket
+  - url: s3:127.0.0.1:9000/stackup-includes/python.yaml
     access-key: $S3_KEY # access key loaded from `.env` or `env` section
     secret-key: $S3_SECRET # secret key env loaded from `.env` or `env` section
     secure: false # optional, defaults to true
@@ -548,8 +553,8 @@ Many of the fields in a `Task` can be defined using javascript. To specify an ex
 | `binaryExists()`| `name: string`   | returns true if the specified binary exists in `$PATH`, otherwise false       |
 | `env()`      | `name: string`      | returns the string value of environment variable `name                        |
 | `exists()`   | `filename: string`  | returns true if `filename` exists, false otherwise                          |
-| `fetch()`    | `url: string`       | returns the contents of the url `url` as a string                           |
-| `fetchJson()`| `url: string`       | returns the contents of the url `url` as a JSON object                      |
+| `fetch()`    | `url: string`       | returns the contents of the url `url` as a string; gateway rules apply      |
+| `fetchJson()`| `url: string`       | returns the contents of the url `url` as a JSON object; gateway rules apply |
 | `fileContains()`| `filename: string, search: string` | returns true if `filename` contains `search`, false otherwise |
 | `getCwd()`   | --                | returns the directory stackup was run from                                  |
 | `hasEnv()`   | `name: string`      | returns true if the specified environment variable exists, otherwise false  |
@@ -561,7 +566,6 @@ Many of the fields in a `Task` can be defined using javascript. To specify an ex
 | `semver()` | `version: string` | returns a `SemVer` object based on the value of `version` |
 | `statusMessage()` | `message: string` | prints a status message to stdout, without a trailing new line |
 | `task()`     | `taskId: string`    | returns a `Task` object with the id `taskId`                                |
-| `workflow()` | --                | returns a `Workflow` object                                                 |
 | `app.FailureMessage()` | `message: string` | prints a failure message with an X to stdout with a trailing new line |
 | `app.StatusLine()` | `message: string` | prints a status message to stdout, with a trailing new line |
 | `app.StatusMessage()` | `message: string` | prints a status message to stdout, without a trailing new line |
@@ -731,17 +735,13 @@ go mod tidy
 
 ## Building the project
 
-`stackup` uses [task](https://github.com/go-task/task) for running tasks, which is a tool similar to `make`. 
+`StackUp` uses [task](https://github.com/go-task/task) for running tasks, which is a tool similar to `make`. 
 
 ```bash
 task build
 ```
 
 ---
-
-## Changelog
-
-Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
 
 ## Contributing
 

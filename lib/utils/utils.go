@@ -2,8 +2,6 @@ package utils
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,10 +12,14 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gobwas/glob"
+	"github.com/stackup-app/stackup/lib/types"
 )
 
 func BinaryExistsInPath(binary string) bool {
@@ -26,52 +28,33 @@ func BinaryExistsInPath(binary string) bool {
 }
 
 func KillProcessOnWindows(cmd *exec.Cmd) error {
-	cmd.Process.Kill()
-	return nil
+	return cmd.Process.Kill()
 }
 
 func WaitForStartOfNextMinute() {
-	time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
+	WaitForStartOfNextInterval(time.Minute)
+}
+
+func WaitForStartOfNextInterval(interval time.Duration) {
+	time.Sleep(time.Until(time.Now().Truncate(interval).Add(interval)))
 }
 
 func AbsoluteFilePath(path string) string {
+	if path == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(path, "~") {
+		path = strings.Replace(path, "~", os.Getenv("HOME"), 1)
+	}
+
 	path, _ = filepath.Abs(path)
 
 	return path
 }
 
-func StringToInt(s string, defaultResult int) int {
-	i, err := strconv.Atoi(s)
-
-	if err != nil {
-		return defaultResult
-	}
-
-	return i
-}
-
-func ChangeWorkingDirectory(path string) error {
-	err := os.Chdir(path)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func RunCommandInPath(input string, dir string, silent bool) (*exec.Cmd, error) {
-	// Split the input into command and arguments
-	parts := strings.Split(input, " ")
-	cmd := parts[0]
-	args := parts[1:]
-
-	c := exec.Command(cmd, args...)
-	if !silent {
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-	}
-	c.Dir = dir
-
+	c := StartCommand(input, dir, silent)
 	if err := c.Run(); err != nil {
 		return c, err
 	}
@@ -79,18 +62,24 @@ func RunCommandInPath(input string, dir string, silent bool) (*exec.Cmd, error) 
 	return c, nil
 }
 
-func StartCommand(input string, cwd string) (*exec.Cmd, error) {
+func StartCommand(input string, cwd string, silent bool) *exec.Cmd {
 	// Split the input into command and arguments
 	parts := strings.Split(input, " ")
 	cmd := parts[0]
 	args := parts[1:]
 
 	c := exec.Command(cmd, args...)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
 	c.Dir = cwd
 
-	return c, nil
+	if !silent {
+		c.Stdout = os.Stdout
+		c.Stderr = os.Stderr
+	} else {
+		c.Stdout = nil
+		c.Stderr = nil
+	}
+
+	return c
 }
 
 func WorkingDir(filenames ...string) string {
@@ -99,28 +88,31 @@ func WorkingDir(filenames ...string) string {
 		dir = "."
 	}
 
-	parts := make([]string, 0)
-	parts = append(parts, dir)
+	parts := []string{dir}
 	parts = append(parts, filenames...)
 
-	dir = path.Join(parts...)
-
-	return dir
+	return path.Join(parts...)
 }
 
 func FindFirstExistingFile(filenames []string) (string, error) {
 	for _, filename := range filenames {
-		if _, err := os.Stat(filename); err == nil {
+		if IsFile(filename) {
 			return filename, nil
-		} else if !os.IsNotExist(err) {
-			return "", err
 		}
 	}
-	return "", fmt.Errorf("not found")
+	return "", os.ErrNotExist
 }
 
-func GetUrlContents(url string) (string, error) {
-	resp, err := http.Get(url + "?nocache=" + GenerateShortID(8))
+func GetUrlContents(url string, gw *types.GatewayContract) (string, error) {
+	if gw != nil {
+		content, err := (*gw).GetUrl(url)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
+	}
+
+	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
 	}
@@ -140,68 +132,37 @@ func GetUrlContents(url string) (string, error) {
 	return string(body), nil
 }
 
-func GetUrlContentsEx(url string, headers []string) (string, error) {
-	// remove the header items that are empty strings:
-	var tempHeaders []string
-	for _, header := range headers {
-		if strings.TrimSpace(header) != "" {
-			tempHeaders = append(tempHeaders, header)
-		}
-	}
-
-	req, err := http.NewRequest("GET", url, nil)
+func GetUrlJson(url string, result any, gw *types.GatewayContract) error {
+	body, err := GetUrlContents(url, gw)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	// Add headers to the request
-	for _, header := range tempHeaders {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) == 2 {
-			req.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
-		}
-	}
-
-	// Add a cache-busting query parameter to the URL
-	//req.URL.RawQuery = "nocache=" + GenerateShortID(8)
-
-	// Send the HTTP request and get the response
-	resp, err := http.DefaultClient.Do(req)
+	// var data interface{}
+	err = json.Unmarshal([]byte(body), &result)
 	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("HTTP error: %d", resp.StatusCode)
+		return err
 	}
 
-	// Read the response body into a byte slice
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	return string(body), nil
+	return nil
 }
 
-func GetUrlJson(url string) (interface{}, error) {
-	body, err := GetUrlContents(url)
+func IsNonEmptyFile(filename string) bool {
+	info, err := os.Stat(filename)
 	if err != nil {
-		return nil, err
+		return false
 	}
 
-	var data interface{}
-	err = json.Unmarshal([]byte(body), &data)
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
+	return !info.IsDir() && info.Size() > 0
 }
 
 func IsFile(filename string) bool {
-	return !IsDir(filename)
+	info, err := os.Stat(filename)
+	if err != nil {
+		return false
+	}
+
+	return !info.IsDir()
 }
 
 func IsDir(filename string) bool {
@@ -213,57 +174,152 @@ func IsDir(filename string) bool {
 	return info.IsDir()
 }
 
-func FileExists(filename string) bool {
-    if _, err := os.Stat(filename); err == nil {
-        return true
-    }
-    return false
-}
+func FileSize(filename string) int64 {
+	var result int64 = 0
 
-func MatchPattern(s string, pattern string) []string {
-	regex := regexp.MustCompile(pattern)
-	if !regex.MatchString(s) {
-		return []string{}
+	if info, err := os.Stat(filename); err == nil {
+		result = info.Size()
 	}
 
-	matches := regex.FindAllString(s, -1)
-	return matches
+	return result
+}
+
+func FileExists(filename string) bool {
+	if st, err := os.Stat(filename); err == nil {
+		return !st.IsDir()
+	}
+	return false
+}
+
+func PathExists(pathname string) bool {
+	if st, err := os.Stat(pathname); err == nil {
+		return st.IsDir()
+	}
+	return false
+}
+
+func RemoveFile(filename string) error {
+	if !FileExists(filename) && !PathExists(filename) {
+		return nil
+	}
+
+	return os.Remove(filename)
 }
 
 func MatchesPattern(s string, pattern string) bool {
 	regex := regexp.MustCompile(pattern)
-	return regex.MatchString(s)
+	return regex.Match([]byte(s))
 }
 
 func StringArrayContains(arr []string, s string) bool {
+	return ArrayContains(arr, s)
+}
+
+func Swap[T any](a, b T) (T, T) {
+	// if a == nil || b == nil {
+	// 	return nil, nil
+	// }
+
+	result := []T{a, b}
+	// result = ReverseArray(result)
+
+	return result[1], result[0]
+
+	// *a, *b = *b, *a
+}
+
+func ArrayContainsSubset[T comparable](arr []T, containsItems []T) bool {
+	result := false
 	for _, item := range arr {
-		if item == s {
-			return true
+		if !ArrayContains(containsItems, item) {
+			result = false
+			break
+		}
+		result = true
+	}
+
+	fmt.Printf("subset.result == %v\n", result)
+	return result
+}
+
+func ArrayContains[T comparable](array1 []T, array2 any) bool {
+	// Create a map to store the items in array1
+	items := make(map[T]bool)
+	for _, item := range array1 {
+		items[item] = true
+	}
+
+	var arr2 []T
+	if reflect.TypeOf(array2).Kind() != reflect.Slice {
+		arr2 = []T{array2.(T)}
+	} else {
+		arr2 = array2.([]T)
+	}
+
+	// Check if each item in array2 is present in the items map
+	for _, item := range arr2 {
+		if !items[item] {
+			return false
 		}
 	}
 
-	return false
+	return true
 }
 
-func SaveUrlToFile(url string, filename string) error {
-	out, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
+func Ptr[T any](value T) *T {
+	var result any = value
+	var resultPtr T = result.(T)
+	return &resultPtr
+}
 
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+func Ptrs[T any](arr ...T) []*T {
+	var result []*T = []*T{} //make([]*T, len(arr))
 
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		return err
+	// mapped := Map(arr, Ptr[*interface{}].(func(v any) interface{}))
+
+	//  func(v any) interface{} {
+	// 	return Ptr(v)
+	// })
+
+	// for idx, item := range mapped {
+	// 	var itemAny any = item
+	// 	result[idx] = itemAny.(*T)
+	// }
+
+	// return result
+	// var castresult1 []*T = result.(*[]*T)
+	// return castresult1
+
+	for _, item := range arr {
+		result = append(result, Ptr(item))
 	}
 
-	return nil
+	//	for i, v := range mapped {
+	//		result[i] = v.(*T)
+	//	}
+	//
+	return result
+}
+
+func Map[T any](arr []T, fn func(arg any) interface{}) []any {
+	result := []any{}
+	for _, item := range arr {
+		var intf interface{} = fn(item)
+		result = append(result, intf)
+	}
+	return result
+}
+
+// func ArrayPtr[T any](arr ...T) *[]T {
+// 	result := []T{}
+// 	for _, item := range arr {
+// 		result = append(result, item)
+// 	}
+// 	return &result
+// }
+
+func SaveStringToFile(contents string, filename string) error {
+	return os.WriteFile(filename, []byte(contents), 0644)
 }
 
 func GenerateTaskUuid() string {
@@ -272,6 +328,8 @@ func GenerateTaskUuid() string {
 
 func GenerateShortID(length ...int) string {
 	var charCount = 8
+	var result string = ""
+
 	if len(length) > 0 {
 		charCount = length[0]
 	}
@@ -279,105 +337,365 @@ func GenerateShortID(length ...int) string {
 	// Define the character set to use for the short ID
 	charset := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-	// Define the length of the short ID
-	// charCount := 8
-
 	// Generate a random number for each character in the short ID
-	var result string
 	for i := 0; i < charCount; i++ {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		if err != nil {
-			return ""
+		if n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset)))); err == nil {
+			result += string(charset[n.Int64()])
 		}
-
-		result += string(charset[n.Int64()])
 	}
 
 	return result
 }
 
-func CalculateSHA256Hash(input string) string {
-	inputBytes := []byte(input)
-	hash := sha256.Sum256(inputBytes)
-	hashString := hex.EncodeToString(hash[:])
+func UrlBasePath(u string) string {
+	var parsedUrl *url.URL
+	var err error
 
-	return strings.ToLower(hashString)
-}
-
-func ReverseStructArray(arr []*interface{}) any {
-	length := len(arr)
-	for i := 0; i < length/2; i++ {
-		arr[i], arr[length-i-1] = arr[length-i-1], arr[i]
-	}
-	return arr
-}
-
-func ReplaceFilenameInUrl(u string, newFilename string) (string, error) {
-	parsedUrl, err := url.Parse(u)
-	if err != nil {
-		return "", err
+	if parsedUrl, err = url.Parse(u); err != nil {
+		// failed to parse the url, so try to parse it manually
+		parts := strings.Split(u, "/")
+		length := len(parts)
+		if !strings.HasSuffix(u, "/") {
+			length--
+		}
+		return strings.Join(parts[1:length], "/")
 	}
 
-	// Replace the filename in the URL path
-	parsedUrl.Path = path.Join(path.Dir(parsedUrl.Path), newFilename)
+	baseFn := path.Base(parsedUrl.Path)
+	result := strings.Replace(parsedUrl.String(), "/"+baseFn, "", 1)
 
-	return parsedUrl.String(), nil
-}
-
-func GetFileContents(filename string) (string, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	contents, err := io.ReadAll(file)
-	if err != nil {
-		return "", err
+	if parsedUrl, err = url.Parse(result); err == nil {
+		result = parsedUrl.String()
 	}
 
-	return string(contents), nil
+	result = strings.Replace(result, "?"+parsedUrl.Query().Encode(), "", 1)
+
+	return strings.TrimSuffix(result, "/")
 }
 
-func GetUrlHostAndPath(urlStr string) string {
-	parsedUrl, err := url.Parse(urlStr)
-	if err != nil {
-		return path.Dir(urlStr)
+func ReplaceFilenameInUrl(u string, newFilename string) string {
+	var result string = u + newFilename
+	if !strings.HasSuffix(u, "/") {
+		result = UrlBasePath(u) + "/" + newFilename
 	}
 
-	return parsedUrl.Host + parsedUrl.Path
-}
+	parsedUrl, err := url.Parse(result)
+	if err == nil {
+		result = parsedUrl.String()
+	}
 
-func GetProjectName() string {
-	return path.Base(WorkingDir())
+	return strings.TrimSuffix(result, "/")
 }
 
 func GetUniqueStrings(items []string) []string {
-	uniqueItems := make([]string, 0)
+	return Unique(items)
+	// result := []string{}
+	// for _, item := range items {
+	// 	if !StringArrayContains(result, item) {
+	// 		result = append(result, item)
+	// 	}
+	// }
+	// return result
+}
 
-	for _, item := range items {
-		if !StringArrayContains(uniqueItems, item) {
-			uniqueItems = append(uniqueItems, item)
+func Unique[T comparable](items ...[]T) []T {
+	var combined []T = CombineArrays(items...)
+	result := []T{}
+
+	for _, item := range combined {
+		if !ArrayContains(result, item) {
+			result = append(result, item)
 		}
 	}
 
-	return uniqueItems
+	return result
 }
 
-func EnsureConfigDirExists(appName string) (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
+func UniqueInPlace[T comparable](items *[]T) {
+	var uniqueArr []T = Unique(*items)
+
+	*items = uniqueArr
+}
+
+func Except[T any](items []T, excludeItems []T) []T {
+	if len(excludeItems) == 0 {
+		return items
+	}
+
+	return Difference(items, excludeItems)
+}
+
+// opposite of Intersect:
+
+func Difference[T any](arr1 []T, arr2 []T) []T {
+	result := []T{}
+	mapped := mapKeys(arr2)
+	for _, item := range arr1 {
+		if _, ok := mapped[fmt.Sprintf("%v", item)]; !ok {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func mapKeys[T any](arr []T) map[string]bool {
+	items := make(map[string]bool)
+	for _, item := range arr {
+		items[fmt.Sprintf("%v", item)] = true
+	}
+	return items
+}
+
+func Intersect[T any](arr1 []T, arr2 []T) []T {
+	result := []T{}
+	items := mapKeys(arr1)
+
+	for _, item := range arr2 {
+		if items[fmt.Sprintf("%v", item)] {
+			result = append(result, item)
+		}
+	}
+
+	return result
+}
+
+func Only[T any](items []T, includeItems []T) []T {
+	return Intersect(items, includeItems)
+}
+
+func GetDefaultConfigurationBasePath(path string, defaultPath string) string {
+	var err error
+
+	if path == "~" || path == "" {
+		if path, _ = os.UserHomeDir(); err != nil {
+			return defaultPath
+		}
+	}
+
+	return path
+}
+
+func MakeConfigurationPath(path string, appName string) string {
+	appName = "." + strings.TrimPrefix(appName, ".")
+	return filepath.Join(GetDefaultConfigurationBasePath(path, "."), appName)
+}
+
+func EnsureConfigDirExists(homeDir string, appName string) (string, error) {
+	result := MakeConfigurationPath(GetDefaultConfigurationBasePath(homeDir, "."), appName)
+
+	if err := os.MkdirAll(result, 0744); err != nil {
 		return "", err
 	}
 
-	// Append the directory name to the home directory
-	configDir := filepath.Join(homeDir, "."+appName)
+	return result, nil
+}
 
-	// Ensure the directory exists
-	err = os.MkdirAll(configDir, 0744)
-	if err != nil {
-		return "", err
+func DomainGlobMatch(pattern string, s string) bool {
+	return GlobMatch(pattern, s, true)
+}
+
+func GlobMatch(pattern string, s string, optional bool) bool {
+	var match glob.Glob
+	var err error
+
+	if pattern == "*" {
+		return len(s) > 0
 	}
 
-	return configDir, nil
+	if match, err = glob.Compile(pattern); err != nil {
+		return false
+	}
+
+	if !optional {
+		match = glob.MustCompile(pattern, '.')
+	}
+
+	return match.Match(s)
+}
+
+func FsSafeName(name string) string {
+	result := strings.TrimSpace(name)
+	result = regexp.MustCompile(`[^\w\\-\\._]+`).ReplaceAllString(result, "-")
+	result = regexp.MustCompile(`-{2,}`).ReplaceAllString(result, "-")
+
+	return strings.Trim(result, "-")
+}
+
+func EnforceSuffix(s string, suffix string) string {
+	if suffix == "" {
+		return s
+	}
+
+	return strings.TrimSuffix(s, suffix) + suffix
+}
+
+func EnforcePrefix(s string, defaultPrefix string, allowedPrefixes ...string) string {
+	if len(allowedPrefixes) == 0 && defaultPrefix == "" {
+		return s
+	}
+
+	for _, p := range allowedPrefixes {
+		if strings.HasPrefix(s, p) {
+			return s
+		}
+	}
+
+	return defaultPrefix + strings.TrimPrefix(s, defaultPrefix)
+}
+
+func ReverseArray[T any](items []T) []T {
+	length := len(items)
+	for i := 0; i < length/2; i++ {
+		items[i], items[length-i-1] = items[length-i-1], items[i]
+	}
+	return items
+}
+
+func CombineArrays[T any](arrays ...[]T) []T {
+	result := []T{}
+
+	for _, arr := range arrays {
+		result = append(result, arr...)
+	}
+
+	return result
+}
+
+// casts the items in `toAppend` to the same type as the items in `items`, then
+// returns a new array containing the two items from both arrays combined
+func CastAndCombineArrays[T any, R any](items []T, toAppend []R) []T {
+	casted := []T{}
+
+	for _, item := range toAppend {
+		var temp interface{} = item
+		var castedItem T = (temp).(T)
+		casted = append(casted, castedItem)
+	}
+
+	return CombineArrays(items, casted)
+}
+
+func Max(args ...int) int {
+	if len(args) == 0 {
+		return 0
+	}
+
+	result := args[0]
+	for _, value := range args {
+		if value > result {
+			result = value
+		}
+	}
+
+	return result
+}
+
+func Min(args ...int) int {
+	if len(args) == 0 {
+		return 0
+	}
+
+	result := args[0]
+	for _, value := range args {
+		if value < result {
+			result = value
+		}
+	}
+
+	return result
+}
+
+func ImportEnvDefsIntoEnvironment(defs []string) {
+	for _, str := range defs {
+		if strings.Contains(str, "=") {
+			parts := strings.SplitN(str, "=", 2)
+			os.Setenv(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+		}
+	}
+}
+
+func RemoveSubStrings(from string, remove ...string) string {
+	result := from
+	for _, v := range remove {
+		result = strings.Replace(result, v, "", -1)
+	}
+	return result
+}
+
+func RemovePrefixes(prefix string, remove ...string) string {
+	result := prefix
+	for _, v := range remove {
+		result = strings.TrimPrefix(result, v)
+	}
+	return result
+}
+
+func ConsistentUniqueId(input string) string {
+	var hashValue int64
+	const multiplier int64 = int64(31)
+
+	for _, char := range input {
+		hashValue = (hashValue*(multiplier) + int64(char)) % 1e12
+	}
+
+	// Convert the hash value to a string and ensure it's alphanumeric
+	return strconv.FormatInt(hashValue, 36)
+}
+
+func RemoveEmptyValues(arr ...string) []string {
+	result := []string{}
+	for _, item := range arr {
+		if strings.TrimSpace(item) != "" {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func FirstNonEmpty(arr ...string) string {
+	for _, item := range arr {
+		if strings.TrimSpace(item) != "" {
+			return item
+		}
+	}
+	return ""
+}
+
+func FormatDisplayUrl(urlstr string) string {
+	if urlstr == "" {
+		return ""
+	}
+
+	parsed, _ := url.Parse(urlstr)
+	return parsed.Hostname() + "/" + parsed.Path
+}
+
+func SetIfEmpty(target interface{}, defaultValues interface{}) {
+	switch t := target.(type) {
+	case *string:
+		if *t == "" {
+			*t = defaultValues.(string)
+		}
+	case *[]string:
+		if len(*t) == 0 {
+			*t = defaultValues.([]string)
+		}
+	case *int:
+		if *t == 0 {
+			*t = defaultValues.(int)
+		}
+	}
+}
+
+func SearchFileForString(filename string, searchString string) bool {
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return false
+	}
+
+	if strings.Contains(string(content), searchString) {
+		return true
+	}
+
+	return false
 }

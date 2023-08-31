@@ -1,96 +1,41 @@
 package app
 
-import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"crypto/sha512"
-	"encoding/hex"
-	"fmt"
-	"io/ioutil"
-	"net/http"
+import "github.com/stackup-app/stackup/lib/settings"
 
-	"github.com/stackup-app/stackup/lib/utils"
-	"gopkg.in/yaml.v2"
-)
-
-type RemoteTemplateIndex struct {
-	Loaded    bool
-	Templates []*RemoteTemplate `yaml:"templates"`
+type IncludedTemplate struct {
+	Name          string                  `yaml:"name"`
+	Version       string                  `yaml:"version"`
+	Checksum      string                  `yaml:"checksum"`
+	LastModified  string                  `yaml:"last-modified"`
+	Author        string                  `yaml:"author"`
+	Description   string                  `yaml:"description"`
+	Settings      *settings.Settings      `yaml:"settings"`
+	Init          string                  `yaml:"init"`
+	Tasks         []*Task                 `yaml:"tasks"`
+	Preconditions []*WorkflowPrecondition `yaml:"preconditions"`
+	Startup       []*TaskReference        `yaml:"startup"`
+	Shutdown      []*TaskReference        `yaml:"shutdown"`
+	Servers       []*TaskReference        `yaml:"servers"`
 }
 
-type RemoteTemplate struct {
-	Name      string `yaml:"name"`
-	Location  string `yaml:"location"`
-	Checksum  string `yaml:"checksum"`
-	Algorithm string `yaml:"algorithm"`
-}
-
-func LoadRemoteTemplateIndex(url string) (*RemoteTemplateIndex, error) {
-	body, err := utils.GetUrlContents(url)
-
-	var index RemoteTemplateIndex
-	err = yaml.Unmarshal([]byte(body), &index)
-	if err != nil {
-		return nil, err
+func (template *IncludedTemplate) Initialize(workflow *StackupWorkflow) {
+	for _, task := range template.Tasks {
+		task.Initialize(workflow)
 	}
 
-	return &index, nil
-}
-
-func (index *RemoteTemplateIndex) GetTemplate(name string) *RemoteTemplate {
-	for _, template := range index.Templates {
-		if template.Location == name {
-			return template
-		}
+	for _, precondition := range template.Preconditions {
+		precondition.Initialize(workflow)
 	}
 
-	return nil
-}
-
-func (t *RemoteTemplate) GetContents() ([]byte, error) {
-	// Send an HTTP GET request to the location URL
-	resp, err := http.Get(t.Location)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	// Read the response body into a byte slice
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	for _, startup := range template.Startup {
+		startup.Initialize(workflow)
 	}
 
-	return body, nil
-}
-
-func (t *RemoteTemplate) ValidateChecksum(contents string) (bool, error) {
-	var hash []byte
-	switch t.Algorithm {
-	case "sha256":
-		h := sha256.New()
-		h.Write([]byte(contents))
-		hash = h.Sum(nil)
-		break
-	case "sha512":
-		h := sha512.New()
-		h.Write([]byte(contents))
-		hash = h.Sum(nil)
-		break
-	default:
-		return false, fmt.Errorf("unsupported algorithm: %s", t.Algorithm)
+	for _, shutdown := range template.Shutdown {
+		shutdown.Initialize(workflow)
 	}
 
-	// fmt.Printf("hash: %x\n", hash)
-	// fmt.Printf("checksum: %s\n", t.Checksum)
-
-	checksumBytes, err := hex.DecodeString(t.Checksum)
-	if err != nil {
-		return false, err
+	for _, server := range template.Servers {
+		server.Initialize(workflow)
 	}
-	if !hmac.Equal(hash, checksumBytes) {
-		return false, nil
-	}
-
-	return true, nil
 }

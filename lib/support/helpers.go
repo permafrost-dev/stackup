@@ -2,7 +2,6 @@ package support
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -70,19 +69,6 @@ func FindExistingFile(filenames []string, defaultFilename string) string {
 	}
 
 	return defaultFilename
-}
-
-func SearchFileForString(filename string, searchString string) bool {
-	content, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return false
-	}
-
-	if strings.Contains(string(content), searchString) {
-		return true
-	}
-
-	return false
 }
 
 func GetCommandOutput(command string) string {

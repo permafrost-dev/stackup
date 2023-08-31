@@ -1,52 +1,18 @@
 #!/usr/bin/env sh
 
-# # Redirect output to stderr.
-# exec 1>&2
+PROJECT_BASE_PATH=$(git rev-parse --show-toplevel)
+cd "$PROJECT_BASE_PATH" || exit 0
 
-# # Check for unstaged changes to tracked files.
-# echo "Checking for unstaged changes to tracked files..."
-# if git diff --exit-code --quiet --ignore-submodules --cached
-# then
-#     # No unstaged changes to tracked files, so we can proceed.
-#     echo "No unstaged changes detected."
-# else
-#     # Unstaged changes to tracked files. We should stash them.
-#     echo "Stashing unstaged changes to tracked files..."
-#     git stash --keep-index --include-untracked
-# fi
+GO_FILES_STAGED=$(git diff --name-only --cached | grep -c .go)
 
-# # Run golangci-lint on the staged files.
-# echo "Running golangci-lint on staged files..."
-# STAGED_GO_FILES=$(git diff --cached --name-only -- '*.go')
-# if [ "$STAGED_GO_FILES" != "" ]
-# then
-#     # Run golangci-lint on the staged files.
-#     golangci-lint run $STAGED_GO_FILES
-#     LINT_EXIT_CODE=$?
-# else
-#     # No Go files staged.
-#     echo "No Go files staged for commit."
-#     LINT_EXIT_CODE=0
-# fi
+if [ -n "$GO_FILES_STAGED" ] && [ "$GO_FILES_STAGED" != "0" ]; then
+    GOLINT_BIN=$(which golangci-lint)
 
-# # Unstash changes to tracked files, if necessary.
-# if [ "$STASH_NAME" != "" ]
-# then
-#     echo "Unstashing unstaged changes to tracked files..."
-#     git stash pop
-# fi
+    if [ -n "$GOLINT_BIN" ]; then
+        LAST_COMMIT=$(git rev-parse HEAD)
 
-# # If the linter failed (non-zero exit code), exit with a failure status.
-# if [ $LINT_EXIT_CODE != 0 ]
-# then
-#     echo "golangci-lint found issues in the staged files."
-#     exit 1
-# fi
+        echo "[pre-commit] $GOLINT_BIN run -c ./.golangci.yaml --new-from-rev $LAST_COMMIT"
 
-# Otherwise, exit with a success status.
-exit 0
-
-# GO_FILES_STAGED=$(git diff --name-only --cached | grep .go | wc -l)
-# if [ ! -z $GO_FILES_STAGED ]; then
-#     golangci-lint run -c ./.golangci.yaml
-# fi
+        $GOLINT_BIN run -c ./.golangci.yaml --new-from-rev "$LAST_COMMIT"
+    fi
+fi

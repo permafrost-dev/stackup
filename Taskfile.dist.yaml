@@ -5,16 +5,9 @@ dotenv: ['.env', '.env.local']
 
 vars:
   APP_VERSION_FILE: './lib/version/app-version.go'
-  ENTRY_FILENAME: './app/main.go'
   BUILD_OUTPUT_DIR: './dist'
-  BINARY_FILENAME: 'stackup'
-  DIST_TARGET_FILE: '{{.BUILD_OUTPUT_DIR}}/{{.BINARY_FILENAME}}'
-  GIT_COMMIT:
-    sh: git log -n 1 --format=%h
-  SRC_DIRS:
-    sh: find . -name "*.go" -printf '%h\n' | sort -u | egrep -v '^.$' | grep -v './tools' | sed ':a;N;$!ba;s/\n/ /g' | awk -F'|' '{ print $1 }'
-  DOTENV_FILES:
-    sh: find . -name ".env*" -print | sort -u | grep -v './dist' | sed ':a;N;$!ba;s/\n/ /g' | awk -F'|' '{ print $1 }'
+  DIST_TARGET_FILE: '{{.BUILD_OUTPUT_DIR}}/stackup'
+  ENTRY_FILENAME: './app/main.go'
 
 tasks:
 
@@ -24,14 +17,21 @@ tasks:
       - go mod download
       - go mod tidy
 
+  test:
+    desc: Runs tests
+    cmds:
+      - go test -cover ./lib/**
+
   build:
     desc: Builds application
     preconditions:
       - task: prepare-dist-folder
       - task: mod
+    deps:
+      - task: update-version-file
     cmds:
       - task: build-stackup
-      - task: copy-config-template-to-dist
+      - task: copy-config-files-to-dist
 
   clean:
     desc: Cleans up build artifacts
@@ -42,84 +42,66 @@ tasks:
       - rm -f {{.DIST_TARGET_FILE}}
 
   lint:
+    dir: .
+    preconditions:
+      - which golangci-lint
+      - test -f .golangci.yaml
+      - which dotenv-linter
+      - which typos
+      - which actionlint
+      - which shellcheck
     cmds:
-      - task: lint-dotenv
-      - task: lint-stackup
+      - golangci-lint run
+      - dotenv-linter --quiet --not-check-updates --recursive --exclude dist/.env
+      - actionlint
+      - shellcheck ./.custom-hooks/*
+      - typos
 
   update-version-file:
     cmds:
       - go run tools/generate-version-file.go
-
-  lint-dotenv:
-    desc: Lints all dotenv files
-    preconditions:
-      - which dotenv-linter
-    cmds:
-      - dotenv-linter {{.DOTENV_FILES}}
-
-  lint-stackup:
-    desc: Runs golangci-lint
-    preconditions:
-      - which golangci-lint
-    cmds:
-      - golangci-lint run {{.SRC_DIRS}}
 
   prepare-dist-folder:
     desc: Prepares dist folder
     silent: true
     cmds:
       - mkdir -p {{.BUILD_OUTPUT_DIR}}
-    status:
-      - test -d {{.BUILD_OUTPUT_DIR}}
 
   build-stackup:
     desc: Builds stackup binary
+    vars:
+      GIT_COMMIT:
+        sh: git log -n 1 --format=%h
     deps:
       - task: prepare-dist-folder
-      - task: update-version-file
     sources:
       - '{{.ENTRY_FILENAME}}'
+      - ./lib/**/*.go
+      - ./lib/*.go
     generates:
       - '{{.DIST_TARGET_FILE}}'
     cmds:
       - go build -trimpath -ldflags="-s -w -X main.Version={{.VERSION}}-{{.GIT_COMMIT}}" -o {{.DIST_TARGET_FILE}} {{.ENTRY_FILENAME}}
 
-  copy-config-template-to-dist:
+  copy-config-files-to-dist:
     desc: Copies config template to dist folder
     deps:
       - task: prepare-dist-folder
     cmds:
       - cp -f ./templates/*.yaml {{.BUILD_OUTPUT_DIR}}
-
-  bump-minor-version-and-tag:
-    run: once
-    desc: Bumps minor version and creates a new git tag
-    cmds:
-      - echo "bumping version to $(svu minor)"
-      - git tag $(svu minor)
-
-  release-new-minor-version:
-    desc: Create a new minor version release on github
-    cmds:
-      - task: bump-minor-version-and-tag
-      - task: update-version-file
-      - git push --tags
+      - cp -f ./.env {{.BUILD_OUTPUT_DIR}}
 
   update-checksums:
     dir: templates/remote-includes
     cmds:
-      - sha256sum containers.yaml > containers.yaml.sha256
-      - sha256sum laravel.yaml > laravel.yaml.sha256
-      - sha256sum node.yaml > node.yaml.sha256
-      - sha256sum php.yaml > php.yaml.sha256
-      - sha256sum python.yaml > python.yaml.sha256
       - sha256sum *.yaml > checksums.sha256.txt
-      - task: commit-updated-checksums
-
-  commit-updated-checksums:
-    desc: Commits updated checksum files
-    internal: true
-    silent: true
-    cmds:
-      - git add templates/remote-includes/*.sha256 templates/remote-includes/checksums.*.txt
+      - git add checksums.sha256.txt
       - git commit -m "update checksum files"
+
+  autobuild:
+    interactive: true
+    desc: Watches for changes and automatically rebuilds the project binary, displays a minimal system notification on start/finish
+    preconditions:
+      - which watchexec
+    cmds:
+      - watchexec --exts go --fs-events create,modify,remove -N --debounce 300 -w ./lib -- task build -f
