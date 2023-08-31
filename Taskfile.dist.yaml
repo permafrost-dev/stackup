@@ -17,6 +17,11 @@ tasks:
       - go mod download
       - go mod tidy
 
+  test:
+    desc: Runs tests
+    cmds:
+      - go test -cover ./lib/**
+
   build:
     desc: Builds application
     preconditions:
