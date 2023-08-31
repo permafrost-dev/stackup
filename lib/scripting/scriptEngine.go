@@ -79,8 +79,9 @@ func (e *JavaScriptEngine) Initialize(appVars *sync.Map, environ []string) {
 	e.CreateEnvironmentVariables(environ)
 }
 
-func (e *JavaScriptEngine) GetFindTaskById(id string) (any, error) {
-	return e.FindTaskById(id)
+func (e JavaScriptEngine) GetFindTaskById(id string) (any, bool) { //GetFindTaskById(id string) (any, error) {
+	result, err := e.FindTaskById(id)
+	return result, err == nil
 }
 
 func (e *JavaScriptEngine) initializeExtensions() {
