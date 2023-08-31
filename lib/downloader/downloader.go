@@ -1,7 +1,6 @@
 package downloader
 
 import (
-	"github.com/stackup-app/stackup/lib/consts"
 	"github.com/stackup-app/stackup/lib/gateway"
 	"github.com/stackup-app/stackup/lib/utils"
 )
@@ -10,11 +9,11 @@ type Downloader struct {
 	Gateway *gateway.Gateway
 }
 
-func NewDownloader(gateway *gateway.Gateway) *Downloader {
+func New(gateway *gateway.Gateway) *Downloader {
 	return &Downloader{Gateway: gateway}
 }
 
-func (d *Downloader) DownloadApplicationIcon(targetPath string) {
+func (d *Downloader) Download(url string, targetPath string) {
 	if utils.IsNonEmptyFile(targetPath) {
 		return
 	}
@@ -23,5 +22,5 @@ func (d *Downloader) DownloadApplicationIcon(targetPath string) {
 		utils.RemoveFile(targetPath)
 	}
 
-	d.Gateway.SaveUrlToFile(consts.APP_ICON_URL, targetPath)
+	d.Gateway.SaveUrlToFile(url, targetPath)
 }

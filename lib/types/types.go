@@ -12,6 +12,16 @@ type CommandCallback func(cmd *exec.Cmd)
 
 type SetProcessCallback func(key, value any)
 
+type AppInterface interface {
+	GetGatway() GatewayContract
+	GetJsEngine() JavaScriptEngineContract
+	GetSettings() *settings.Settings
+	GetVars() *sync.Map
+	GetWorkflow() AppWorkflowContract
+	GetEnviron() []string
+	GetApplicationIconPath() string
+}
+
 type JavaScriptEngineContract interface {
 	IsEvaluatableScriptString(s string) bool
 	GetEvaluatableScriptString(s string) string

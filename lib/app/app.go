@@ -20,6 +20,7 @@ import (
 	"github.com/stackup-app/stackup/lib/gateway"
 	"github.com/stackup-app/stackup/lib/messages"
 	"github.com/stackup-app/stackup/lib/scripting"
+	"github.com/stackup-app/stackup/lib/settings"
 	"github.com/stackup-app/stackup/lib/support"
 	"github.com/stackup-app/stackup/lib/telemetry"
 	"github.com/stackup-app/stackup/lib/types"
@@ -43,6 +44,7 @@ type Application struct {
 	ConfigFilename      string
 	Gateway             *gateway.Gateway
 	Analytics           *telemetry.Telemetry
+	types.AppInterface
 }
 
 func NewApplication() *Application {
@@ -63,6 +65,37 @@ func NewApplication() *Application {
 	result.Workflow = CreateWorkflow(result.Gateway, result.ProcessMap)
 
 	return result
+}
+
+func (app *Application) GetGateway() types.GatewayContract {
+	var result interface{} = app.Gateway
+	return result.(types.GatewayContract)
+}
+
+func (app *Application) GetJsEngine() types.JavaScriptEngineContract {
+	var result interface{} = app.JsEngine
+	return result.(types.JavaScriptEngineContract)
+}
+
+func (app *Application) GetSettings() *settings.Settings {
+	return app.Workflow.Settings
+}
+
+func (app *Application) GetVars() *sync.Map {
+	return app.Vars
+}
+
+func (app *Application) GetWorkflow() types.AppWorkflowContract {
+	var result interface{} = app.Workflow
+	return result.(types.AppWorkflowContract)
+}
+
+func (app *Application) ToInterface() types.AppInterface {
+	return app
+}
+
+func (app *Application) GetEnviron() []string {
+	return os.Environ()
 }
 
 func (a *Application) loadWorkflowFile(filename string, wf *StackupWorkflow) {
@@ -95,29 +128,32 @@ func (a *Application) loadWorkflowFile(filename string, wf *StackupWorkflow) {
 func (a *Application) Initialize() {
 	utils.EnsureConfigDirExists(utils.GetDefaultConfigurationBasePath("~", "."), consts.APP_CONFIG_PATH_BASE_NAME)
 	a.flags.Parse()
-	a.JsEngine = scripting.CreateNewJavascriptEngine(
-		a.Vars,
-		a.Gateway,
-		func(id string) (any, error) {
-			result, _ := a.Workflow.FindTaskById(id)
-			return result, nil
-		},
-		a.GetApplicationIconPath,
-	)
+
 	a.loadWorkflowFile(a.ConfigFilename, a.Workflow)
-	debug.Dbg.SetEnabled(a.Workflow.Debug)
 	godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
+	debug.Dbg.SetEnabled(a.Workflow.Debug)
+
+	a.JsEngine = scripting.CreateNewJavascriptEngine(a.ToInterface)
+
+	// 	a.Vars,
+	// 	a.Gateway,
+	// 	func(id string) (any, error) {
+	// 		result, _ := a.Workflow.FindTaskById(id)
+	// 		return result, nil
+	// 	},
+	// 	a.GetApplicationIconPath,
+	// )
 
 	a.Analytics = telemetry.New(a.Workflow.Settings.AnonymousStatistics, a.Gateway)
 	a.Gateway.Initialize(a.Workflow.Settings, a.JsEngine.AsContract(), nil)
 	a.initializeCache()
 	a.Workflow.Initialize(a.JsEngine, a.GetConfigurationPath())
-	a.JsEngine.Initialize(a.Vars, os.Environ())
+	a.JsEngine.Initialize()
 
 	a.Analytics.EventOnly("app.start")
 	a.checkForApplicationUpdates(!*a.flags.NoUpdateCheck)
 
-	downloader.NewDownloader(a.Gateway).DownloadApplicationIcon(a.GetApplicationIconPath())
+	downloader.New(a.Gateway).Download(consts.APP_ICON_URL, a.GetApplicationIconPath())
 }
 
 func (a *Application) initializeCache() {
@@ -295,10 +331,10 @@ func (a *Application) GetConfigurationPath() string {
 	return pathname
 }
 
-func (a Application) GetWorkflowContract() *types.AppWorkflowContract {
-	var result interface{} = a.Workflow
-	return result.(*types.AppWorkflowContract)
-}
+// func (a Application) GetWorkflowContract() *types.AppWorkflowContract {
+// 	var result interface{} = a.Workflow
+// 	return result.(*types.AppWorkflowContract)
+// }
 
 func (a *Application) GetApplicationIconPath() string {
 	return path.Join(a.GetConfigurationPath(), "/stackup-icon.png")

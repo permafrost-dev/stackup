@@ -1,9 +1,9 @@
 package gateway_test
 
 import (
-	"sync"
 	"testing"
 
+	"github.com/stackup-app/stackup/lib/app"
 	"github.com/stackup-app/stackup/lib/gateway"
 	"github.com/stackup-app/stackup/lib/scripting"
 	"github.com/stackup-app/stackup/lib/settings"
@@ -37,8 +37,11 @@ func TestGatewayInitialize(t *testing.T) {
 	}
 
 	g := gateway.New(nil)
-	findTask := func(id string) (any, error) { return nil, nil }
-	engine := scripting.CreateNewJavascriptEngine(&sync.Map{}, g, findTask, func() string { return "." })
+	//findTask := func(id string) (any, error) { return nil, nil }
+	a := app.NewApplication()
+	a.Initialize()
+
+	engine := scripting.CreateNewJavascriptEngine(a.ToInterface) // &sync.Map{}, g, findTask, func() string { return "." })
 	// var engineIntf interface{} =
 	// var engineContract types.JavaScriptEngineContract = engineIntf.(types.JavaScriptEngineContract)
 	g.Initialize(s, engine.AsContract(), nil)

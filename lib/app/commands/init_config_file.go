@@ -3,12 +3,15 @@ package commands
 import (
 	"fmt"
 	"os"
+	"strings"
+	"text/template"
 
 	"github.com/stackup-app/stackup/lib/consts"
+	"github.com/stackup-app/stackup/lib/types"
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
-func CreateNewConfigFile() {
+func CreateNewConfigFile(gw types.GatewayContract) {
 	filename := "stackup.yaml"
 
 	if _, err := os.Stat(filename); err == nil {
@@ -26,6 +29,16 @@ func CreateNewConfigFile() {
 		dependencyBin = "python"
 	}
 
-	contents := fmt.Sprintf(consts.INIT_CONFIG_FILE_CONTENTS, dependencyBin)
-	os.WriteFile(filename, []byte(contents), 0644)
+	templateText, err := utils.GetUrlContents(consts.APP_NEW_CONFIG_TEMPLATE_URL, &gw)
+	if err != nil {
+		fmt.Printf("error retrieving configuration file template: %v\n", err)
+		return
+	}
+
+	var writer strings.Builder
+
+	tmpl, _ := template.New(filename).Parse(templateText)
+	tmpl.Execute(&writer, map[string]string{"ProjectType": dependencyBin})
+
+	os.WriteFile(filename, []byte(writer.String()), 0644)
 }

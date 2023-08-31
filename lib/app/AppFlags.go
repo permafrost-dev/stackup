@@ -39,7 +39,7 @@ func (af *AppFlags) handle() {
 	}
 
 	if len(os.Args) > 1 && os.Args[1] == "init" {
-		commands.CreateNewConfigFile()
+		commands.CreateNewConfigFile(af.app.GetGateway())
 		os.Exit(0)
 	}
 }

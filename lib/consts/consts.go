@@ -6,8 +6,11 @@ const APP_REPOSITORY = "permafrost-dev/stackup"
 const APP_CONFIG_PATH_BASE_NAME = "stackup"
 const APP_ICON_URL string = "https://raw.githubusercontent.com/" + APP_REPOSITORY + "/main/assets/stackup-app-512px.png"
 
+const APP_NEW_CONFIG_TEMPLATE_URL = "https://raw.githubusercontent.com/permafrost-dev/stackup/main/templates/init.stackup.template.yaml"
+
 const DEFAULT_CACHE_TTL_MINUTES = 15
 const DEFAULT_CWD_SETTING = "{{ getCwd() }}"
+
 var DEFAULT_GATEWAY_MIDDLEWARE = []string{"validateUrl", "verifyFileType", "validateContentType"}
 
 const MAX_TASK_RUNS = 99999999

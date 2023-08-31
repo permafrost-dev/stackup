@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/robertkrimen/otto"
-	"github.com/stackup-app/stackup/lib/gateway"
 	appextension "github.com/stackup-app/stackup/lib/scripting/extensions/app_extension"
 	devextension "github.com/stackup-app/stackup/lib/scripting/extensions/dev_extension"
 	fsextension "github.com/stackup-app/stackup/lib/scripting/extensions/fs_extension"
@@ -19,41 +18,51 @@ import (
 	"github.com/stackup-app/stackup/lib/utils"
 )
 
-type FindTaskByIdFunc func(string) (any, error)
+type FindTaskByIdFunc func(string) (any, bool)
 
 type JavaScriptEngine struct {
-	Vm                     *otto.Otto
-	AppVars                *sync.Map
-	AppGateway             *gateway.Gateway
-	GetApplicationIconPath func() string
-	FindTaskById           FindTaskByIdFunc
-	InstalledExtensions    *sync.Map
-	initialized            bool
+	Vm *otto.Otto
+	//AppVars *sync.Map
+	//AppGateway types.GatewayContract //*gateway.Gateway
+	//GetApplicationIconPath func() string
+	FindTaskById        FindTaskByIdFunc
+	InstalledExtensions *sync.Map
+	initialized         bool
+	App                 func() types.AppInterface
+	//GetApp              func() types.AppInterface
 
 	types.JavaScriptEngineContract
 }
 
-func CreateNewJavascriptEngine(vars *sync.Map, gateway *gateway.Gateway, findTaskFunc FindTaskByIdFunc, getAppIconFunc func() string) *JavaScriptEngine {
+func CreateNewJavascriptEngine(appIntf func() types.AppInterface) *JavaScriptEngine {
+	//vars *sync.Map, gateway *gateway.Gateway, findTaskFunc FindTaskByIdFunc, getAppIconFunc func() string) *JavaScriptEngine {
 	result := &JavaScriptEngine{
-		initialized:            false,
-		Vm:                     otto.New(),
-		AppVars:                vars,
-		AppGateway:             gateway,
-		GetApplicationIconPath: getAppIconFunc,
-		InstalledExtensions:    &sync.Map{},
-		FindTaskById:           findTaskFunc,
+		initialized: false,
+		Vm:          otto.New(),
+		// GetApp:     getApp,
+		App: appIntf,
+		//AppVars: appIntf.GetVars(),
+		//AppGateway: appIntf.GetGatway(),
+		//GetApplicationIconPath: appIntf.GetApplicationIconPath, // getAppIconFunc,
+		InstalledExtensions: &sync.Map{},
+		FindTaskById:        appIntf().GetWorkflow().FindTaskById, // findTaskFunc,
 	}
 
 	return result
 }
 
+func (e *JavaScriptEngine) GetApplicationIconPath() string {
+	return e.App().GetApplicationIconPath()
+}
+
 func (e *JavaScriptEngine) GetGateway() types.GatewayContract {
-	var result types.GatewayContract = e.AppGateway
-	return result
+	return e.App().GetGatway()
+	// var result types.GatewayContract = e.AppGateway
+	// return result
 }
 
 func (e *JavaScriptEngine) GetAppVars() *sync.Map {
-	return e.AppVars
+	return e.App().GetVars()
 }
 
 func (e *JavaScriptEngine) toInterface() interface{} {
@@ -64,7 +73,7 @@ func (e *JavaScriptEngine) AsContract() types.JavaScriptEngineContract {
 	return e.toInterface().(types.JavaScriptEngineContract)
 }
 
-func (e *JavaScriptEngine) Initialize(appVars *sync.Map, environ []string) {
+func (e *JavaScriptEngine) Initialize() {
 	if e.initialized {
 		return
 	}
@@ -75,13 +84,14 @@ func (e *JavaScriptEngine) Initialize(appVars *sync.Map, environ []string) {
 	// CreateScripNotificationsObject(workflow, e)
 	e.initialized = true
 
-	e.CreateAppVariables(appVars)
-	e.CreateEnvironmentVariables(environ)
+	e.CreateAppVariables(e.App().GetVars())
+	e.CreateEnvironmentVariables(e.App().GetEnviron())
 }
 
 func (e JavaScriptEngine) GetFindTaskById(id string) (any, bool) { //GetFindTaskById(id string) (any, error) {
-	result, err := e.FindTaskById(id)
-	return result, err == nil
+	return e.App().GetWorkflow().FindTaskById(id)
+	// result, err := e.FindTaskById(id)
+	// return result, err
 }
 
 func (e *JavaScriptEngine) initializeExtensions() {
@@ -90,7 +100,7 @@ func (e *JavaScriptEngine) initializeExtensions() {
 
 	devextension.Create().OnInstall(engine)
 	varsextension.Create(engine).OnInstall(engine)
-	netextension.Create(e.AppGateway).OnInstall(engine)
+	netextension.Create(e.App().GetGatway()).OnInstall(engine)
 	appextension.Create().OnInstall(engine)
 	fsextension.Create().OnInstall(engine)
 	functionsextension.Create(engine).OnInstall(engine)
