@@ -254,7 +254,7 @@ func (e *JavaScriptEngine) MakeStringEvaluatable(script string) string {
 		return script
 	}
 
-	if len(script) == 0 {
+	if strings.TrimSpace(script) == "" {
 		return ""
 	}
 

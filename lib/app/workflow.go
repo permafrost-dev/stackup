@@ -107,13 +107,12 @@ func (workflow *StackupWorkflow) Initialize(engine *scripting.JavaScriptEngine, 
 	utils.ImportEnvDefsIntoEnvironment(workflow.Env)
 	workflow.TryLoadDotEnvVaultFile()
 	workflow.InitializeSections()
-	workflow.ProcessIncludes()
+	workflow.processIncludes()
 }
 
 func (workflow *StackupWorkflow) InitializeSections() {
 	for _, t := range workflow.Tasks {
 		t.Initialize(workflow)
-		t.SetDefaultSettings(workflow.Settings)
 	}
 
 	// init startup, shutdown, servers sections
@@ -130,30 +129,14 @@ func (workflow *StackupWorkflow) InitializeSections() {
 	}
 }
 
-func setIfEmpty(target interface{}, defaultValues interface{}) {
-	switch t := target.(type) {
-	case *string:
-		if *t == "" {
-			*t = defaultValues.(string)
-		}
-	case *[]string:
-		if len(*t) == 0 {
-			*t = defaultValues.([]string)
-		}
-	case *int:
-		if *t == 0 {
-			*t = defaultValues.(int)
-		}
-	}
-}
-
 func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
-	setIfEmpty(&workflow.Settings.Defaults.Tasks.Path, consts.DEFAULT_CWD_SETTING)
-	setIfEmpty(&workflow.Settings.Defaults.Tasks.Platforms, consts.ALL_PLATFORMS)
-	setIfEmpty(&workflow.Settings.Domains.Allowed, consts.DEFAULT_ALLOWED_DOMAINS)
-	setIfEmpty(&workflow.Settings.Cache.TtlMinutes, consts.DEFAULT_CACHE_TTL_MINUTES)
-	setIfEmpty(&workflow.Settings.DotEnvFiles, []string{".env"})
-	setIfEmpty(&workflow.Settings.Gateway.Middleware, []string{"validateUrl", "verifyFileType", "validateContentType"})
+	utils.SetIfEmpty(&workflow.Settings.Defaults.Tasks.Path, consts.DEFAULT_CWD_SETTING)
+	utils.SetIfEmpty(&workflow.Settings.Defaults.Tasks.Platforms, consts.ALL_PLATFORMS)
+	utils.SetIfEmpty(&workflow.Settings.Domains.Allowed, consts.DEFAULT_ALLOWED_DOMAINS)
+	utils.SetIfEmpty(&workflow.Settings.Domains.Blocked, []string{})
+	utils.SetIfEmpty(&workflow.Settings.Cache.TtlMinutes, consts.DEFAULT_CACHE_TTL_MINUTES)
+	utils.SetIfEmpty(&workflow.Settings.DotEnvFiles, []string{".env"})
+	utils.SetIfEmpty(&workflow.Settings.Gateway.Middleware, consts.DEFAULT_GATEWAY_MIDDLEWARE)
 
 	workflow.expandEnvVars(&workflow.Settings.Notifications.Slack.ChannelIds)
 	workflow.expandEnvVars(&workflow.Settings.Notifications.Telegram.ChatIds)
@@ -162,14 +145,18 @@ func (workflow *StackupWorkflow) ConfigureDefaultSettings() {
 		if host.Gateway == "allow" || host.Gateway == "" {
 			workflow.Settings.Domains.Allowed = append(workflow.Settings.Domains.Allowed, host.Hostname)
 		}
+		if host.Gateway == "block" {
+			workflow.Settings.Domains.Blocked = append(workflow.Settings.Domains.Blocked, host.Hostname)
+		}
 		if len(host.Headers) > 0 {
 			workflow.Gateway.DomainHeaders.Store(host.Hostname, host.Headers)
 		}
 	}
 
 	utils.UniqueInPlace(&workflow.Settings.Domains.Allowed)
+	utils.UniqueInPlace(&workflow.Settings.Domains.Blocked)
 
-	workflow.setDefaultOptionsForTasks()
+	// workflow.setDefaultOptionsForTasks()
 }
 
 func (workflow *StackupWorkflow) expandEnvVars(items *[]string) {
@@ -183,15 +170,15 @@ func (workflow *StackupWorkflow) expandEnvVars(items *[]string) {
 }
 
 // copy the default task settings into each task if the settings are not already set
-func (workflow *StackupWorkflow) setDefaultOptionsForTasks() {
-	for _, task := range workflow.Tasks {
-		task.SetDefaultSettings(workflow.Settings)
-	}
-}
+// func (workflow *StackupWorkflow) setDefaultOptionsForTasks() {
+// 	for _, task := range workflow.Tasks {
+// 		task.SetDefaultSettings(workflow.Settings)
+// 	}
+// }
 
-// ProcessIncludes loads the includes and processes all included files in the workflow asynchronously,
+// processIncludes loads the includes and processes all included files in the workflow asynchronously,
 // so the order in which they are loaded is not guaranteed.
-func (workflow *StackupWorkflow) ProcessIncludes() {
+func (workflow *StackupWorkflow) processIncludes() {
 	var wgPreload sync.WaitGroup
 
 	// cache requests so async loading doesn't cause the same file to be loaded multiple times
@@ -209,7 +196,7 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 		wgLoadIncludes.Add(1)
 		go func(inc WorkflowInclude) {
 			defer wgLoadIncludes.Done()
-			workflow.ProcessInclude(&inc)
+			workflow.processInclude(&inc)
 		}(include)
 	}
 	wgLoadIncludes.Wait()
@@ -217,7 +204,7 @@ func (workflow *StackupWorkflow) ProcessIncludes() {
 	workflow.InitializeSections()
 }
 
-func (workflow *StackupWorkflow) GetIncludedUrls() []string {
+func (workflow *StackupWorkflow) getIncludedUrls() []string {
 	result := []string{}
 
 	for _, include := range workflow.Includes {
@@ -230,7 +217,7 @@ func (workflow *StackupWorkflow) GetIncludedUrls() []string {
 func (workflow *StackupWorkflow) getPossibleIncludedChecksumUrls() []string {
 	result := []string{}
 
-	for _, url := range workflow.GetIncludedUrls() {
+	for _, url := range workflow.getIncludedUrls() {
 		result = append(result, checksums.GetChecksumUrls(url)...)
 	}
 
@@ -287,7 +274,7 @@ func (workflow *StackupWorkflow) loadAndImportInclude(rawYaml string) error {
 	return nil
 }
 
-func (workflow *StackupWorkflow) ProcessInclude(include *WorkflowInclude) error {
+func (workflow *StackupWorkflow) processInclude(include *WorkflowInclude) error {
 	include.Initialize(workflow)
 
 	var err error = nil

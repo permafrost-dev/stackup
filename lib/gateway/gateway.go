@@ -363,7 +363,7 @@ func (g *Gateway) SaveUrlToFile(url string, filename string) error {
 		return err
 	}
 
-	return utils.SaveStringToFile(result, filename)
+	return os.WriteFile(filename, []byte(result), 0644)
 }
 
 // GetUrl returns the contents of a URL as a string, assuming it

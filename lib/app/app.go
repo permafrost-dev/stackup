@@ -268,7 +268,6 @@ func (a Application) runPreconditions() {
 	support.StatusMessageLine("Running precondition checks...", true)
 
 	for _, c := range a.Workflow.Preconditions {
-
 		if !c.Run() {
 			support.FailureMessageWithXMark(c.Name)
 			os.Exit(1)

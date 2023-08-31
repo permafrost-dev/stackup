@@ -1,21 +1,21 @@
 package consts
 
 const APPLICATION_NAME = "stackup"
-
-var DISPLAY_URLS_REMOVABLE = []string{"https://", "github.com", "raw.githubusercontent.com", "s3:"}
+const APP_REPOSITORY = "permafrost-dev/stackup"
 
 const APP_CONFIG_PATH_BASE_NAME = "stackup"
-const APP_REPOSITORY = "permafrost-dev/stackup"
-const DEFAULT_CWD_SETTING = "{{ getCwd() }}"
+const APP_ICON_URL string = "https://raw.githubusercontent.com/" + APP_REPOSITORY + "/main/assets/stackup-app-512px.png"
 
-var ALL_PLATFORMS = []string{"windows", "linux", "darwin"}
-var DEFAULT_ALLOWED_DOMAINS = []string{"raw.githubusercontent.com", "api.github.com"}
+const DEFAULT_CACHE_TTL_MINUTES = 15
+const DEFAULT_CWD_SETTING = "{{ getCwd() }}"
+var DEFAULT_GATEWAY_MIDDLEWARE = []string{"validateUrl", "verifyFileType", "validateContentType"}
 
 const MAX_TASK_RUNS = 99999999
 
-const DEFAULT_CACHE_TTL_MINUTES = 15
+var ALL_PLATFORMS = []string{"windows", "linux", "darwin"}
 
-const APP_ICON_URL string = "https://raw.githubusercontent.com/" + APP_REPOSITORY + "/main/assets/stackup-app-512px.png"
+var DEFAULT_ALLOWED_DOMAINS = []string{"raw.githubusercontent.com", "api.github.com"}
+var DISPLAY_URLS_REMOVABLE = []string{"https://", "github.com", "raw.githubusercontent.com", "s3:"}
 
 var INIT_CONFIG_FILE_CONTENTS string = `name: my stack
 description: application stack

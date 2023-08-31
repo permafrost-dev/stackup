@@ -669,3 +669,20 @@ func FormatDisplayUrl(urlstr string) string {
 	parsed, _ := url.Parse(urlstr)
 	return parsed.Hostname() + "/" + parsed.Path
 }
+
+func SetIfEmpty(target interface{}, defaultValues interface{}) {
+	switch t := target.(type) {
+	case *string:
+		if *t == "" {
+			*t = defaultValues.(string)
+		}
+	case *[]string:
+		if len(*t) == 0 {
+			*t = defaultValues.([]string)
+		}
+	case *int:
+		if *t == 0 {
+			*t = defaultValues.(int)
+		}
+	}
+}

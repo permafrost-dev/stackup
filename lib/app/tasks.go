@@ -53,7 +53,7 @@ type ScheduledTask struct {
 	TaskReferenceContract
 }
 
-func (task *Task) CanRunOnCurrentPlatform() bool {
+func (task *Task) canRunOnCurrentPlatform() bool {
 	if task.Platforms == nil || len(task.Platforms) == 0 {
 		return true
 	}
@@ -67,7 +67,7 @@ func (task *Task) CanRunOnCurrentPlatform() bool {
 	return false
 }
 
-func (task *Task) CanRunConditionally() bool {
+func (task *Task) canRunConditionally() bool {
 	if len(strings.TrimSpace(task.If)) == 0 {
 		return true
 	}
@@ -80,46 +80,43 @@ func (task *Task) Initialize(workflow *StackupWorkflow) { //} *scripting.JavaScr
 	if workflow.State.CurrentTask != nil {
 		task.setActive = workflow.State.CurrentTask.setActive
 	} else {
-		var fn SetActiveTaskCallback = func(task *Task) CleanupCallback { return func() {} }
-		task.setActive = fn
+		task.setActive = func(task *Task) CleanupCallback { return func() {} }
 	}
 	task.CommandStartCb = workflow.CommandStartCb
 	task.StoreProcess = workflow.ProcessMap.Store
 	task.Uuid = utils.GenerateTaskUuid()
 
 	task.RunCount = 0
-	if task.MaxRuns <= 0 {
-		task.MaxRuns = 999999999
+	task.MaxRuns = utils.Max(task.MaxRuns, 0)
+
+	if task.MaxRuns == 0 {
+		task.MaxRuns = consts.MAX_TASK_RUNS
 	}
 
-	if len(task.Path) == 0 {
-		task.Path = task.JsEngine.MakeStringEvaluatable(consts.DEFAULT_CWD_SETTING)
-	}
-
-	if task.If != "" {
-		task.If = task.JsEngine.MakeStringEvaluatable(task.If)
-	}
+	task.If = task.JsEngine.MakeStringEvaluatable(task.If)
 
 	if task.JsEngine.IsEvaluatableScriptString(task.Name) {
 		task.Name = task.JsEngine.Evaluate(task.Name).(string)
 	}
+
+	task.setDefaultSettings(workflow.Settings)
 }
 
-func (task *Task) SetDefaultSettings(s *settings.Settings) {
-	if task.Path == "" && len(s.Defaults.Tasks.Path) > 0 {
-		task.Path = s.Defaults.Tasks.Path
+func (task *Task) setDefaultSettings(s *settings.Settings) {
+	task.Silent = s.Defaults.Tasks.Silent
+
+	if task.Path == "" {
+		task.Path = utils.FirstNonEmpty(s.Defaults.Tasks.Path, consts.DEFAULT_CWD_SETTING)
 	}
 
 	if len(task.Platforms) == 0 {
 		copy(task.Platforms, s.Defaults.Tasks.Platforms)
 	}
-
-	task.Silent = s.Defaults.Tasks.Silent
 }
 
 func (task Task) GetDisplayName() string {
 	if len(task.Include) > 0 {
-		return strings.Replace(task.Include, "https://", "", -1)
+		return strings.TrimPrefix(task.Include, "https://")
 	}
 
 	if len(task.Name) > 0 {
@@ -144,11 +141,11 @@ func (task *Task) getCommand() string {
 }
 
 func (task *Task) prepareRun() (bool, func()) {
-	result := task.setActive(task)
-
 	if task.Uuid == "" {
 		task.Uuid = utils.GenerateTaskUuid()
 	}
+
+	result := task.setActive(task)
 
 	if task.RunCount >= task.MaxRuns && task.MaxRuns > 0 {
 		support.SkippedMessageWithSymbol(task.GetDisplayName())
@@ -166,12 +163,12 @@ func (task *Task) prepareRun() (bool, func()) {
 		task.Path = task.JsEngine.Evaluate(task.Path).(string)
 	}
 
-	if !task.CanRunConditionally() {
+	if !task.canRunConditionally() {
 		support.SkippedMessageWithSymbol(task.GetDisplayName())
 		return false, nil
 	}
 
-	if !task.CanRunOnCurrentPlatform() {
+	if !task.canRunOnCurrentPlatform() {
 		support.SkippedMessageWithSymbol("Task '" + task.GetDisplayName() + "' is not supported on this operating system.")
 		return false, nil
 	}
