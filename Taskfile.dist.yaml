@@ -37,15 +37,16 @@ tasks:
       - rm -f {{.DIST_TARGET_FILE}}
 
   lint:
+    dir: .
     preconditions:
       - which golangci-lint
-      - which .golangci.yaml
+      - test -f .golangci.yaml
       - which dotenv-linter
       - which typos
       - which actionlint
     cmds:
       - golangci-lint run
-      - dotenv-linter --not-check-updates --recursive
+      - dotenv-linter --quiet --not-check-updates --recursive --exclude dist/.env
       - actionlint
       - typos
 
