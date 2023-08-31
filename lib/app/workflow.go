@@ -58,7 +58,11 @@ func CreateWorkflow(gw *gateway.Gateway, processMap *sync.Map) *StackupWorkflow 
 	}
 }
 
-func (workflow *StackupWorkflow) FindTaskById(id string) (*Task, bool) {
+func (workflow *StackupWorkflow) FindTaskById(id string) (any, bool) {
+	return workflow.GetTaskById(id)
+}
+
+func (workflow *StackupWorkflow) GetTaskById(id string) (*Task, bool) {
 	for _, task := range workflow.Tasks {
 		if strings.EqualFold(task.Id, id) && len(id) > 0 {
 			return task, true

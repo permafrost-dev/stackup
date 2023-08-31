@@ -31,7 +31,7 @@ func (p *WorkflowPrecondition) HandleOnFailure() bool {
 		return p.JsEngine.Evaluate(p.OnFail).(bool)
 	}
 
-	if task, found := p.Workflow.FindTaskById(p.OnFail); found {
+	if task, found := p.Workflow.GetTaskById(p.OnFail); found {
 		return task.RunSync()
 	}
 
@@ -89,7 +89,7 @@ func (wp *WorkflowPrecondition) handleOnFail() bool {
 		return wp.JsEngine.Evaluate(wp.OnFail).(bool)
 	}
 
-	if task, found := wp.Workflow.FindTaskById(wp.OnFail); found {
+	if task, found := wp.Workflow.GetTaskById(wp.OnFail); found {
 		return task.RunSync()
 	}
 

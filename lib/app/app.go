@@ -213,7 +213,7 @@ func (a *Application) createScheduledTasks() {
 		def.Workflow = a.Workflow
 		def.JsEngine = a.JsEngine
 
-		_, found := a.Workflow.FindTaskById(def.TaskId())
+		_, found := a.Workflow.GetTaskById(def.TaskId())
 
 		if !found {
 			support.FailureMessageWithXMark(messages.TaskNotFound(def.TaskId()))
@@ -224,7 +224,7 @@ func (a *Application) createScheduledTasks() {
 		taskId := def.TaskId()
 
 		a.cronEngine.AddFunc(cron, func() {
-			task, found := a.Workflow.FindTaskById(taskId)
+			task, found := a.Workflow.GetTaskById(taskId)
 			if found {
 				task.RunSync()
 			}
@@ -265,7 +265,7 @@ func (a *Application) runTaskReferences(refs []*TaskReference) {
 		def.Workflow = a.Workflow
 		def.JsEngine = a.JsEngine
 
-		task, found := a.Workflow.FindTaskById(def.TaskId())
+		task, found := a.Workflow.GetTaskById(def.TaskId())
 		if !found {
 			support.SkippedMessageWithSymbol(messages.TaskNotFound(def.TaskId()))
 			continue
@@ -289,7 +289,7 @@ func (a *Application) runServerTasks() {
 	support.StatusMessageLine("Starting server processes...", true)
 
 	for _, def := range a.Workflow.Servers {
-		task, found := a.Workflow.FindTaskById(def.TaskId())
+		task, found := a.Workflow.GetTaskById(def.TaskId())
 
 		if !found {
 			support.SkippedMessageWithSymbol(messages.TaskNotFound(def.TaskId()))

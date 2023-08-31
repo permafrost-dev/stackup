@@ -37,13 +37,10 @@ func TestGatewayInitialize(t *testing.T) {
 	}
 
 	g := gateway.New(nil)
-	//findTask := func(id string) (any, error) { return nil, nil }
 	a := app.NewApplication()
-	a.Initialize()
+	a.Gateway = g
 
-	engine := scripting.CreateNewJavascriptEngine(a.ToInterface) // &sync.Map{}, g, findTask, func() string { return "." })
-	// var engineIntf interface{} =
-	// var engineContract types.JavaScriptEngineContract = engineIntf.(types.JavaScriptEngineContract)
+	engine := scripting.CreateNewJavascriptEngine(a.ToInterface)
 	g.Initialize(s, engine.AsContract(), nil)
 
 	assert.True(t, g.Enabled, "gateway should be enabled")
