@@ -13,7 +13,7 @@ type CommandCallback func(cmd *exec.Cmd)
 type SetProcessCallback func(key, value any)
 
 type AppInterface interface {
-	GetGatway() GatewayContract
+	GetGateway() GatewayContract
 	GetJsEngine() JavaScriptEngineContract
 	GetSettings() *settings.Settings
 	GetVars() *sync.Map

@@ -84,6 +84,10 @@ func setMatchAllIfEmpty(arr *[]string) {
 	}
 }
 
+func (g *Gateway) ToInterface() types.GatewayContract {
+	return g
+}
+
 func (g *Gateway) setup() {
 	// we need the `validateUrl` middleware no matter what, so prepend it to the list of enabled middleware.
 	// this middleware is the core functionality of the http gateway's allow/block lists.

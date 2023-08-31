@@ -44,7 +44,7 @@ type Application struct {
 	ConfigFilename      string
 	Gateway             *gateway.Gateway
 	Analytics           *telemetry.Telemetry
-	types.AppInterface
+	// types.AppInterface
 }
 
 func NewApplication() *Application {
@@ -68,8 +68,7 @@ func NewApplication() *Application {
 }
 
 func (app *Application) GetGateway() types.GatewayContract {
-	var result interface{} = app.Gateway
-	return result.(types.GatewayContract)
+	return app.Gateway
 }
 
 func (app *Application) GetJsEngine() types.JavaScriptEngineContract {
@@ -90,7 +89,7 @@ func (app *Application) GetWorkflow() types.AppWorkflowContract {
 	return result.(types.AppWorkflowContract)
 }
 
-func (app *Application) ToInterface() types.AppInterface {
+func (app *Application) ToInterface() *Application {
 	return app
 }
 
@@ -133,17 +132,7 @@ func (a *Application) Initialize() {
 	godotenv.Load(a.Workflow.Settings.DotEnvFiles...)
 	debug.Dbg.SetEnabled(a.Workflow.Debug)
 
-	a.JsEngine = scripting.CreateNewJavascriptEngine(a.ToInterface)
-
-	// 	a.Vars,
-	// 	a.Gateway,
-	// 	func(id string) (any, error) {
-	// 		result, _ := a.Workflow.FindTaskById(id)
-	// 		return result, nil
-	// 	},
-	// 	a.GetApplicationIconPath,
-	// )
-
+	a.JsEngine = scripting.CreateNewJavascriptEngine(a)
 	a.Analytics = telemetry.New(a.Workflow.Settings.AnonymousStatistics, a.Gateway)
 	a.Gateway.Initialize(a.Workflow.Settings, a.JsEngine.AsContract(), nil)
 	a.initializeCache()
@@ -330,11 +319,6 @@ func (a *Application) GetConfigurationPath() string {
 
 	return pathname
 }
-
-// func (a Application) GetWorkflowContract() *types.AppWorkflowContract {
-// 	var result interface{} = a.Workflow
-// 	return result.(*types.AppWorkflowContract)
-// }
 
 func (a *Application) GetApplicationIconPath() string {
 	return path.Join(a.GetConfigurationPath(), "/stackup-icon.png")

@@ -21,31 +21,19 @@ import (
 type FindTaskByIdFunc func(string) (any, bool)
 
 type JavaScriptEngine struct {
-	Vm *otto.Otto
-	//AppVars *sync.Map
-	//AppGateway types.GatewayContract //*gateway.Gateway
-	//GetApplicationIconPath func() string
-	FindTaskById        FindTaskByIdFunc
+	Vm                  *otto.Otto
 	InstalledExtensions *sync.Map
 	initialized         bool
-	App                 func() types.AppInterface
-	//GetApp              func() types.AppInterface
-
+	AppIntf             types.AppInterface
 	types.JavaScriptEngineContract
 }
 
-func CreateNewJavascriptEngine(appIntf func() types.AppInterface) *JavaScriptEngine {
-	//vars *sync.Map, gateway *gateway.Gateway, findTaskFunc FindTaskByIdFunc, getAppIconFunc func() string) *JavaScriptEngine {
+func CreateNewJavascriptEngine(appIntf types.AppInterface) *JavaScriptEngine {
 	result := &JavaScriptEngine{
-		initialized: false,
-		Vm:          otto.New(),
-		// GetApp:     getApp,
-		App: appIntf,
-		//AppVars: appIntf.GetVars(),
-		//AppGateway: appIntf.GetGatway(),
-		//GetApplicationIconPath: appIntf.GetApplicationIconPath, // getAppIconFunc,
+		initialized:         false,
+		Vm:                  otto.New(),
+		AppIntf:             appIntf,
 		InstalledExtensions: &sync.Map{},
-		FindTaskById:        appIntf().GetWorkflow().FindTaskById, // findTaskFunc,
 	}
 
 	return result
@@ -55,18 +43,16 @@ func (e *JavaScriptEngine) GetApplicationIconPath() string {
 	return e.App().GetApplicationIconPath()
 }
 
-func (e *JavaScriptEngine) GetGateway() types.GatewayContract {
-	return e.App().GetGatway()
-	// var result types.GatewayContract = e.AppGateway
-	// return result
-}
-
 func (e *JavaScriptEngine) GetAppVars() *sync.Map {
 	return e.App().GetVars()
 }
 
 func (e *JavaScriptEngine) toInterface() interface{} {
 	return e
+}
+
+func (e *JavaScriptEngine) App() types.AppInterface {
+	return e.AppIntf
 }
 
 func (e *JavaScriptEngine) AsContract() types.JavaScriptEngineContract {
@@ -79,6 +65,7 @@ func (e *JavaScriptEngine) Initialize() {
 	}
 
 	e.Vm = otto.New()
+
 	e.initializeExtensions()
 
 	// CreateScripNotificationsObject(workflow, e)
@@ -90,17 +77,14 @@ func (e *JavaScriptEngine) Initialize() {
 
 func (e JavaScriptEngine) GetFindTaskById(id string) (any, bool) { //GetFindTaskById(id string) (any, error) {
 	return e.App().GetWorkflow().FindTaskById(id)
-	// result, err := e.FindTaskById(id)
-	// return result, err
 }
 
 func (e *JavaScriptEngine) initializeExtensions() {
-	var engineIntf interface{} = e
-	var engine types.JavaScriptEngineContract = engineIntf.(types.JavaScriptEngineContract)
+	engine := e.App().GetJsEngine()
 
 	devextension.Create().OnInstall(engine)
 	varsextension.Create(engine).OnInstall(engine)
-	netextension.Create(e.App().GetGatway()).OnInstall(engine)
+	netextension.Create(e.App().GetGateway()).OnInstall(engine)
 	appextension.Create().OnInstall(engine)
 	fsextension.Create().OnInstall(engine)
 	functionsextension.Create(engine).OnInstall(engine)

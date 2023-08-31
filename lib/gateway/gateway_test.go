@@ -40,7 +40,7 @@ func TestGatewayInitialize(t *testing.T) {
 	a := app.NewApplication()
 	a.Gateway = g
 
-	engine := scripting.CreateNewJavascriptEngine(a.ToInterface)
+	engine := scripting.CreateNewJavascriptEngine(a)
 	g.Initialize(s, engine.AsContract(), nil)
 
 	assert.True(t, g.Enabled, "gateway should be enabled")
