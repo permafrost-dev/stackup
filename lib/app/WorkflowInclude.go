@@ -12,22 +12,21 @@ import (
 )
 
 type WorkflowInclude struct {
-	Url              string   `yaml:"url"`
-	Headers          []string `yaml:"headers"`
-	File             string   `yaml:"file"`
-	ChecksumUrl      string   `yaml:"checksum-url"`
-	VerifyChecksum   bool     `yaml:"verify,omitempty"`
-	AccessKey        string   `yaml:"access-key"`
-	SecretKey        string   `yaml:"secret-key"`
-	Secure           bool     `yaml:"secure"`
-	identifierString string
-	ValidationState  ChecksumVerificationState
-	Contents         string
-	Hash             string
-	FoundChecksum    string
-	HashAlgorithm    checksums.ChecksumAlgorithm
-	FromCache        bool
-	Workflow         *StackupWorkflow
+	Url             string   `yaml:"url"`
+	Headers         []string `yaml:"headers"`
+	File            string   `yaml:"file"`
+	ChecksumUrl     string   `yaml:"checksum-url"`
+	VerifyChecksum  bool     `yaml:"verify,omitempty"`
+	AccessKey       string   `yaml:"access-key"`
+	SecretKey       string   `yaml:"secret-key"`
+	Secure          bool     `yaml:"secure"`
+	ValidationState ChecksumVerificationState
+	Contents        string
+	Hash            string
+	FoundChecksum   string
+	HashAlgorithm   checksums.ChecksumAlgorithm
+	FromCache       bool
+	Workflow        *StackupWorkflow
 }
 
 func expandUrlPrefixes(url string) string {
