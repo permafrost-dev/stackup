@@ -53,7 +53,7 @@ type ScheduledTask struct {
 	TaskReferenceContract
 }
 
-func (task *Task) canRunOnCurrentPlatform() bool {
+func (task *Task) CanRunOnCurrentPlatform() bool {
 	if task.Platforms == nil || len(task.Platforms) == 0 {
 		return true
 	}
@@ -67,7 +67,7 @@ func (task *Task) canRunOnCurrentPlatform() bool {
 	return false
 }
 
-func (task *Task) canRunConditionally() bool {
+func (task *Task) CanRunConditionally() bool {
 	if len(strings.TrimSpace(task.If)) == 0 {
 		return true
 	}
@@ -163,12 +163,12 @@ func (task *Task) prepareRun() (bool, func()) {
 		task.Path = task.JsEngine.Evaluate(task.Path).(string)
 	}
 
-	if !task.canRunConditionally() {
+	if !task.CanRunConditionally() {
 		support.SkippedMessageWithSymbol(task.GetDisplayName())
 		return false, nil
 	}
 
-	if !task.canRunOnCurrentPlatform() {
+	if !task.CanRunOnCurrentPlatform() {
 		support.SkippedMessageWithSymbol("Task '" + task.GetDisplayName() + "' is not supported on this operating system.")
 		return false, nil
 	}
