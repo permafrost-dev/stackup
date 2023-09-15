@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -127,7 +128,11 @@ func (workflow *StackupWorkflow) Initialize(engine *scripting.JavaScriptEngine, 
 
 	for _, integration := range workflow.Integrations {
 		if integration.IsEnabled() {
-			integration.Run()
+			err := integration.Run()
+
+			if err != nil {
+				fmt.Printf(" integration error [%s]: %v\n", integration.Name(), err)
+			}
 		}
 	}
 

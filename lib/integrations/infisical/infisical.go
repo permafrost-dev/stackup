@@ -34,16 +34,22 @@ func (in InfisicalIntegration) IsEnabled() bool {
 
 // ParseInfiscalURL parses the given string in the format `infiscal://<workspace_id>:<environment_name>/<path>`
 // and returns the workspace_id, environment_name, and path.
-func (in InfisicalIntegration) parseInfiscalURL(url string) (string, string, string, error) {
-	const prefix = "infiscal://"
+func (in InfisicalIntegration) parseInfisicalURL(infisicalUrl string) (string, string, string, error) {
+	url := os.ExpandEnv(infisicalUrl)
+
+	const prefix = "infisical://"
 	if !strings.HasPrefix(url, prefix) {
 		return "", "", "", errors.New("invalid prefix")
 	}
 
 	url = strings.TrimPrefix(url, prefix)
 	parts := strings.SplitN(url, "/", 2)
-	if len(parts) != 2 {
-		return "", "", "", errors.New("invalid format")
+	if len(parts) == 0 {
+		return "", "", "", errors.New("invalid workspace and environment format")
+	}
+
+	if len(parts) < 2 {
+		parts = append(parts, "")
 	}
 
 	workspaceAndEnv := parts[0]
@@ -65,18 +71,31 @@ func (in InfisicalIntegration) Run() error {
 		return nil
 	}
 
-	in.client = NewClient(in.endpoint)
+	in.client = NewClient("https://app.infisical.com")
 
-	workspaceID, environmentName, path, err := in.parseInfiscalURL(in.endpoint)
+	for _, value := range in.workflow().GetEnvSection() {
+		err := in.processEnvEntry(value)
+		if err != nil {
+			return err
+		}
+	}
 
-	secrets, err := in.client.GetSecrets(workspaceID, environmentName, path, true)
+	return nil
+}
+
+func (in InfisicalIntegration) processEnvEntry(str string) error {
+	workspaceID, environmentName, path, err := in.parseInfisicalURL(str)
+
+	secrets, err := in.client.GetSecrets(workspaceID, environmentName, "/"+path, true)
 
 	if err != nil {
 		return err
 	}
 
 	for _, secret := range secrets {
-		os.Setenv(secret.Name, secret.Value)
+		if secret.Name != "" {
+			os.Setenv(secret.Name, secret.Value)
+		}
 	}
 
 	return nil
