@@ -124,9 +124,13 @@ func (workflow *StackupWorkflow) Initialize(engine *scripting.JavaScriptEngine, 
 	workflow.JsEngine = engine
 
 	utils.ImportEnvDefsIntoEnvironment(workflow.Env)
-	if workflow.Integrations["dotenv-vault"].IsEnabled() {
-		workflow.Integrations["dotenv-vault"].Run()
+
+	for _, integration := range workflow.Integrations {
+		if integration.IsEnabled() {
+			integration.Run()
+		}
 	}
+
 	workflow.InitializeSections()
 	workflow.processIncludes()
 }
