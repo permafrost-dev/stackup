@@ -11,3 +11,4 @@ coverage:
       default:
         target: auto
         threshold: 15%
+        only_pulls: true
