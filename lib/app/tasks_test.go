@@ -77,8 +77,8 @@ func TestCanRunOnCurrentPlatform(t *testing.T) {
 	assert.True(task2.CanRunOnCurrentPlatform())
 
 	// Test case: When Platforms contains the current platform (case insensitive)
-	task3 := &app.Task{Platforms: []string{"windows", "linux", "darwin"}}
-	assert.Contains(task3.Platforms, runtime.GOOS)
+	task3 := &app.Task{Platforms: []string{runtime.GOOS}}
+	assert.True(task3.CanRunOnCurrentPlatform())
 
 	// Test case: When Platforms does not contain the current platform
 	task4 := &app.Task{Platforms: []string{"someotherplatform"}}
