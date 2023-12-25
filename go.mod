@@ -10,7 +10,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/nikoksr/notify v0.41.0
-	github.com/robertkrimen/otto v0.2.1
+	github.com/robertkrimen/otto v0.3.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/slack-go/slack v0.12.3
 	github.com/stretchr/testify v1.8.4
