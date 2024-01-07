@@ -61,6 +61,8 @@ func PrintXMarkLine() {
 	fmt.Print(aurora.BrightRed(" ✗\n").String())
 }
 
+// The function `FindExistingFile` takes a list of filenames and a default filename, and returns the
+// first existing filename in the list or the default filename if none of the filenames exist.
 func FindExistingFile(filenames []string, defaultFilename string) string {
 	for _, filename := range filenames {
 		if _, err := os.Stat(filename); err == nil {
@@ -71,6 +73,8 @@ func FindExistingFile(filenames []string, defaultFilename string) string {
 	return defaultFilename
 }
 
+// The function `GetCommandOutput` takes a command as input, executes it, and returns the output as a
+// string.
 func GetCommandOutput(command string) string {
 	parts := strings.Split(command, " ")
 
