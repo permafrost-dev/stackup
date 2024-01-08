@@ -92,11 +92,9 @@ tasks:
       - cp -f ./.env {{.BUILD_OUTPUT_DIR}}
 
   update-checksums:
-    dir: templates/remote-includes
     cmds:
-      - sha256sum *.yaml > checksums.sha256.txt
-      - git add checksums.sha256.txt
-      - git commit -m "update checksum files"
+      - sha256sum ./templates/remote-includes/*.yaml > ./templates/remote-includes/checksums.sha256.txt
+      - sed 's/\.\/templates\/remote-includes\///g' ./templates/remote-includes/checksums.sha256.txt --in-place
 
   autobuild:
     interactive: true
