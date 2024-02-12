@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Install Task
-        uses: arduino/setup-task@v1
+        uses: arduino/setup-task@v2
 
       - name: Install Go
         uses: actions/setup-go@v5
@@ -41,7 +41,7 @@ jobs:
 
     steps:
       - name: Install Task
-        uses: arduino/setup-task@v1
+        uses: arduino/setup-task@v2
 
       - name: Install Go
         uses: actions/setup-go@v5
