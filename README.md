@@ -41,6 +41,7 @@ Spin up your entire dev stack with one command.
     - [Example Configurations](#example-configurations)
   - [Integrations](#integrations)
     - [Integration: dotenv-vault](#integration-dotenv-vault)
+    - [Integration: Infisical](#integration-infisical)
     - [Integration: Telegram Notifications](#integration-telegram-notifications)
     - [Integration: Slack Notifications](#integration-slack-notifications)
     - [Integration: Desktop Notifications](#integration-desktop-notifications)
@@ -498,6 +499,23 @@ env:
   - MY_ENV_VAR_ONE=test1234
   - dotenv://vault # loads .env.vault, if it exists
 ```
+
+### Integration: Infisical
+
+`StackUp` includes an integration for loading secrets from an `Infisical` workspace (see the [Infisical website](https://infisical.com/)).
+
+You must define an environment variable _(either in a `.env` file or manually)_ named `INFISICAL_API_TOKEN` that contains an Infisical project's service token.
+
+The `Infisical` integration supports loading secrets from a workspace, environment, or both.  To load secrets from a workspace (project), add an entry to the `env` section with the value `infisical://workspace-id:environment`.  The `workspace-id` is the id of the workspace to load secrets from, and the `environment` is the name of the environment to load secrets from.
+
+```yaml
+env:
+  - MY_ENV_VAR_ONE=test1234
+  # load all secrets from the Infisical workspace with the id 123425fa2002e3a200d7a300 from the dev environment:
+  - infisical://123425fa2002e3a200d7a300:dev
+```
+
+Note that all secrets the service token has access to will be imported into the environment.
 
 ### Integration: Telegram Notifications
 
