@@ -12,7 +12,7 @@ require (
 	github.com/nikoksr/notify v0.41.0
 	github.com/robertkrimen/otto v0.4.0
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/slack-go/slack v0.12.5
+	github.com/slack-go/slack v0.13.0
 	github.com/stretchr/testify v1.9.0
 	gopkg.in/yaml.v2 v2.4.0
 )
