@@ -1,0 +1,38 @@
+codecov:
+  require_ci_to_pass: true
+
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+        target: auto
+        threshold: 30%
+    patch:
+      default:
+        informational: true
+  precision: 2
+  round: nearest
+  range: "70...100"
+
+parsers:
+  javascript:
+    enable_partials: yes
+  gcov:
+    branch_detection:
+      conditional: yes
+      loop: yes
+      method: no
+      macro: no
+
+comment:
+  layout: "reach,diff,flags,files,footer"
+  behavior: default
+  require_changes: true
+
+ignore:
+  - "build/"
+  - "dist/"
+  - "coverage/"
+  - "tools/"
+  - "main.go"
