@@ -1,0 +1,10 @@
+name: "CodeQL"
+
+disable-default-queries: false
+
+paths:
+  - app
+  - lib
+
+paths-ignore:
+  - tools
