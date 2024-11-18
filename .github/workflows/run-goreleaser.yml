@@ -8,18 +8,15 @@ on:
 
 permissions:
   contents: write
-  id-token: write
-  packages: write
 
 jobs:
-
-  build-and-release:
-    runs-on: ubuntu-latest
+  artifact-build:
+    runs-on: ${{ matrix.os }}
 
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest]
-      fail-fast: false
 
     steps:
       - name: Install Task
@@ -27,7 +24,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '>=1.20.0'
+          go-version: ">=1.23.0"
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,11 +33,21 @@ jobs:
 
       - run: git fetch --force --tags
 
+      # validate the configuration file
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser-pro
           version: latest
-          args: release --clean --skip-docker
+          args: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser-pro
+          version: latest
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}

@@ -1,18 +1,34 @@
 #!/usr/bin/env sh
 
 PROJECT_BASE_PATH=$(git rev-parse --show-toplevel)
-cd "$PROJECT_BASE_PATH" || exit 0
+cd $PROJECT_BASE_PATH
 
-GO_FILES_STAGED=$(git diff --name-only --cached | grep -c .go)
+NPX_BIN=$(which bunx npx | grep -v 'not found' | head -n 1 || echo "")
+GOLINT_BIN=$(which golangci-lint | grep -v 'not found' | head -n 1 || echo "")
 
-if [ -n "$GO_FILES_STAGED" ] && [ "$GO_FILES_STAGED" != "0" ]; then
-    GOLINT_BIN=$(which golangci-lint)
+GIT_STAGED_FILES=$(git diff --name-only --staged)
+GO_STAGED_FILES_COUNT=$(printf "$GIT_STAGED_FILES" | grep -E '\.go$' | wc -l | grep -E '[1-9][0-9]*$' || echo "0")
+MARKDOWN_STAGED_FILES=$(printf "$GIT_STAGED_FILES" | grep -E '\.md$' | tr '\n' ' ')
+PRETTIER_STAGED_FILES=$(printf "$GIT_STAGED_FILES" | grep -E '\.(json|yaml|yml)$' | tr '\n' ' ')
 
-    if [ -n "$GOLINT_BIN" ]; then
-        LAST_COMMIT=$(git rev-parse HEAD)
+runCommand() {
+    CMD=$1
+    shift 1
+    echo "[pre-commit] $CMD $@"
+    $CMD $@
+}
 
-        echo "[pre-commit] $GOLINT_BIN run -c ./.golangci.yaml --new-from-rev $LAST_COMMIT"
+if [ "$GO_STAGED_FILES_COUNT" != "0" ] && [ "$GOLINT_BIN" != "" ]; then
+    LAST_COMMIT=$(git rev-parse HEAD)
+    runCommand "$GOLINT_BIN" run -c ./.golangci.yaml --new-from-rev $LAST_COMMIT .
+fi
 
-        $GOLINT_BIN run -c ./.golangci.yaml --new-from-rev "$LAST_COMMIT"
-    fi
+if [ "$MARKDOWN_STAGED_FILES" != "" ] && [ "$NPX_BIN" != "" ]; then
+    runCommand "$NPX_BIN" markdownlint-cli --fix $MARKDOWN_STAGED_FILES
+    git add $MARKDOWN_STAGED_FILES
+fi
+
+if [ "$PRETTIER_STAGED_FILES" != "" ] && [ "$NPX_BIN" != "" ]; then
+    runCommand "$NPX_BIN" prettier --write $PRETTIER_STAGED_FILES
+    git add $PRETTIER_STAGED_FILES
 fi
