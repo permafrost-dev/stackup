@@ -1,6 +1,7 @@
 module github.com/stackup-app/stackup
 
 go 1.21.0
+toolchain go1.22.5
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
@@ -13,7 +14,7 @@ require (
 	github.com/robertkrimen/otto v0.5.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/slack-go/slack v0.15.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
