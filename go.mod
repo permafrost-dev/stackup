@@ -30,6 +30,7 @@ require (
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/minio/crc64nvme v1.0.1 // indirect
@@ -59,7 +60,7 @@ require (
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/minio/minio-go v6.0.14+incompatible
 	github.com/minio/minio-go/v7 v7.0.92
-	github.com/posthog/posthog-go v0.0.0-20230801140217-d607812dee69
+	github.com/posthog/posthog-go v1.5.9
 	go.etcd.io/bbolt v1.4.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
