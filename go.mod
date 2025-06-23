@@ -58,7 +58,7 @@ require (
 	github.com/golang-module/carbon/v2 v2.6.7
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/minio/minio-go v6.0.14+incompatible
-	github.com/minio/minio-go/v7 v7.0.93
+	github.com/minio/minio-go/v7 v7.0.94
 	github.com/posthog/posthog-go v0.0.0-20230801140217-d607812dee69
 	go.etcd.io/bbolt v1.4.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
