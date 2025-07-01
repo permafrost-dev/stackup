@@ -22,7 +22,7 @@ require (
 require (
 	git.sr.ht/~jackmordaunt/go-toast v1.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/dromara/carbon/v2 v2.6.7 // indirect
+	github.com/dromara/carbon/v2 v2.6.9 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/esiqveland/notify v0.13.3 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
@@ -60,7 +60,7 @@ require (
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/emirpasic/gods v1.18.1
 	github.com/gen2brain/beeep v0.11.1
-	github.com/golang-module/carbon/v2 v2.6.7
+	github.com/golang-module/carbon/v2 v2.6.9
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/minio/minio-go v6.0.14+incompatible
 	github.com/minio/minio-go/v7 v7.0.94
