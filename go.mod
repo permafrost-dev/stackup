@@ -59,7 +59,7 @@ require (
 require (
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/emirpasic/gods v1.18.1
-	github.com/gen2brain/beeep v0.11.1
+	github.com/gen2brain/beeep v0.11.2
 	github.com/golang-module/carbon/v2 v2.6.9
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/minio/minio-go v6.0.14+incompatible
