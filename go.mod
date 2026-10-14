@@ -6,7 +6,7 @@ require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/dotenv-org/godotenvvault v0.6.0
 	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203
-	github.com/gobwas/glob v0.2.3
+	github.com/gobwas/glob v1.0.0
 	github.com/joho/godotenv v1.5.1
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/nikoksr/notify v0.41.1
